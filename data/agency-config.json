@@ -1,0 +1,19 @@
+{
+  "name": "Grant Estate Agents",
+  "logo": "",
+  "primaryColor": "#1A1A1A",
+  "accentColor": "#C4A962",
+  "defaultCommissionRate": 1.5,
+  "contactEmail": "info@grantestate.co.uk",
+  "contactPhone": "",
+  "address": "High Street, Brighton",
+  "website": "https://grantestate.co.uk",
+  "defaultInclusions": [
+    "Professional photography & floor plans",
+    "Listings on Rightmove, Zoopla & OnTheMarket",
+    "Targeted social media campaigns",
+    "Accompanied viewings",
+    "Dedicated property negotiator",
+    "Sale progression through to completion"
+  ]
+}
