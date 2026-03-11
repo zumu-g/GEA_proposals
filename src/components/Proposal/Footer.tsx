@@ -12,6 +12,7 @@ export function Footer({ agency }: FooterProps) {
   const email = agency?.contactEmail
   const phone = agency?.contactPhone
   const website = agency?.website
+  const agentName = agency?.agentName
 
   return (
     <footer className="bg-charcoal-900 text-white py-16 sm:py-20">
@@ -22,29 +23,34 @@ export function Footer({ agency }: FooterProps) {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
           {/* Agency */}
           <div>
-            <p className="font-display text-2xl text-white lowercase mb-4">
+            <p className="font-display text-2xl text-white lowercase mb-2">
               {name.toLowerCase()}
             </p>
+            {agentName && (
+              <p className="text-white/70 font-sans text-sm font-light mb-3">
+                your agent: {agentName}
+              </p>
+            )}
             {agency?.address && (
-              <p className="text-white/30 font-sans text-sm font-light">{agency.address}</p>
+              <p className="text-white/60 font-sans text-sm font-light">{agency.address}</p>
             )}
           </div>
 
           {/* Contact */}
           {(email || phone) && (
             <div>
-              <p className="text-white/30 font-sans text-xs tracking-[0.2em] uppercase mb-4">contact</p>
+              <p className="text-white/60 font-sans text-xs tracking-[0.2em] uppercase mb-4">contact</p>
               <div className="font-sans text-sm font-light space-y-2">
                 {email && (
                   <p>
-                    <a href={`mailto:${email}`} className="text-white/50 hover:text-gold transition-colors">
+                    <a href={`mailto:${email}`} className="text-white/70 hover:text-gold transition-colors duration-200">
                       {email}
                     </a>
                   </p>
                 )}
                 {phone && (
                   <p>
-                    <a href={`tel:${phone}`} className="text-white/50 hover:text-gold transition-colors">
+                    <a href={`tel:${phone}`} className="text-white/70 hover:text-gold transition-colors duration-200">
                       {phone}
                     </a>
                   </p>
@@ -55,12 +61,12 @@ export function Footer({ agency }: FooterProps) {
 
           {/* Legal */}
           <div className="sm:text-left lg:text-right">
-            <p className="text-white/30 font-sans text-xs tracking-[0.2em] uppercase mb-4">notice</p>
-            <p className="text-white/20 font-sans text-xs font-light leading-relaxed">
+            <p className="text-white/60 font-sans text-xs tracking-[0.2em] uppercase mb-4">notice</p>
+            <p className="text-white/60 font-sans text-xs font-light leading-relaxed">
               this proposal is confidential and prepared exclusively for the named recipient.
             </p>
             {website && (
-              <p className="text-white/15 font-sans text-xs mt-4">{website}</p>
+              <p className="text-white/60 font-sans text-xs mt-4">{website}</p>
             )}
           </div>
         </div>

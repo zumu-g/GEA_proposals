@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { Proposal } from '@/types/proposal'
 
 interface ApprovalSectionProps {
@@ -13,6 +13,11 @@ export function ApprovalSection({ proposal }: ApprovalSectionProps) {
   const [isApproving, setIsApproving] = useState(false)
   const [isApproved, setIsApproved] = useState(proposal.status === 'approved')
   const [error, setError] = useState<string | null>(null)
+  const prefersReducedMotion = useReducedMotion()
+
+  const agentName = proposal.agency?.agentName
+  const agentPhone = proposal.agency?.agentPhone
+  const agencyName = (proposal.agency?.name || 'us').toLowerCase()
 
   const handleApprove = async () => {
     setIsApproving(true)
@@ -29,7 +34,6 @@ export function ApprovalSection({ proposal }: ApprovalSectionProps) {
 
       setIsApproved(true)
       setIsModalOpen(false)
-      window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
@@ -40,11 +44,11 @@ export function ApprovalSection({ proposal }: ApprovalSectionProps) {
   if (isApproved) {
     return (
       <section className="bg-forest py-20 sm:py-28 lg:py-36 text-center">
-        <div className="max-w-3xl mx-auto px-6 sm:px-8 lg:px-16">
+        <div className="max-w-3xl mx-auto px-6 sm:px-8 lg:px-16 xl:px-24">
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
+            initial={prefersReducedMotion ? false : { opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.5 }}
           >
             <div className="w-16 h-16 rounded-full bg-sage/20 flex items-center justify-center mx-auto mb-8">
               <svg className="w-8 h-8 text-sage" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -52,11 +56,25 @@ export function ApprovalSection({ proposal }: ApprovalSectionProps) {
               </svg>
             </div>
             <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-normal text-white lowercase mb-6">
-              proposal approved
+              thank you
             </h2>
-            <p className="text-white/50 font-sans text-lg font-light max-w-md mx-auto">
-              thank you for choosing {(proposal.agency?.name || 'us').toLowerCase()}. we'll be in touch shortly to begin the journey.
+            <p className="text-white/70 font-sans text-lg font-light max-w-md mx-auto mb-3">
+              your expression of interest has been received. {agentName ? `${agentName} will` : `we'll`} be in touch shortly to discuss next steps.
             </p>
+            <p className="text-white/70 font-sans text-sm font-light max-w-md mx-auto">
+              this is not a binding agreement — simply an indication that you&rsquo;d like to proceed.
+            </p>
+            {agentPhone && (
+              <a
+                href={`tel:${agentPhone}`}
+                className="inline-flex items-center gap-2 mt-8 text-sage font-sans text-sm font-medium hover:text-white transition-colors duration-200"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+                </svg>
+                call {agentName || 'us'} — {agentPhone}
+              </a>
+            )}
           </motion.div>
         </div>
       </section>
@@ -65,34 +83,57 @@ export function ApprovalSection({ proposal }: ApprovalSectionProps) {
 
   return (
     <>
-      <section className="bg-charcoal py-20 sm:py-28 lg:py-36 text-center print:py-16">
-        <div className="max-w-3xl mx-auto px-6 sm:px-8 lg:px-16">
+      <section className="bg-sage-50 py-20 sm:py-28 lg:py-36 text-center print:py-16 relative">
+        <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-sage-200 to-transparent" />
+        <div className="max-w-3xl mx-auto px-6 sm:px-8 lg:px-16 xl:px-24">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.5 }}
           >
-            <div className="w-12 h-0.5 bg-gold mx-auto mb-12" />
-            <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-normal text-white lowercase mb-6">
+            {/* Dot cluster treatment — distinct from gold line */}
+            <div className="flex items-center justify-center gap-1.5 mb-12">
+              <div className="w-1.5 h-1.5 rounded-full bg-sage" />
+              <div className="w-1.5 h-1.5 rounded-full bg-gold" />
+              <div className="w-1.5 h-1.5 rounded-full bg-sage" />
+            </div>
+
+            <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-normal text-charcoal lowercase mb-6">
               ready to begin?
             </h2>
-            <p className="text-white/50 font-sans text-lg font-light mb-12 max-w-md mx-auto">
-              approve this proposal to start your selling journey with {(proposal.agency?.name || 'us').toLowerCase()}.
+            <p className="text-charcoal-400 font-sans text-lg font-light mb-12 max-w-md mx-auto">
+              express your interest to start the selling journey with {agencyName}.
             </p>
 
             <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={prefersReducedMotion ? {} : { scale: 1.02 }}
+              whileTap={prefersReducedMotion ? {} : { scale: 0.97 }}
               onClick={() => setIsModalOpen(true)}
-              className="inline-flex items-center px-12 py-5 bg-gold text-charcoal font-sans font-medium text-lg tracking-wide rounded hover:bg-gold-600 transition-colors min-h-[56px] print:hidden"
+              className="inline-flex items-center px-12 py-5 bg-charcoal text-white font-sans font-medium text-lg tracking-wide rounded-lg hover:bg-charcoal-700 transition-colors duration-200 min-h-[56px] shadow-md hover:shadow-lg print:hidden"
             >
-              approve proposal
+              proceed with proposal
             </motion.button>
 
-            <p className="print:hidden text-white/20 font-sans text-sm mt-8">
-              or contact us to discuss any questions
-            </p>
+            {/* Secondary CTA — call agent */}
+            {agentPhone ? (
+              <div className="print:hidden mt-8">
+                <p className="text-charcoal-400 font-sans text-sm mb-2">have questions?</p>
+                <a
+                  href={`tel:${agentPhone}`}
+                  className="inline-flex items-center gap-2 text-charcoal font-sans text-sm font-medium hover:text-gold transition-colors duration-200"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+                  </svg>
+                  call {agentName ? agentName.toLowerCase() : 'us'} — {agentPhone}
+                </a>
+              </div>
+            ) : (
+              <p className="print:hidden text-charcoal-400 font-sans text-sm mt-8">
+                or contact us to discuss any questions
+              </p>
+            )}
           </motion.div>
         </div>
       </section>
@@ -109,21 +150,25 @@ export function ApprovalSection({ proposal }: ApprovalSectionProps) {
               onClick={() => setIsModalOpen(false)}
             />
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-2xl z-[70] w-11/12 max-w-md p-6 sm:p-8"
+              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-2xl z-[70] w-11/12 max-w-md p-6 sm:p-8"
             >
-              <div className="gold-accent-line mb-6" />
+              {/* Forest bar treatment for modal */}
+              <div className="w-10 h-1 bg-forest rounded-full mb-6" />
               <h3 className="font-display text-2xl font-normal text-charcoal lowercase mb-4">
-                confirm approval
+                confirm your interest
               </h3>
-              <p className="text-charcoal-400 font-sans font-light mb-6 leading-relaxed">
-                by approving this proposal, you're confirming you'd like us to proceed with marketing your property. we'll be in touch to arrange next steps.
+              <p className="text-charcoal-400 font-sans font-light mb-2 leading-relaxed">
+                by proceeding, you&rsquo;re expressing your interest in engaging {agencyName} to market your property. this is not a binding contract.
+              </p>
+              <p className="text-charcoal-400 font-sans text-sm font-light mb-6 leading-relaxed">
+                {agentName ? `${agentName} will` : `we'll`} be in touch to discuss the formal agreement and arrange next steps.
               </p>
 
               {error && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded">
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
                   <p className="text-red-600 text-sm font-sans">{error}</p>
                 </div>
               )}
@@ -132,16 +177,16 @@ export function ApprovalSection({ proposal }: ApprovalSectionProps) {
                 <button
                   onClick={() => setIsModalOpen(false)}
                   disabled={isApproving}
-                  className="flex-1 px-6 py-3 border-2 border-charcoal text-charcoal font-sans font-medium rounded hover:bg-charcoal hover:text-white transition-colors min-h-[44px]"
+                  className="flex-1 px-6 py-3 border-2 border-charcoal-100 text-charcoal font-sans font-medium rounded-lg hover:bg-charcoal-50 transition-colors duration-200 min-h-[48px]"
                 >
                   cancel
                 </button>
                 <button
                   onClick={handleApprove}
                   disabled={isApproving}
-                  className="flex-1 px-6 py-3 bg-gold text-charcoal font-sans font-medium rounded hover:bg-gold-600 transition-colors disabled:opacity-50 min-h-[44px]"
+                  className="flex-1 px-6 py-3 bg-forest text-white font-sans font-medium rounded-lg hover:bg-forest/90 transition-colors duration-200 disabled:opacity-50 min-h-[48px]"
                 >
-                  {isApproving ? 'approving...' : 'yes, approve'}
+                  {isApproving ? 'submitting...' : 'yes, proceed'}
                 </button>
               </div>
             </motion.div>

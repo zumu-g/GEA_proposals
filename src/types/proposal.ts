@@ -8,12 +8,22 @@ export interface AgencyConfig {
   contactPhone: string;
   address?: string;
   website?: string;
+  agentName?: string;
+  agentPhone?: string;
+  agentPhoto?: string;
+  stats?: AgencyStat[];
+}
+
+export interface AgencyStat {
+  value: string;
+  label: string;
 }
 
 export interface FeeInfo {
   commissionRate: number;
   fixedFees?: string[];
   inclusions?: string[];
+  marketingBudget?: string;
 }
 
 export interface Proposal {
@@ -24,6 +34,8 @@ export interface Proposal {
   proposalDate: string;
   heroImage?: string;
   propertyImages?: string[];
+  priceGuide?: { min: number; max: number };
+  methodOfSale?: string;
   saleProcess: SaleStep[];
   marketingPlan: MarketingItem[];
   recentSales: PropertySale[];
@@ -46,6 +58,7 @@ export interface MarketingItem {
   channel: string;
   description: string;
   cost?: string;
+  icon?: string;
 }
 
 export interface PropertySale {

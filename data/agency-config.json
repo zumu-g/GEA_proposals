@@ -4,16 +4,24 @@
   "primaryColor": "#1A1A1A",
   "accentColor": "#C4A962",
   "defaultCommissionRate": 1.5,
-  "contactEmail": "info@grantestate.co.uk",
-  "contactPhone": "",
-  "address": "High Street, Brighton",
-  "website": "https://grantestate.co.uk",
+  "contactEmail": "info@grantestate.com.au",
+  "contactPhone": "03 9876 5432",
+  "address": "123 High Street, Brighton VIC 3186",
+  "website": "https://grantestate.com.au",
+  "agentName": "Stuart Grant",
+  "agentPhone": "0412 345 678",
+  "stats": [
+    { "value": "15+", "label": "years experience" },
+    { "value": "1,200+", "label": "properties sold" },
+    { "value": "4.9★", "label": "rate my agent" },
+    { "value": "21", "label": "avg days on market" }
+  ],
   "defaultInclusions": [
     "Professional photography & floor plans",
-    "Listings on Rightmove, Zoopla & OnTheMarket",
+    "Listings on realestate.com.au, Domain & more",
     "Targeted social media campaigns",
-    "Accompanied viewings",
-    "Dedicated property negotiator",
-    "Sale progression through to completion"
+    "Private inspections & open homes",
+    "Dedicated selling agent",
+    "Sale management through to settlement"
   ]
 }

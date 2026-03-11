@@ -53,17 +53,22 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
         {/* Full-viewport cinematic hero */}
         <FullHero proposal={proposal} />
 
-        {/* Brand statement - dramatic quote */}
-        <BrandStatement />
+        {/* Brand statement - personalised to property */}
+        <BrandStatement proposal={proposal} />
 
         {/* Stats bar - key numbers */}
-        <StatsBar />
+        <StatsBar stats={proposal.agency?.stats} />
 
-        {/* Visual process journey - the Grant's way */}
-        <ProcessJourney />
+        {/* Recent comparable sales — moved up, this is what vendors care about most */}
+        {proposal.recentSales?.length > 0 && (
+          <RecentSales sales={proposal.recentSales} />
+        )}
 
-        {/* Marketing showcase - portfolio grid */}
-        <MarketingShowcase />
+        {/* Visual process journey */}
+        <ProcessJourney steps={proposal.saleProcess} />
+
+        {/* Marketing showcase */}
+        <MarketingShowcase items={proposal.marketingPlan} />
 
         {/* Property gallery - if images provided */}
         {proposal.propertyImages && proposal.propertyImages.length > 0 && (
@@ -71,11 +76,6 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
             images={proposal.propertyImages}
             address={proposal.propertyAddress}
           />
-        )}
-
-        {/* Recent comparable sales */}
-        {proposal.recentSales?.length > 0 && (
-          <RecentSales sales={proposal.recentSales} />
         )}
 
         {/* Fee structure */}
