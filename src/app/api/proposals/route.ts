@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
     const id = searchParams.get('id')
 
     if (id) {
-      const { getProposal } = await import('@/lib/proposal-generator')
+      const { getProposal, getActivities } = await import('@/lib/proposal-generator')
       const proposal = await getProposal(id)
 
       if (!proposal) {
@@ -109,6 +109,12 @@ export async function GET(request: NextRequest) {
           { error: 'Proposal not found' },
           { status: 404 }
         )
+      }
+
+      const includeActivities = searchParams.get('activities') === 'true'
+      if (includeActivities) {
+        const activities = getActivities(id)
+        return NextResponse.json({ ...proposal, activities })
       }
 
       return NextResponse.json(proposal)

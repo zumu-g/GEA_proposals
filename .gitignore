@@ -36,6 +36,9 @@ next-env.d.ts
 # data
 /data/proposals/*.json
 !/data/proposals/.gitkeep
+/data/*.db
+/data/*.db-wal
+/data/*.db-shm
 
 # reference files (large binaries)
 *.pptx

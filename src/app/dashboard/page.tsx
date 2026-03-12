@@ -1,350 +1,160 @@
-'use client'
+import { getDb } from '@/lib/db'
+import { PipelineBoard } from '@/components/Dashboard/PipelineBoard'
+import type { DashboardProposal } from '@/components/Dashboard/ProposalCard'
+import type { DashboardSummary } from '@/components/Dashboard/StatsOverview'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import Link from 'next/link'
-import { Proposal } from '@/types/proposal'
-
-type StatusFilter = 'all' | Proposal['status']
-
-const STATUS_LABELS: Record<Proposal['status'], string> = {
-  draft: 'draft',
-  sent: 'sent',
-  viewed: 'viewed',
-  approved: 'approved',
-  rejected: 'rejected',
+interface ProposalRow {
+  id: string
+  client_name: string
+  client_email: string
+  property_address: string
+  proposal_date: string
+  price_guide_min: number | null
+  price_guide_max: number | null
+  method_of_sale: string | null
+  status: string
+  sent_at: string | null
+  viewed_at: string | null
+  approved_at: string | null
+  created_at: string
+  updated_at: string
 }
 
-const STATUS_COLORS: Record<Proposal['status'], string> = {
-  draft: 'bg-white/10 text-white/50',
-  sent: 'bg-gold/20 text-gold',
-  viewed: 'bg-gold/10 text-gold-300',
-  approved: 'bg-sage/20 text-sage-300',
-  rejected: 'bg-white/10 text-white/40',
+function computeDaysInStage(row: ProposalRow): number {
+  let stageStart: string
+  switch (row.status) {
+    case 'approved':
+      stageStart = row.approved_at || row.updated_at
+      break
+    case 'viewed':
+      stageStart = row.viewed_at || row.updated_at
+      break
+    case 'sent':
+      stageStart = row.sent_at || row.updated_at
+      break
+    default:
+      stageStart = row.created_at
+  }
+  const start = new Date(stageStart)
+  const now = new Date()
+  return Math.max(0, Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)))
 }
 
-function formatDate(dateString: string): string {
-  if (!dateString) return ''
-  const d = new Date(dateString)
-  if (isNaN(d.getTime())) return ''
-  return d.toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
+function getDashboardData() {
+  const db = getDb()
+
+  const proposals = db
+    .prepare(
+      `SELECT id, client_name, client_email, property_address, proposal_date,
+              price_guide_min, price_guide_max, method_of_sale, status,
+              sent_at, viewed_at, approved_at, created_at, updated_at
+       FROM proposals ORDER BY updated_at DESC`
+    )
+    .all() as ProposalRow[]
+
+  const activityStats = db
+    .prepare(
+      `SELECT proposal_id,
+              COUNT(*) as count,
+              MAX(created_at) as last_activity
+       FROM activities GROUP BY proposal_id`
+    )
+    .all() as { proposal_id: string; count: number; last_activity: string }[]
+
+  const activityMap = new Map(
+    activityStats.map((a) => [a.proposal_id, { count: a.count, lastActivity: a.last_activity }])
+  )
+
+  const dashboardProposals: DashboardProposal[] = proposals.map((row) => {
+    const stats = activityMap.get(row.id)
+    return {
+      id: row.id,
+      clientName: row.client_name,
+      clientEmail: row.client_email,
+      propertyAddress: row.property_address,
+      proposalDate: row.proposal_date,
+      priceGuide:
+        row.price_guide_min != null && row.price_guide_max != null
+          ? { min: row.price_guide_min, max: row.price_guide_max }
+          : null,
+      methodOfSale: row.method_of_sale,
+      status: row.status,
+      sentAt: row.sent_at,
+      viewedAt: row.viewed_at,
+      approvedAt: row.approved_at,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      daysInStage: computeDaysInStage(row),
+      lastActivityDate: stats?.lastActivity || null,
+      activityCount: stats?.count || 0,
+    }
   })
+
+  const grouped: Record<string, DashboardProposal[]> = {
+    draft: [],
+    sent: [],
+    viewed: [],
+    approved: [],
+    rejected: [],
+  }
+  for (const p of dashboardProposals) {
+    if (grouped[p.status]) {
+      grouped[p.status].push(p)
+    }
+  }
+
+  const summary: DashboardSummary = {
+    total: dashboardProposals.length,
+    draft: grouped.draft.length,
+    sent: grouped.sent.length,
+    viewed: grouped.viewed.length,
+    approved: grouped.approved.length,
+    rejected: grouped.rejected.length,
+    awaitingResponse: grouped.sent.length,
+    hotLeads: grouped.viewed.length,
+    recentlyCreated: dashboardProposals.filter((p) => {
+      const created = new Date(p.createdAt)
+      const weekAgo = new Date()
+      weekAgo.setDate(weekAgo.getDate() - 7)
+      return created >= weekAgo
+    }).length,
+  }
+
+  return { proposals: dashboardProposals, grouped, summary }
 }
 
-function formatTime(dateString: string): string {
-  if (!dateString) return ''
-  const d = new Date(dateString)
-  if (isNaN(d.getTime())) return ''
-  return d.toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
+export const dynamic = 'force-dynamic'
 
 export default function DashboardPage() {
-  const [proposals, setProposals] = useState<Proposal[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [filter, setFilter] = useState<StatusFilter>('all')
-  const [actionLoading, setActionLoading] = useState<Set<string>>(new Set())
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
-  const [actionError, setActionError] = useState<{ id: string; message: string } | null>(null)
-  const hasLoaded = useRef(false)
-
-  const addLoading = (id: string) => setActionLoading(prev => new Set(prev).add(id))
-  const removeLoading = (id: string) => setActionLoading(prev => { const s = new Set(prev); s.delete(id); return s })
-
-  const fetchProposals = useCallback(async () => {
-    setError(null)
-    try {
-      const res = await fetch('/api/proposals')
-      if (!res.ok) throw new Error('Failed to load proposals')
-      const data = await res.json()
-      setProposals(data.proposals || [])
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load proposals')
-    } finally {
-      setLoading(false)
-      hasLoaded.current = true
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchProposals()
-  }, [fetchProposals])
-
-  const filteredProposals = filter === 'all'
-    ? proposals
-    : proposals.filter(p => p.status === filter)
-
-  const stats = {
-    total: proposals.length,
-    draft: proposals.filter(p => p.status === 'draft').length,
-    sent: proposals.filter(p => p.status === 'sent').length,
-    viewed: proposals.filter(p => p.status === 'viewed').length,
-    approved: proposals.filter(p => p.status === 'approved').length,
-  }
-
-  const handleFilterChange = (status: StatusFilter) => {
-    setFilter(status)
-    setDeleteConfirm(null)
-    setActionError(null)
-  }
-
-  const handleResend = async (proposalId: string) => {
-    if (actionLoading.has(proposalId)) return
-    addLoading(proposalId)
-    setActionError(null)
-    try {
-      const res = await fetch('/api/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ proposalId }),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        setActionError({ id: proposalId, message: data.error || 'Failed to send' })
-      } else {
-        setProposals(prev => prev.map(p =>
-          p.id === proposalId ? { ...p, status: p.status === 'draft' ? 'sent' as const : p.status, sentAt: p.sentAt || new Date().toISOString() } : p
-        ))
-      }
-    } catch {
-      setActionError({ id: proposalId, message: 'Failed to send email' })
-    } finally {
-      removeLoading(proposalId)
-    }
-  }
-
-  const handleDelete = async (proposalId: string) => {
-    if (actionLoading.has(proposalId)) return
-    addLoading(proposalId)
-    setActionError(null)
-    try {
-      const res = await fetch(`/api/proposals?id=${proposalId}`, {
-        method: 'DELETE',
-      })
-      if (res.ok) {
-        setProposals(prev => prev.filter(p => p.id !== proposalId))
-        setDeleteConfirm(null)
-      } else {
-        setActionError({ id: proposalId, message: 'Failed to delete proposal' })
-      }
-    } catch {
-      setActionError({ id: proposalId, message: 'Failed to delete proposal' })
-    } finally {
-      removeLoading(proposalId)
-    }
-  }
+  const { proposals, grouped, summary } = getDashboardData()
 
   return (
     <div className="min-h-screen bg-charcoal">
-      <div className="w-full h-1 bg-gold" />
+      {/* Top accent bar */}
+      <div className="w-full h-0.5 bg-gradient-to-r from-gold/0 via-gold to-gold/0" />
 
-      <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 py-12 sm:py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-        >
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between mb-10 gap-4">
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-16 py-10 sm:py-14">
+        {/* Header */}
+        <header className="mb-10">
+          <p className="text-gold/70 font-sans text-[10px] tracking-wider-custom uppercase mb-3">
+            grant estate agents
+          </p>
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
             <div>
-              <p className="text-gold font-sans text-sm tracking-wider-custom mb-4">
-                grant estate agents
-              </p>
-              <h1 className="font-display text-3xl sm:text-4xl font-normal text-white lowercase">
-                proposals
+              <h1 className="font-display text-3xl sm:text-4xl font-normal text-white lowercase leading-tight">
+                proposal pipeline
               </h1>
-              <div className="gold-accent-line mt-4" />
+              <div className="w-12 h-px bg-sage/40 mt-4" />
             </div>
-            <Link
-              href="/"
-              className="inline-flex items-center px-5 py-3 bg-gold text-charcoal rounded font-sans text-sm font-medium hover:bg-gold-600 transition-colors min-h-[44px]"
-            >
-              + new proposal
-            </Link>
           </div>
+        </header>
 
-          {/* Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-12">
-            {[
-              { label: 'total', value: stats.total, accent: 'border-white/10' },
-              { label: 'draft', value: stats.draft, accent: 'border-white/5' },
-              { label: 'sent', value: stats.sent, accent: 'border-gold/30' },
-              { label: 'viewed', value: stats.viewed, accent: 'border-gold/10' },
-              { label: 'approved', value: stats.approved, accent: 'border-sage/30' },
-            ].map((stat) => (
-              <div
-                key={stat.label}
-                className={`bg-white/5 border ${stat.accent} rounded-lg p-4`}
-              >
-                <p className="text-white/40 font-sans text-xs tracking-wider-custom mb-1">
-                  {stat.label}
-                </p>
-                <p className="text-white font-display text-2xl">{stat.value}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Filters */}
-          <div className="flex flex-wrap gap-2 mb-10" role="tablist">
-            {(['all', 'draft', 'sent', 'viewed', 'approved', 'rejected'] as const).map((status) => (
-              <button
-                key={status}
-                role="tab"
-                aria-selected={filter === status}
-                onClick={() => handleFilterChange(status)}
-                className={`px-4 py-2 rounded font-sans text-sm transition-colors ${
-                  filter === status
-                    ? 'bg-gold text-charcoal font-medium'
-                    : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/70'
-                }`}
-              >
-                {status}
-                {status !== 'all' && (
-                  <span className="ml-1.5 text-xs opacity-60">
-                    {proposals.filter(p => p.status === status).length}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-
-          {/* Error State */}
-          {error && (
-            <div className="mb-6 p-5 bg-white/5 border border-white/10 rounded-lg">
-              <p className="font-sans font-medium text-white/60 mb-2">{error}</p>
-              <button
-                onClick={() => { setLoading(true); fetchProposals() }}
-                className="text-sm font-sans text-gold hover:text-gold-300 transition-colors underline"
-              >
-                try again
-              </button>
-            </div>
-          )}
-
-          {/* Proposal List */}
-          {loading ? (
-            <div className="text-left py-20">
-              <div className="inline-block w-6 h-6 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
-              <p className="text-white/30 font-sans text-sm mt-4">loading proposals...</p>
-            </div>
-          ) : !error && filteredProposals.length === 0 ? (
-            <div className="text-left py-20 bg-white/5 border border-white/10 rounded-lg px-6">
-              <p className="text-white/30 font-sans text-lg font-light mb-2">
-                {filter === 'all' ? 'no proposals yet' : `no ${filter} proposals`}
-              </p>
-              {filter === 'all' && (
-                <Link
-                  href="/"
-                  className="text-gold font-sans text-sm hover:text-gold-300 transition-colors"
-                >
-                  create your first proposal
-                </Link>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <AnimatePresence mode="popLayout">
-                {filteredProposals.map((proposal, index) => (
-                  <motion.div
-                    key={proposal.id}
-                    layout
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ delay: hasLoaded.current ? 0 : index * 0.03 }}
-                    className="bg-white/5 border border-white/10 rounded-lg p-5 hover:bg-white/[0.07] transition-colors"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-1.5">
-                          <h3 className="text-white font-sans font-medium text-base truncate">
-                            {proposal.propertyAddress}
-                          </h3>
-                          <span className={`shrink-0 px-2.5 py-0.5 rounded-full text-xs font-sans font-medium ${STATUS_COLORS[proposal.status]}`}>
-                            {STATUS_LABELS[proposal.status]}
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-sans text-white/40">
-                          <span>{proposal.clientName}</span>
-                          <span className="text-white/20">{proposal.clientEmail}</span>
-                          <span>{formatDate(proposal.proposalDate)}</span>
-                          {proposal.sentAt && (
-                            <span className="text-gold/50">sent {formatDate(proposal.sentAt)}</span>
-                          )}
-                          {proposal.viewedAt && (
-                            <span className="text-gold/50">viewed {formatDate(proposal.viewedAt)} {formatTime(proposal.viewedAt)}</span>
-                          )}
-                          {proposal.approvedAt && (
-                            <span className="text-sage/60">approved {formatDate(proposal.approvedAt)}</span>
-                          )}
-                        </div>
-
-                        {/* Inline action error */}
-                        {actionError?.id === proposal.id && (
-                          <p className="text-white/50 text-xs font-sans mt-2">{actionError.message}</p>
-                        )}
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-2 shrink-0">
-                        <a
-                          href={`/proposal/${proposal.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          aria-label={`View proposal for ${proposal.propertyAddress}`}
-                          className="px-3 py-2 bg-white/5 border border-white/10 rounded text-white/60 hover:text-white hover:bg-white/10 font-sans text-xs font-medium transition-colors min-h-[44px] flex items-center"
-                        >
-                          view
-                        </a>
-                        <button
-                          onClick={() => handleResend(proposal.id)}
-                          disabled={actionLoading.has(proposal.id)}
-                          aria-label={`Send proposal for ${proposal.propertyAddress}`}
-                          className="px-3 py-2 bg-white/5 border border-white/10 rounded text-white/60 hover:text-gold hover:border-gold/30 font-sans text-xs font-medium transition-colors disabled:opacity-50 min-h-[44px]"
-                        >
-                          {actionLoading.has(proposal.id) ? '...' : 'send'}
-                        </button>
-
-                        {deleteConfirm === proposal.id ? (
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleDelete(proposal.id)}
-                              disabled={actionLoading.has(proposal.id)}
-                              className="px-3 py-2 bg-white/10 border border-white/20 rounded text-white/70 font-sans text-xs font-medium hover:bg-white/15 transition-colors disabled:opacity-50 min-h-[44px]"
-                            >
-                              confirm
-                            </button>
-                            <button
-                              onClick={() => setDeleteConfirm(null)}
-                              className="px-3 py-2 bg-white/5 border border-white/10 rounded text-white/40 font-sans text-xs font-medium hover:text-white/60 transition-colors min-h-[44px]"
-                            >
-                              cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setDeleteConfirm(proposal.id)}
-                            aria-label={`Delete proposal for ${proposal.propertyAddress}`}
-                            className="px-3 py-2 bg-white/5 border border-white/10 rounded text-white/30 hover:text-white/60 hover:border-white/20 font-sans text-xs font-medium transition-colors min-h-[44px]"
-                          >
-                            delete
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
-          )}
-        </motion.div>
+        {/* Pipeline board */}
+        <PipelineBoard
+          initialProposals={proposals}
+          initialGrouped={grouped}
+          initialSummary={summary}
+        />
       </div>
     </div>
   )

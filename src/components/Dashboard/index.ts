@@ -1,0 +1,7 @@
+export { PipelineBoard } from './PipelineBoard'
+export { ProposalCard } from './ProposalCard'
+export { StatsOverview } from './StatsOverview'
+export { ActivityLog } from './ActivityLog'
+export type { DashboardProposal } from './ProposalCard'
+export type { DashboardSummary } from './StatsOverview'
+export type { Activity } from './ActivityLog'
