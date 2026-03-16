@@ -18,6 +18,7 @@
 
 import { createProposal, parseCSV } from './spreadsheet-parser'
 import { saveProposal, getAgencyConfig, logActivity } from './proposal-generator'
+import { lookupComparables } from './comparables-lookup'
 import { getDb } from './db'
 import { Proposal } from '@/types/proposal'
 
@@ -204,6 +205,18 @@ async function processEmail(message: AgentMailMessage): Promise<ProcessResult> {
     }
   }
 
+  // Auto-lookup comparable sales if no CSV was attached
+  let autoComparables
+  if (!spreadsheetRows) {
+    try {
+      console.log(`[email-intake] Looking up comparables for: ${brief.propertyAddress}`)
+      autoComparables = await lookupComparables(brief.propertyAddress)
+      console.log(`[email-intake] Found ${autoComparables.length} comparable sales`)
+    } catch (err) {
+      console.error('[email-intake] Comparables lookup failed:', err)
+    }
+  }
+
   // Build proposal
   const proposal = createProposal({
     clientName: brief.clientName,
@@ -227,6 +240,11 @@ async function processEmail(message: AgentMailMessage): Promise<ProcessResult> {
   }
   if (brief.methodOfSale) {
     proposal.methodOfSale = brief.methodOfSale
+  }
+
+  // Add auto-looked-up comparables if no CSV was provided
+  if (autoComparables && autoComparables.length > 0 && proposal.recentSales.length === 0) {
+    proposal.recentSales = autoComparables
   }
 
   await saveProposal(proposal)
