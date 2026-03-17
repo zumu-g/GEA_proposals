@@ -39,7 +39,8 @@ export function ApprovalButton({ proposal, onApprovalChange }: ApprovalButtonPro
       setIsApproved(true)
       setIsModalOpen(false)
       onApprovalChange?.(true)
-
+      
+      // Scroll to top to show success message
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
@@ -50,18 +51,18 @@ export function ApprovalButton({ proposal, onApprovalChange }: ApprovalButtonPro
 
   if (isApproved) {
     return (
-      <div className="fixed bottom-0 left-0 right-0 bg-sage-50 border-t border-sage-200 z-50 safe-area-inset-bottom">
-        <div className="max-w-7xl mx-auto px-6 sm:px-8 py-4">
+      <div className="fixed bottom-0 left-0 right-0 bg-green-50 border-t border-green-200 z-50 safe-area-inset-bottom">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-center space-x-2">
-            <svg className="w-6 h-6 text-sage-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
-            <p className="text-sage-800 font-sans font-semibold text-lg">
-              proposal approved
+            <p className="text-green-800 font-semibold text-lg">
+              Proposal Approved
             </p>
           </div>
-          <p className="text-sage-600 text-sm text-center mt-1 font-sans font-light">
-            thank you for your approval. we'll be in touch soon.
+          <p className="text-green-600 text-sm text-center mt-1">
+            Thank you for your approval. We'll be in touch soon.
           </p>
         </div>
       </div>
@@ -70,28 +71,28 @@ export function ApprovalButton({ proposal, onApprovalChange }: ApprovalButtonPro
 
   return (
     <>
-      {/* Desktop: Floating button */}
+      {/* Desktop: Floating button at bottom */}
       <div className="hidden sm:block fixed bottom-8 right-8 z-50">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 1 }}
+          transition={{ duration: 0.3 }}
         >
-          <Button
-            variant="primary"
-            size="lg"
-            onClick={() => setIsModalOpen(true)}
-            className="shadow-2xl"
-            aria-label="Approve this proposal"
-          >
-            approve proposal
-          </Button>
+              <Button
+                variant="primary"
+                size="lg"
+                onClick={() => setIsModalOpen(true)}
+                className="shadow-2xl"
+                aria-label="Approve this proposal"
+              >
+                Approve Proposal
+              </Button>
         </motion.div>
       </div>
 
       {/* Mobile: Fixed at bottom */}
-      <div className="sm:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-sm border-t border-charcoal-100 z-50 safe-area-inset-bottom">
-        <div className="max-w-7xl mx-auto px-4 py-3">
+      <div className="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 safe-area-inset-bottom shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 py-4">
           <Button
             variant="primary"
             size="lg"
@@ -99,7 +100,7 @@ export function ApprovalButton({ proposal, onApprovalChange }: ApprovalButtonPro
             className="w-full"
             aria-label="Approve this proposal"
           >
-            approve proposal
+            Approve Proposal
           </Button>
         </div>
       </div>
@@ -112,26 +113,25 @@ export function ApprovalButton({ proposal, onApprovalChange }: ApprovalButtonPro
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-charcoal/60 backdrop-blur-sm z-[60]"
+              className="fixed inset-0 bg-black bg-opacity-50 z-[60]"
               onClick={() => setIsModalOpen(false)}
             />
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-2xl z-[70] w-11/12 max-w-md p-6 sm:p-8"
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-2xl z-[70] w-11/12 max-w-md p-6 sm:p-8"
             >
-              <div className="gold-accent-line mb-6" />
-              <h3 className="font-display text-2xl font-normal text-charcoal lowercase mb-4">
-                confirm approval
+              <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                Confirm Approval
               </h3>
-              <p className="text-charcoal-400 font-sans font-light mb-6 leading-relaxed">
-                by approving this proposal, you're confirming you'd like us to proceed. we'll be in touch to discuss the next steps.
+              <p className="text-gray-600 mb-6">
+                Are you sure you want to approve this proposal? This will notify our team and we'll begin the process.
               </p>
 
               {error && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded">
-                  <p className="text-red-600 text-sm font-sans">{error}</p>
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-600 text-sm">{error}</p>
                 </div>
               )}
 
@@ -142,7 +142,7 @@ export function ApprovalButton({ proposal, onApprovalChange }: ApprovalButtonPro
                   className="flex-1"
                   disabled={isApproving}
                 >
-                  cancel
+                  Cancel
                 </Button>
                 <Button
                   variant="primary"
@@ -150,7 +150,7 @@ export function ApprovalButton({ proposal, onApprovalChange }: ApprovalButtonPro
                   isLoading={isApproving}
                   className="flex-1"
                 >
-                  yes, approve
+                  Yes, Approve
                 </Button>
               </div>
             </motion.div>
@@ -160,3 +160,4 @@ export function ApprovalButton({ proposal, onApprovalChange }: ApprovalButtonPro
     </>
   )
 }
+

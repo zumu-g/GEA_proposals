@@ -2,13 +2,26 @@
 
 import React from 'react'
 import { motion } from 'framer-motion'
+import { Card } from '@/components/ui/Card'
 import { MarketingItem } from '@/types/proposal'
 
 interface MarketingPlanProps {
   items: MarketingItem[]
 }
 
+const channelIcons: Record<string, string> = {
+  'Online Listings': '🌐',
+  'Social Media': '📱',
+  'Print Media': '📰',
+  'Email Marketing': '✉️',
+  'Open Houses': '🏠',
+  'Photography': '📸',
+  'Virtual Tours': '🎥',
+  'Signage': '📍',
+}
+
 export function MarketingPlan({ items }: MarketingPlanProps) {
+  // Group items by channel
   const groupedItems = items.reduce((acc, item) => {
     if (!acc[item.channel]) {
       acc[item.channel] = []
@@ -18,21 +31,23 @@ export function MarketingPlan({ items }: MarketingPlanProps) {
   }, {} as Record<string, MarketingItem[]>)
 
   return (
-    <section className="py-16 sm:py-20 lg:py-24 bg-off-white">
-      <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12">
+    <section className="py-12 sm:py-16 lg:py-20 bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
-          className="mb-12 sm:mb-16"
         >
-          <p className="text-charcoal-400 font-sans text-lg font-light max-w-xl">
-            comprehensive marketing to maximise your property's exposure
+          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2 text-center sm:text-left">
+            Marketing Plan
+          </h2>
+          <p className="text-gray-600 mb-8 sm:mb-12 text-center sm:text-left">
+            Comprehensive marketing strategy to maximize exposure
           </p>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {Object.entries(groupedItems).map(([channel, channelItems], index) => (
             <motion.div
               key={channel}
@@ -40,25 +55,31 @@ export function MarketingPlan({ items }: MarketingPlanProps) {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4, delay: index * 0.1 }}
-              className="border-l-2 border-gold pl-6 sm:pl-8"
             >
-              <h3 className="font-display text-xl sm:text-2xl font-normal lowercase mb-4 text-charcoal">
-                {channel.toLowerCase()}
-              </h3>
-              <div className="space-y-4">
-                {channelItems.map((item, itemIndex) => (
-                  <div key={itemIndex}>
-                    <p className="text-charcoal-400 font-sans text-base font-light leading-relaxed">
-                      {item.description}
-                    </p>
-                    {item.cost && (
-                      <p className="text-gold-600 font-sans text-sm font-medium mt-1">
-                        {item.cost}
+              <Card hover className="h-full">
+                <div className="flex items-start mb-4">
+                  <span className="text-3xl mr-3">
+                    {channelIcons[channel] || '📌'}
+                  </span>
+                  <h3 className="text-xl font-semibold text-gray-900">
+                    {channel}
+                  </h3>
+                </div>
+                <div className="space-y-3">
+                  {channelItems.map((item, itemIndex) => (
+                    <div key={itemIndex} className="border-l-4 border-primary-200 pl-4">
+                      <p className="text-gray-700 mb-1">
+                        {item.description}
                       </p>
-                    )}
-                  </div>
-                ))}
-              </div>
+                      {item.cost && (
+                        <p className="text-sm text-primary-600 font-medium">
+                          {item.cost}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </Card>
             </motion.div>
           ))}
         </div>
@@ -66,3 +87,4 @@ export function MarketingPlan({ items }: MarketingPlanProps) {
     </section>
   )
 }
+
