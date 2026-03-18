@@ -1,6 +1,7 @@
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 import { Proposal, PropertySale, SaleStep, MarketingItem, FeeInfo, AgencyConfig } from '@/types/proposal'
+import { getDefaultProposalExtras } from '@/lib/proposal-generator'
 import { generateId } from './utils'
 
 export interface SpreadsheetRow {
@@ -174,6 +175,8 @@ export function createProposal(input: CreateProposalInput): Proposal {
     ? extractPropertySales(input.spreadsheetRows)
     : []
 
+  const defaults = getDefaultProposalExtras()
+
   return {
     id: generateId(),
     clientName: input.clientName,
@@ -188,6 +191,7 @@ export function createProposal(input: CreateProposalInput): Proposal {
     fees: input.fees,
     agency: input.agency,
     status: 'draft',
+    ...defaults,
   }
 }
 

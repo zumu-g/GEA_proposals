@@ -10,19 +10,17 @@ interface SaleProcessProps {
 
 export function SaleProcess({ steps }: SaleProcessProps) {
   return (
-    <section className="py-12 sm:py-16 lg:py-20 bg-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section className="py-16 sm:py-20 lg:py-24 bg-off-white">
+      <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
+          className="mb-12 sm:mb-16"
         >
-          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2 text-center sm:text-left">
-            Our Sale Process
-          </h2>
-          <p className="text-gray-600 mb-8 sm:mb-12 text-center sm:text-left">
-            A clear, step-by-step approach to selling your property
+          <p className="text-charcoal-400 font-sans text-lg font-light max-w-xl">
+            a clear, step-by-step approach to selling your property
           </p>
         </motion.div>
 
@@ -36,29 +34,29 @@ export function SaleProcess({ steps }: SaleProcessProps) {
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4, delay: index * 0.1 }}
-                className="relative pl-10"
+                className="relative pl-12"
               >
                 {/* Timeline line */}
                 {index < steps.length - 1 && (
-                  <div className="absolute left-4 top-12 bottom-0 w-0.5 bg-primary-200"></div>
+                  <div className="absolute left-[15px] top-10 bottom-0 w-px bg-charcoal-100"></div>
                 )}
-                
-                {/* Step number circle */}
-                <div className="absolute left-0 top-0 w-8 h-8 rounded-full bg-primary-600 text-white flex items-center justify-center font-bold text-sm z-10">
+
+                {/* Step marker - gold dot */}
+                <div className="absolute left-0 top-0 w-8 h-8 rounded-full bg-gold flex items-center justify-center font-sans text-charcoal font-semibold text-sm z-10">
                   {step.step}
                 </div>
 
                 {/* Content */}
-                <div className="bg-gray-50 rounded-lg p-5">
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    {step.title}
+                <div className="pb-2">
+                  <h3 className="font-display text-xl font-normal text-charcoal lowercase mb-2">
+                    {step.title.toLowerCase()}
                   </h3>
-                  <p className="text-gray-600 mb-2">
+                  <p className="text-charcoal-400 font-sans text-base font-light leading-relaxed mb-2">
                     {step.description}
                   </p>
                   {step.duration && (
-                    <p className="text-sm text-primary-600 font-medium">
-                      ⏱ {step.duration}
+                    <p className="text-gold-600 font-sans text-sm font-medium">
+                      {step.duration}
                     </p>
                   )}
                 </div>
@@ -71,9 +69,9 @@ export function SaleProcess({ steps }: SaleProcessProps) {
         <div className="hidden sm:block">
           <div className="relative">
             {/* Timeline line */}
-            <div className="absolute top-8 left-0 right-0 h-0.5 bg-primary-200"></div>
-            
-            <div className="relative grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="absolute top-4 left-0 right-0 h-px bg-charcoal-100"></div>
+
+            <div className="relative grid grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-12">
               {steps.map((step, index) => (
                 <motion.div
                   key={step.step}
@@ -81,27 +79,25 @@ export function SaleProcess({ steps }: SaleProcessProps) {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ duration: 0.4, delay: index * 0.1 }}
-                  className="relative"
+                  className="relative pt-12"
                 >
-                  {/* Step number circle */}
-                  <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 w-12 h-12 rounded-full bg-primary-600 text-white flex items-center justify-center font-bold text-lg z-10 shadow-lg">
+                  {/* Gold dot marker */}
+                  <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-gold flex items-center justify-center font-sans text-charcoal font-semibold text-sm z-10">
                     {step.step}
                   </div>
 
                   {/* Content */}
-                  <div className="bg-gray-50 rounded-lg p-6 mt-8 h-full">
-                    <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                      {step.title}
-                    </h3>
-                    <p className="text-gray-600 mb-3">
-                      {step.description}
+                  <h3 className="font-display text-xl font-normal text-charcoal lowercase mb-3">
+                    {step.title.toLowerCase()}
+                  </h3>
+                  <p className="text-charcoal-400 font-sans text-base font-light leading-relaxed mb-3">
+                    {step.description}
+                  </p>
+                  {step.duration && (
+                    <p className="text-gold-600 font-sans text-sm font-medium">
+                      {step.duration}
                     </p>
-                    {step.duration && (
-                      <p className="text-sm text-primary-600 font-medium">
-                        ⏱ {step.duration}
-                      </p>
-                    )}
-                  </div>
+                  )}
                 </motion.div>
               ))}
             </div>
@@ -111,4 +107,3 @@ export function SaleProcess({ steps }: SaleProcessProps) {
     </section>
   )
 }
-

@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline'
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost'
   size?: 'sm' | 'md' | 'lg'
   isLoading?: boolean
   children: React.ReactNode
@@ -20,32 +20,37 @@ export function Button({
   disabled,
   ...props
 }: ButtonProps) {
-  const baseStyles = 'font-semibold rounded-lg transition-all duration-200 touch-manipulation focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed'
-  
+  const baseStyles = 'font-sans font-medium tracking-wide rounded transition-all duration-200 touch-manipulation focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed'
+
   const variants = {
-    primary: 'bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500 active:bg-primary-800',
-    secondary: 'bg-secondary-600 text-white hover:bg-secondary-700 focus:ring-secondary-500 active:bg-secondary-800',
-    outline: 'border-2 border-primary-600 text-primary-600 hover:bg-primary-50 focus:ring-primary-500 active:bg-primary-100',
+    primary: 'bg-gold text-charcoal hover:bg-gold-600 focus:ring-gold-400 active:bg-gold-700',
+    secondary: 'bg-charcoal text-white hover:bg-charcoal-700 focus:ring-charcoal-400 active:bg-charcoal-900',
+    outline: 'border-2 border-charcoal text-charcoal hover:bg-charcoal hover:text-white focus:ring-charcoal-400',
+    ghost: 'text-charcoal-400 hover:text-charcoal hover:bg-charcoal-50 focus:ring-charcoal-200',
   }
-  
+
   const sizes = {
     sm: 'px-4 py-2 text-sm',
     md: 'px-6 py-3 text-base min-h-[44px]',
     lg: 'px-8 py-4 text-lg min-h-[48px]',
   }
 
+  const motionProps = {
+    whileTap: { scale: 0.98 },
+    className: cn(
+      baseStyles,
+      variants[variant],
+      sizes[size],
+      className
+    ),
+    disabled: disabled || isLoading,
+    'aria-label': isLoading ? 'Loading...' : undefined,
+    ...props,
+  }
+
   return (
     <motion.button
-      whileTap={{ scale: 0.98 }}
-      className={cn(
-        baseStyles,
-        variants[variant],
-        sizes[size],
-        className
-      )}
-      disabled={disabled || isLoading}
-      aria-label={isLoading ? 'Loading...' : undefined}
-      {...props}
+      {...motionProps as any}
     >
       {isLoading ? (
         <span className="flex items-center justify-center">
@@ -61,4 +66,3 @@ export function Button({
     </motion.button>
   )
 }
-

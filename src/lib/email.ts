@@ -23,7 +23,7 @@ function getProposalUrl(proposalId: string): string {
 }
 
 export async function sendProposalEmail(proposal: Proposal): Promise<{ success: boolean; error?: string }> {
-  const agencyName = proposal.agency?.name || 'Grant Estate Agents'
+  const agencyName = proposal.agency?.name || "Grant's Estate Agents"
   const proposalUrl = getProposalUrl(proposal.id)
 
   try {
@@ -60,7 +60,7 @@ export async function sendApprovalNotification(proposal: Proposal): Promise<{ su
     return { success: true }
   }
 
-  const agencyName = proposal.agency?.name || 'Grant Estate Agents'
+  const agencyName = proposal.agency?.name || "Grant's Estate Agents"
   const proposalUrl = getProposalUrl(proposal.id)
 
   try {
@@ -124,19 +124,19 @@ function buildProposalEmailHtml(data: ProposalEmailData): string {
 
           <!-- Gold accent line -->
           <tr>
-            <td style="background-color: #C4A962; height: 4px; font-size: 0;">&nbsp;</td>
+            <td style="background-color: #C41E2A; height: 4px; font-size: 0;">&nbsp;</td>
           </tr>
 
           <!-- Header -->
           <tr>
             <td style="background-color: #1A1A1A; padding: 48px 40px 40px 40px;">
-              <p style="color: #C4A962; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; margin: 0 0 24px 0;">
+              <p style="color: #C41E2A; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; margin: 0 0 24px 0;">
                 ${agency}
               </p>
               <h1 style="color: #FFFFFF; font-size: 28px; font-weight: 400; margin: 0 0 16px 0; line-height: 1.3; text-transform: lowercase;">
                 ${address.toLowerCase()}
               </h1>
-              <div style="width: 60px; height: 2px; background-color: #C4A962; margin: 0 0 24px 0;"></div>
+              <div style="width: 60px; height: 2px; background-color: #C41E2A; margin: 0 0 24px 0;"></div>
               <p style="color: rgba(255,255,255,0.7); font-size: 16px; font-weight: 300; margin: 0;">
                 prepared for <span style="color: #FFFFFF; font-weight: 400;">${client}</span>
               </p>
@@ -158,7 +158,7 @@ function buildProposalEmailHtml(data: ProposalEmailData): string {
                 <tr>
                   <td>
                     <a href="${url}" target="_blank"
-                       style="display: inline-block; background-color: #C4A962; color: #1A1A1A; text-decoration: none; padding: 16px 32px; font-size: 16px; font-weight: 500; letter-spacing: 0.5px; border-radius: 4px;">
+                       style="display: inline-block; background-color: #C41E2A; color: #1A1A1A; text-decoration: none; padding: 16px 32px; font-size: 16px; font-weight: 500; letter-spacing: 0.5px; border-radius: 4px;">
                       view your proposal
                     </a>
                   </td>
@@ -167,7 +167,7 @@ function buildProposalEmailHtml(data: ProposalEmailData): string {
 
               <p style="color: #737373; font-size: 14px; line-height: 1.6; font-weight: 300; margin: 24px 0 0 0;">
                 If the button above doesn't work, copy and paste this link into your browser:<br>
-                <a href="${url}" style="color: #C4A962; text-decoration: none; word-break: break-all;">${url}</a>
+                <a href="${url}" style="color: #C41E2A; text-decoration: none; word-break: break-all;">${url}</a>
               </p>
             </td>
           </tr>
@@ -220,13 +220,13 @@ function buildApprovalNotificationHtml(data: ApprovalNotificationData): string {
 
           <!-- Green accent line -->
           <tr>
-            <td style="background-color: #8B9F82; height: 4px; font-size: 0;">&nbsp;</td>
+            <td style="background-color: #9B8B7A; height: 4px; font-size: 0;">&nbsp;</td>
           </tr>
 
           <!-- Header -->
           <tr>
             <td style="background-color: #1A1A1A; padding: 40px;">
-              <h1 style="color: #8B9F82; font-size: 24px; font-weight: 400; margin: 0 0 8px 0; text-transform: lowercase;">
+              <h1 style="color: #9B8B7A; font-size: 24px; font-weight: 400; margin: 0 0 8px 0; text-transform: lowercase;">
                 proposal approved
               </h1>
               <p style="color: rgba(255,255,255,0.5); font-size: 14px; font-weight: 300; margin: 0;">
@@ -252,7 +252,7 @@ function buildApprovalNotificationHtml(data: ApprovalNotificationData): string {
                 <tr>
                   <td style="padding: 12px 0; border-bottom: 1px solid #F0F0F0;">
                     <span style="color: #737373; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;">Email</span><br>
-                    <a href="mailto:${clientEmail}" style="color: #C4A962; text-decoration: none; font-size: 15px;">${clientEmail}</a>
+                    <a href="mailto:${clientEmail}" style="color: #C41E2A; text-decoration: none; font-size: 15px;">${clientEmail}</a>
                   </td>
                 </tr>
                 <tr>

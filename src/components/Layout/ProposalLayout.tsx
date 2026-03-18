@@ -1,5 +1,3 @@
-'use client'
-
 import React from 'react'
 
 interface ProposalLayoutProps {
@@ -8,11 +6,10 @@ interface ProposalLayoutProps {
 
 export function ProposalLayout({ children }: ProposalLayoutProps) {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-off-white">
       <main className="w-full">
         {children}
       </main>
     </div>
   )
 }
-

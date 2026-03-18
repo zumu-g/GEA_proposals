@@ -79,4 +79,23 @@ function initSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_nurture_touchpoints_scheduled ON nurture_touchpoints(scheduled_for);
     CREATE INDEX IF NOT EXISTS idx_nurture_touchpoints_status ON nurture_touchpoints(status);
   `)
+
+  // Add new columns for expanded proposal sections (safe to re-run)
+  const newColumns = [
+    'ALTER TABLE proposals ADD COLUMN advertising_schedule TEXT',   // JSON
+    'ALTER TABLE proposals ADD COLUMN total_advertising_cost REAL',
+    'ALTER TABLE proposals ADD COLUMN area_analysis TEXT',          // JSON
+    'ALTER TABLE proposals ADD COLUMN team_members TEXT',           // JSON
+    'ALTER TABLE proposals ADD COLUMN marketing_approach TEXT',
+    'ALTER TABLE proposals ADD COLUMN database_info TEXT',
+    'ALTER TABLE proposals ADD COLUMN internet_listings TEXT',      // JSON
+  ]
+
+  for (const sql of newColumns) {
+    try {
+      db.exec(sql)
+    } catch {
+      // Column already exists — ignore
+    }
+  }
 }

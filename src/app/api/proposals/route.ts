@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createProposal, parseCSV, parseExcel } from '@/lib/spreadsheet-parser'
 import { saveProposal, getAgencyConfig, listProposals, deleteProposal } from '@/lib/proposal-generator'
+import { lookupComparables } from '@/lib/comparables-lookup'
 
 export async function POST(request: NextRequest) {
   try {
@@ -54,6 +55,20 @@ export async function POST(request: NextRequest) {
       ? parsedRate
       : agencyConfig.defaultCommissionRate
 
+    // Auto-lookup comparable sales if no file uploaded
+    if (spreadsheetRows.length === 0) {
+      try {
+        console.log('[proposals] Looking up comparables for:', propertyAddress)
+        const comparables = await lookupComparables(propertyAddress)
+        if (comparables.length > 0) {
+          spreadsheetRows = comparables
+          console.log(`[proposals] Found ${comparables.length} comparable sales`)
+        }
+      } catch (err) {
+        console.error('[proposals] Comparables lookup failed:', err)
+      }
+    }
+
     const proposal = createProposal({
       clientName,
       clientEmail,
@@ -62,19 +77,9 @@ export async function POST(request: NextRequest) {
       spreadsheetRows,
       fees: {
         commissionRate: rate,
-        inclusions: agencyConfig.defaultInclusions,
+        inclusions: (agencyConfig as any).defaultInclusions,
       },
-      agency: {
-        name: agencyConfig.name,
-        logo: agencyConfig.logo,
-        primaryColor: agencyConfig.primaryColor,
-        accentColor: agencyConfig.accentColor,
-        defaultCommissionRate: agencyConfig.defaultCommissionRate,
-        contactEmail: agencyConfig.contactEmail,
-        contactPhone: agencyConfig.contactPhone,
-        address: agencyConfig.address,
-        website: agencyConfig.website,
-      },
+      agency: agencyConfig,
     })
 
     await saveProposal(proposal)

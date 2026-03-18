@@ -9,9 +9,10 @@ interface CardProps {
   className?: string
   padding?: 'none' | 'sm' | 'md' | 'lg'
   hover?: boolean
+  variant?: 'default' | 'bordered' | 'dark'
 }
 
-export function Card({ children, className, padding = 'md', hover = false }: CardProps) {
+export function Card({ children, className, padding = 'md', hover = false, variant = 'default' }: CardProps) {
   const paddings = {
     none: '',
     sm: 'p-4',
@@ -19,22 +20,26 @@ export function Card({ children, className, padding = 'md', hover = false }: Car
     lg: 'p-8',
   }
 
-  const MotionCard = hover ? motion.div : motion.div
+  const variants = {
+    default: 'bg-white shadow-sm',
+    bordered: 'bg-white border border-charcoal-100',
+    dark: 'bg-charcoal text-white',
+  }
 
   return (
-    <MotionCard
+    <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
       whileHover={hover ? { y: -4, transition: { duration: 0.2 } } : undefined}
       className={cn(
-        'bg-white rounded-xl shadow-md',
+        'rounded-lg',
+        variants[variant],
         paddings[padding],
         className
       )}
     >
       {children}
-    </MotionCard>
+    </motion.div>
   )
 }
-

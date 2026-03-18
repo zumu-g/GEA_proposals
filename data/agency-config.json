@@ -1,15 +1,46 @@
 {
-  "name": "Grant Estate Agents",
+  "name": "Grant's Estate Agents",
+  "legalName": "Grant's Estate Agents Pty Ltd",
+  "abn": "80 595 235 807",
+  "directors": "BF Grant (licensed estate agent) and LM Grant",
   "logo": "",
-  "primaryColor": "#1A1A1A",
-  "accentColor": "#C4A962",
-  "defaultCommissionRate": 1.5,
-  "contactEmail": "info@grantestate.com.au",
-  "contactPhone": "03 9876 5432",
-  "address": "123 High Street, Brighton VIC 3186",
-  "website": "https://grantestate.com.au",
+  "primaryColor": "#C41E2A",
+  "accentColor": "#C41E2A",
+  "defaultCommissionRate": 1.45,
+  "contactEmail": "info@grantsea.com.au",
+  "contactPhone": "03 9767 3200",
+  "address": "1/5 Gloucester Avenue, Berwick VIC 3806",
+  "website": "https://grantsea.com.au",
   "agentName": "Stuart Grant",
-  "agentPhone": "0412 345 678",
+  "agentTitle": "Director",
+  "agentPhone": "0438 554 522",
+  "offices": [
+    {
+      "name": "Head Office",
+      "address": "1/5 Gloucester Avenue, Berwick VIC 3806",
+      "phone": "03 9767 3200"
+    },
+    {
+      "name": "Rentals",
+      "address": "1/5 Gloucester Avenue, Berwick VIC 3806",
+      "phone": "03 8762 6900"
+    },
+    {
+      "name": "Berwick Sales",
+      "address": "3a Gloucester Avenue, Berwick VIC 3806",
+      "phone": "03 9707 5555"
+    },
+    {
+      "name": "Narre Warren",
+      "address": "9 Webb Street, Narre Warren VIC 3805",
+      "phone": "03 9704 8899"
+    },
+    {
+      "name": "Pakenham",
+      "address": "3/51 John Street, Pakenham VIC 3810",
+      "phone": "03 5940 2555"
+    }
+  ],
   "stats": [
     { "value": "15+", "label": "years experience" },
     { "value": "1,200+", "label": "properties sold" },
