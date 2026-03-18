@@ -1,9 +1,14 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { motion } from 'framer-motion'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
+
+interface PropertyImages {
+  heroImage: string
+  galleryImages: string[]
+}
 
 export default function HomePage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -13,8 +18,78 @@ export default function HomePage() {
   const [origin, setOrigin] = useState('')
   const submittingRef = useRef(false)
 
+  // Property image auto-fetch state
+  const [propertyImages, setPropertyImages] = useState<PropertyImages | null>(null)
+  const [isFetchingImages, setIsFetchingImages] = useState(false)
+  const [useAutoImage, setUseAutoImage] = useState(true)
+  const [addressValue, setAddressValue] = useState('')
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const lastFetchedAddressRef = useRef('')
+
   useEffect(() => {
     setOrigin(window.location.origin)
+  }, [])
+
+  // Check if address looks complete (has a 4-digit postcode)
+  const isAddressComplete = useCallback((address: string) => {
+    return /\d{4}\s*$/.test(address.trim())
+  }, [])
+
+  // Fetch property images from API
+  const fetchPropertyImages = useCallback(async (address: string) => {
+    if (!address || !isAddressComplete(address)) return
+    if (lastFetchedAddressRef.current === address) return
+
+    lastFetchedAddressRef.current = address
+    setIsFetchingImages(true)
+
+    try {
+      const response = await fetch(`/api/property-images?address=${encodeURIComponent(address)}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.heroImage) {
+          setPropertyImages({
+            heroImage: data.heroImage,
+            galleryImages: data.galleryImages || [],
+          })
+          setUseAutoImage(true)
+        } else {
+          setPropertyImages(null)
+        }
+      } else {
+        setPropertyImages(null)
+      }
+    } catch {
+      setPropertyImages(null)
+    } finally {
+      setIsFetchingImages(false)
+    }
+  }, [isAddressComplete])
+
+  // Debounced address change handler
+  const handleAddressChange = useCallback((value: string) => {
+    setAddressValue(value)
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+    }
+
+    if (!value || !isAddressComplete(value)) {
+      return
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      fetchPropertyImages(value)
+    }, 1000)
+  }, [isAddressComplete, fetchPropertyImages])
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+    }
   }, [])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -42,6 +117,10 @@ export default function HomePage() {
           id: data.proposal.id,
         })
         ;(e.target as HTMLFormElement).reset()
+        setPropertyImages(null)
+        setAddressValue('')
+        setUseAutoImage(true)
+        lastFetchedAddressRef.current = ''
       } else {
         setResult({
           success: false,
@@ -234,10 +313,110 @@ export default function HomePage() {
                       id="propertyAddress"
                       name="propertyAddress"
                       required
+                      value={addressValue}
+                      onChange={(e) => handleAddressChange(e.target.value)}
+                      onBlur={() => {
+                        if (addressValue && isAddressComplete(addressValue)) {
+                          fetchPropertyImages(addressValue)
+                        }
+                      }}
                       className="w-full px-4 py-3 bg-white/5 border border-white/15 rounded text-white font-sans placeholder-white/20 focus:ring-1 focus:ring-gold focus:border-gold text-base touch-manipulation transition-colors"
-                      placeholder="123 Main Street, London, SW1A 1AA"
+                      placeholder="123 Main Street, Suburb VIC 3000"
                     />
                   </div>
+
+                  {/* Auto-fetched property images */}
+                  <AnimatePresence mode="wait">
+                    {isFetchingImages && (
+                      <motion.div
+                        key="loading"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="flex items-center gap-3 py-4 px-4 bg-white/5 border border-white/10 rounded">
+                          <div className="w-4 h-4 border-2 border-gold border-t-transparent rounded-full animate-spin" />
+                          <p className="text-white/40 font-sans text-sm font-light">fetching property images...</p>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {!isFetchingImages && propertyImages && (
+                      <motion.div
+                        key="images"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.4, ease: 'easeOut' }}
+                        className="overflow-hidden"
+                      >
+                        <div className="p-4 bg-white/5 border border-white/10 rounded space-y-4">
+                          {/* Hero image preview */}
+                          <div className="relative w-full max-h-[200px] overflow-hidden rounded shadow-md">
+                            <img
+                              src={propertyImages.heroImage}
+                              alt="Property"
+                              className="w-full h-full max-h-[200px] object-cover rounded"
+                            />
+                          </div>
+
+                          {/* Gallery thumbnails */}
+                          {propertyImages.galleryImages.length > 0 && (
+                            <div className="flex gap-2 overflow-x-auto pb-1">
+                              {propertyImages.galleryImages.slice(0, 6).map((img, i) => (
+                                <div key={i} className="relative w-16 h-16 flex-shrink-0 rounded overflow-hidden shadow-sm">
+                                  <img
+                                    src={img}
+                                    alt={`Gallery ${i + 1}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                              ))}
+                              {propertyImages.galleryImages.length > 6 && (
+                                <div className="w-16 h-16 flex-shrink-0 rounded bg-white/10 flex items-center justify-center">
+                                  <span className="text-white/40 text-xs font-sans">+{propertyImages.galleryImages.length - 6}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Toggle + source */}
+                          <div className="flex items-center justify-between">
+                            <label className="flex items-center gap-3 cursor-pointer group">
+                              <div className="relative">
+                                <input
+                                  type="checkbox"
+                                  checked={useAutoImage}
+                                  onChange={(e) => setUseAutoImage(e.target.checked)}
+                                  className="sr-only peer"
+                                />
+                                <div className="w-9 h-5 bg-white/10 rounded-full peer-checked:bg-gold transition-colors duration-200" />
+                                <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 peer-checked:translate-x-4" />
+                              </div>
+                              <span className="text-white/50 font-sans text-sm group-hover:text-white/70 transition-colors">
+                                use this image
+                              </span>
+                            </label>
+                            <span className="text-white/20 font-sans text-xs">
+                              auto-fetched from realestate.com.au
+                            </span>
+                          </div>
+
+                          {/* Hidden inputs to pass auto-fetched images with form */}
+                          {useAutoImage && (
+                            <>
+                              <input type="hidden" name="autoHeroImage" value={propertyImages.heroImage} />
+                              {propertyImages.galleryImages.map((img, i) => (
+                                <input key={i} type="hidden" name="propertyImages" value={img} />
+                              ))}
+                            </>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
                   {/* Divider */}
                   <div className="border-t border-white/5 pt-8">
@@ -247,7 +426,9 @@ export default function HomePage() {
                   <div>
                     <label htmlFor="heroImage" className="block text-sm font-sans font-medium text-white/60 mb-2 lowercase">
                       hero image url
-                      <span className="text-white/30 text-xs ml-2">optional</span>
+                      <span className="text-white/30 text-xs ml-2">
+                        {propertyImages && useAutoImage ? 'manual override — leave blank to use auto-fetched image' : 'optional'}
+                      </span>
                     </label>
                     <input
                       type="url"

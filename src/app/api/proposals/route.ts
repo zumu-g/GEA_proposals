@@ -10,8 +10,17 @@ export async function POST(request: NextRequest) {
     const clientEmail = formData.get('clientEmail') as string
     const propertyAddress = formData.get('propertyAddress') as string
     const heroImage = formData.get('heroImage') as string | null
+    const autoHeroImage = formData.get('autoHeroImage') as string | null
     const commissionRate = formData.get('commissionRate') as string | null
     const file = formData.get('file') as File | null
+
+    // Collect auto-fetched property gallery images
+    const propertyImages: string[] = []
+    for (const [key, value] of formData.entries()) {
+      if (key === 'propertyImages[]' && typeof value === 'string' && value) {
+        propertyImages.push(value)
+      }
+    }
 
     if (!clientName || !clientEmail || !propertyAddress) {
       return NextResponse.json(
@@ -69,11 +78,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Use manual hero image, or auto-fetched, or undefined
+    const finalHeroImage = heroImage || autoHeroImage || undefined
+
     const proposal = createProposal({
       clientName,
       clientEmail,
       propertyAddress,
-      heroImage: heroImage || undefined,
+      heroImage: finalHeroImage,
+      propertyImages: propertyImages.length > 0 ? propertyImages : undefined,
       spreadsheetRows,
       fees: {
         commissionRate: rate,
