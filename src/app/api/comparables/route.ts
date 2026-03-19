@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { lookupComparables } from '@/lib/comparables-lookup'
+import { lookupComparables, lookupOnMarket } from '@/lib/comparables-lookup'
+import { isApifyAvailable } from '@/lib/apify-scraper'
 import { getProposal, saveProposal, logActivity } from '@/lib/proposal-generator'
 
 // GET /api/comparables?address=42+Smith+St,+Brighton+VIC+3186
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
 
   try {
     const sales = await lookupComparables(address)
-    return NextResponse.json({ address, count: sales.length, sales })
+    return NextResponse.json({ address, count: sales.length, sales, source: isApifyAvailable() ? 'apify' : 'homely' })
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Lookup failed' },
@@ -40,20 +41,32 @@ export async function POST(request: Request) {
     }
 
     const address = overrideAddress || proposal.propertyAddress
-    const sales = await lookupComparables(address)
+    const source = isApifyAvailable() ? 'apify (realestate.com.au)' : 'homely.com.au'
+
+    // Fetch both sold and on-market in parallel
+    const [sales, onMarket] = await Promise.all([
+      lookupComparables(address),
+      lookupOnMarket(address),
+    ])
 
     if (sales.length > 0) {
       proposal.recentSales = sales
+    }
+    if (onMarket.length > 0) {
+      proposal.onMarketListings = onMarket
+    }
+    if (sales.length > 0 || onMarket.length > 0) {
       await saveProposal(proposal)
-      logActivity(proposalId, 'comparables_updated', `Found ${sales.length} comparable sales from homely.com.au`)
+      logActivity(proposalId, 'comparables_updated', `Found ${sales.length} sold + ${onMarket.length} on-market from ${source}`)
     }
 
     return NextResponse.json({
       success: true,
       proposalId,
       address,
-      count: sales.length,
-      sales,
+      source,
+      sold: { count: sales.length, sales },
+      onMarket: { count: onMarket.length, listings: onMarket },
     })
   } catch (error) {
     return NextResponse.json(

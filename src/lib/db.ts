@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3'
 import path from 'path'
 
-const DB_PATH = path.join(process.cwd(), 'data', 'gea.db')
+const DB_PATH = process.env.DATABASE_PATH || path.join(process.cwd(), 'data', 'gea.db')
 
 let _db: Database.Database | null = null
 
@@ -89,6 +89,7 @@ function initSchema(db: Database.Database) {
     'ALTER TABLE proposals ADD COLUMN marketing_approach TEXT',
     'ALTER TABLE proposals ADD COLUMN database_info TEXT',
     'ALTER TABLE proposals ADD COLUMN internet_listings TEXT',      // JSON
+    'ALTER TABLE proposals ADD COLUMN on_market_listings TEXT',     // JSON
   ]
 
   for (const sql of newColumns) {

@@ -17,6 +17,31 @@ export function RecentSales({ sales }: RecentSalesProps) {
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set())
   const prefersReducedMotion = useReducedMotion()
 
+  if (!sales || sales.length === 0) {
+    return (
+      <section className="py-16 sm:py-20 lg:py-24 bg-off-white">
+        <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-16 xl:px-24">
+          <motion.div
+            initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+          >
+            <p className="text-sage font-sans text-xs tracking-[0.3em] uppercase mb-3">
+              comparable sales
+            </p>
+            <h2 className="font-display text-3xl sm:text-4xl font-normal text-charcoal lowercase mb-3">
+              recent results nearby
+            </h2>
+            <p className="text-charcoal-400 font-sans text-lg font-light">
+              no comparable sales data available for this area at this time
+            </p>
+          </motion.div>
+        </div>
+      </section>
+    )
+  }
+
   const sortedSales = [...sales].sort((a, b) => {
     let comparison = 0
     switch (sortBy) {

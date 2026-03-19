@@ -26,36 +26,42 @@ const DEFAULT_SALE_PROCESS: SaleStep[] = [
     title: 'Initial Consultation',
     description: "We'll visit your property to assess its condition and market value.",
     duration: '1-2 hours',
+    imageUrl: '/images/stocksy/consultation.jpg',
   },
   {
     step: 2,
     title: 'Property Valuation',
     description: 'Comprehensive market analysis to determine the optimal listing price.',
     duration: '2-3 days',
+    imageUrl: '/images/stocksy/valuation.jpg',
   },
   {
     step: 3,
     title: 'Marketing Preparation',
     description: 'Professional photography, floor plans, and marketing materials creation.',
     duration: '5-7 days',
+    imageUrl: '/images/stocksy/marketing-prep.jpg',
   },
   {
     step: 4,
     title: 'Launch & Promotion',
     description: 'Your property goes live across all major platforms with targeted marketing.',
     duration: 'Ongoing',
+    imageUrl: '/images/stocksy/launch.jpg',
   },
   {
     step: 5,
     title: 'Viewings & Offers',
     description: 'We arrange and conduct viewings, managing all inquiries and negotiations.',
     duration: '2-8 weeks',
+    imageUrl: '/images/stocksy/viewings.jpg',
   },
   {
     step: 6,
     title: 'Sale Completion',
     description: 'Once an offer is accepted, we manage the entire process through to completion.',
     duration: '8-12 weeks',
+    imageUrl: '/images/stocksy/completion.jpg',
   },
 ]
 

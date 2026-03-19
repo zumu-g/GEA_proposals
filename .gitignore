@@ -40,6 +40,13 @@ next-env.d.ts
 /data/*.db-wal
 /data/*.db-shm
 
+# uploads (user-uploaded images)
+/public/uploads/*
+!/public/uploads/.gitkeep
+
+# stocksy source images
+/2022 - stocksy/
+
 # reference files (large binaries)
 *.pptx
 *.key

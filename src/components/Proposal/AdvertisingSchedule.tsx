@@ -15,8 +15,17 @@ export function AdvertisingSchedule({ schedule, totalCost }: AdvertisingSchedule
 
   if (!schedule || schedule.length === 0) return null
 
+  // Sort so week 0 (extras/campaign prep) comes first, then weeks 1, 2, 3...
+  const sorted = [...schedule].sort((a, b) => a.week - b.week)
+
   const weekTotal = (week: AdvertisingWeek) =>
     week.activities.reduce((sum, a) => sum + (a.included ? 0 : (a.cost ?? 0)), 0)
+
+  const weekLabel = (week: AdvertisingWeek) =>
+    week.week === 0 ? 'campaign preparation' : `week ${week.week}`
+
+  const weekBadge = (week: AdvertisingWeek) =>
+    week.week === 0 ? 'prep' : String(week.week)
 
   return (
     <section className="py-16 sm:py-20 lg:py-24 bg-white">
@@ -42,7 +51,7 @@ export function AdvertisingSchedule({ schedule, totalCost }: AdvertisingSchedule
 
         {/* Weekly cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
-          {schedule.map((week, index) => (
+          {sorted.map((week, index) => (
             <motion.div
               key={week.week}
               initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
@@ -58,10 +67,10 @@ export function AdvertisingSchedule({ schedule, totalCost }: AdvertisingSchedule
               <div className="flex items-center justify-between px-6 py-4 border-b border-charcoal-50/60">
                 <div className="flex items-center gap-3">
                   <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-brand text-white font-sans text-sm font-semibold">
-                    {week.week}
+                    {weekBadge(week)}
                   </span>
                   <h3 className="font-display text-xl font-normal text-charcoal lowercase">
-                    week {week.week}
+                    {weekLabel(week)}
                   </h3>
                 </div>
                 {weekTotal(week) > 0 && (

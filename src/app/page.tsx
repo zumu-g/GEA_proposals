@@ -10,13 +10,46 @@ interface PropertyImages {
   galleryImages: string[]
 }
 
+interface MarketingCostItem {
+  category: string
+  description: string
+  cost: number
+  included: boolean
+}
+
+const DEFAULT_MARKETING_COSTS: MarketingCostItem[] = [
+  { category: 'Premiere Listing — realestate.com.au', description: '4 week premiere listing (Value $2,700)', cost: 1600, included: false },
+  { category: 'Professional Photography', description: 'Including site plan and floorplan (Value $400)', cost: 450, included: false },
+  { category: 'Signboard', description: 'Premium corporate board', cost: 375, included: false },
+  { category: 'Internet Listings', description: 'realestate.com, domain.com and 4 other sites (Value $750)', cost: 0, included: true },
+  { category: 'Social Media Campaign', description: 'Targeted Facebook and Instagram campaign', cost: 0, included: true },
+  { category: 'Brochures', description: 'Premium property brochures for open homes', cost: 150, included: false },
+  { category: 'Drone Photography', description: 'Aerial drone photography and video', cost: 280, included: false },
+  { category: 'Auctioneer Fees', description: 'Professional auctioneer services', cost: 700, included: false },
+  { category: 'Window Cards', description: 'Office window card display', cost: 0, included: true },
+  { category: 'Open Homes', description: 'Weekly open home inspections', cost: 0, included: true },
+]
+
+interface RecentProposal {
+  id: string
+  clientName: string
+  propertyAddress: string
+  proposalDate: string
+  status: string
+  methodOfSale?: string
+  priceGuide?: { min: number; max: number }
+  fees?: { commissionRate: number }
+}
+
 export default function HomePage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [sendResult, setSendResult] = useState<{ success: boolean; message?: string } | null>(null)
-  const [result, setResult] = useState<{ success: boolean; url?: string; id?: string; error?: string } | null>(null)
+  const [result, setResult] = useState<{ success: boolean; url?: string; id?: string; error?: string; clientName?: string; clientEmail?: string; propertyAddress?: string } | null>(null)
   const [origin, setOrigin] = useState('')
   const submittingRef = useRef(false)
+  const [recentProposals, setRecentProposals] = useState<RecentProposal[]>([])
+  const [showRecent, setShowRecent] = useState(true)
 
   // Property image auto-fetch state
   const [propertyImages, setPropertyImages] = useState<PropertyImages | null>(null)
@@ -26,9 +59,195 @@ export default function HomePage() {
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
   const lastFetchedAddressRef = useRef('')
 
+  // Hero image upload state
+  const [heroUploadUrl, setHeroUploadUrl] = useState('')
+  const [isUploadingHero, setIsUploadingHero] = useState(false)
+
+  // Marketing costs state
+  const [marketingCosts, setMarketingCosts] = useState<MarketingCostItem[]>(DEFAULT_MARKETING_COSTS)
+
+  const marketingTotal = marketingCosts
+    .filter(item => !item.included)
+    .reduce((sum, item) => sum + item.cost, 0)
+
+  const updateMarketingItem = (index: number, field: keyof MarketingCostItem, value: string | number | boolean) => {
+    setMarketingCosts(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item))
+  }
+
+  const removeMarketingItem = (index: number) => {
+    setMarketingCosts(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const addMarketingItem = () => {
+    setMarketingCosts(prev => [...prev, { category: '', description: '', cost: 0, included: false }])
+  }
+
+  // --- localStorage draft persistence ---
+  const DRAFT_KEY = 'gea-proposal-draft'
+  const saveDraftTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Save draft to localStorage (debounced)
+  const saveDraft = useCallback(() => {
+    if (saveDraftTimerRef.current) clearTimeout(saveDraftTimerRef.current)
+    saveDraftTimerRef.current = setTimeout(() => {
+      try {
+        const form = formRef.current
+        const draft = {
+          addressValue,
+          heroUploadUrl,
+          marketingCosts,
+          clientName: form?.querySelector<HTMLInputElement>('#clientName')?.value || '',
+          clientEmail: form?.querySelector<HTMLInputElement>('#clientEmail')?.value || '',
+          heroImageUrl: form?.querySelector<HTMLInputElement>('#heroImage')?.value || '',
+          commissionRate: form?.querySelector<HTMLInputElement>('#commissionRate')?.value || '',
+          priceGuideMin: form?.querySelector<HTMLInputElement>('#priceGuideMin')?.value || '',
+          priceGuideMax: form?.querySelector<HTMLInputElement>('#priceGuideMax')?.value || '',
+          methodOfSale: (form?.querySelector<HTMLInputElement>('input[name="methodOfSale"]:checked'))?.value || '',
+          savedAt: new Date().toISOString(),
+        }
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
+      } catch {}
+    }, 500)
+  }, [addressValue, heroUploadUrl, marketingCosts])
+
+  // Restore draft on mount
   useEffect(() => {
     setOrigin(window.location.origin)
+
+    // Restore saved draft
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY)
+      if (saved) {
+        const draft = JSON.parse(saved)
+        if (draft.addressValue) setAddressValue(draft.addressValue)
+        if (draft.heroUploadUrl) setHeroUploadUrl(draft.heroUploadUrl)
+        if (draft.marketingCosts?.length > 0) setMarketingCosts(draft.marketingCosts)
+
+        // Restore form inputs after render
+        setTimeout(() => {
+          const form = formRef.current
+          if (!form) return
+          if (draft.clientName) {
+            const el = form.querySelector<HTMLInputElement>('#clientName')
+            if (el) el.value = draft.clientName
+          }
+          if (draft.clientEmail) {
+            const el = form.querySelector<HTMLInputElement>('#clientEmail')
+            if (el) el.value = draft.clientEmail
+          }
+          if (draft.heroImageUrl) {
+            const el = form.querySelector<HTMLInputElement>('#heroImage')
+            if (el) el.value = draft.heroImageUrl
+          }
+          if (draft.commissionRate) {
+            const el = form.querySelector<HTMLInputElement>('#commissionRate')
+            if (el) el.value = draft.commissionRate
+          }
+          if (draft.priceGuideMin) {
+            const el = form.querySelector<HTMLInputElement>('#priceGuideMin')
+            if (el) el.value = draft.priceGuideMin
+          }
+          if (draft.priceGuideMax) {
+            const el = form.querySelector<HTMLInputElement>('#priceGuideMax')
+            if (el) el.value = draft.priceGuideMax
+          }
+          if (draft.methodOfSale !== undefined) {
+            const radios = form.querySelectorAll<HTMLInputElement>('input[name="methodOfSale"]')
+            radios.forEach(r => { r.checked = r.value === draft.methodOfSale })
+          }
+        }, 200)
+      }
+    } catch {}
+
+    // Fetch recent proposals
+    fetch('/api/proposals')
+      .then(res => res.json())
+      .then(data => {
+        if (data.proposals) {
+          setRecentProposals(data.proposals.slice(0, 6))
+        }
+      })
+      .catch(() => {})
   }, [])
+
+  // Auto-save draft on state changes
+  useEffect(() => {
+    saveDraft()
+  }, [addressValue, heroUploadUrl, marketingCosts, saveDraft])
+
+  // Also save on input changes (for text fields not in React state)
+  const handleInputChange = useCallback(() => {
+    saveDraft()
+  }, [saveDraft])
+
+  // Clear draft on successful submission
+  const clearDraft = useCallback(() => {
+    try { localStorage.removeItem(DRAFT_KEY) } catch {}
+  }, [])
+
+  // Form refs for pre-filling on duplicate
+  const formRef = useRef<HTMLFormElement>(null)
+
+  const handleDuplicate = async (proposalId: string) => {
+    try {
+      const res = await fetch(`/api/proposals?id=${proposalId}`)
+      const proposal = await res.json()
+      if (!proposal || proposal.error) return
+
+      // Pre-fill form fields
+      setAddressValue('')
+      setPropertyImages(null)
+
+      // Pre-fill marketing costs from the proposal's advertising schedule
+      if (proposal.advertisingSchedule) {
+        const items: MarketingCostItem[] = []
+        for (const week of proposal.advertisingSchedule) {
+          for (const act of week.activities) {
+            // Avoid duplicating ongoing items from weeks 2-4
+            if (week.week > 1 && act.included) continue
+            items.push({
+              category: act.category,
+              description: act.description,
+              cost: act.cost || 0,
+              included: !!act.included,
+            })
+          }
+        }
+        if (items.length > 0) setMarketingCosts(items)
+      }
+
+      // Pre-fill form inputs after render
+      setTimeout(() => {
+        const form = formRef.current
+        if (!form) return
+
+        // Commission rate
+        const commInput = form.querySelector('#commissionRate') as HTMLInputElement
+        if (commInput && proposal.fees?.commissionRate) {
+          commInput.value = String(proposal.fees.commissionRate)
+        }
+
+        // Price guide
+        const minInput = form.querySelector('#priceGuideMin') as HTMLInputElement
+        const maxInput = form.querySelector('#priceGuideMax') as HTMLInputElement
+        if (minInput && proposal.priceGuide?.min) minInput.value = String(proposal.priceGuide.min)
+        if (maxInput && proposal.priceGuide?.max) maxInput.value = String(proposal.priceGuide.max)
+
+        // Method of sale — check the matching radio
+        if (proposal.methodOfSale) {
+          const radios = form.querySelectorAll('input[name="methodOfSale"]') as NodeListOf<HTMLInputElement>
+          radios.forEach(r => {
+            r.checked = r.value === proposal.methodOfSale
+          })
+        }
+      }, 100)
+
+      // Scroll to form
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    } catch {
+      // Silently fail
+    }
+  }
 
   // Check if address looks complete (has a 4-digit postcode)
   const isAddressComplete = useCallback((address: string) => {
@@ -115,12 +334,22 @@ export default function HomePage() {
           success: true,
           url: data.proposal.url,
           id: data.proposal.id,
+          clientName: formData.get('clientName') as string,
+          clientEmail: formData.get('clientEmail') as string,
+          propertyAddress: formData.get('propertyAddress') as string,
         })
         ;(e.target as HTMLFormElement).reset()
         setPropertyImages(null)
         setAddressValue('')
         setUseAutoImage(true)
         lastFetchedAddressRef.current = ''
+        setMarketingCosts(DEFAULT_MARKETING_COSTS)
+        setHeroUploadUrl('')
+        clearDraft()
+        // Refresh recent proposals list
+        fetch('/api/proposals').then(r => r.json()).then(d => {
+          if (d.proposals) setRecentProposals(d.proposals.slice(0, 6))
+        }).catch(() => {})
       } else {
         setResult({
           success: false,
@@ -197,9 +426,72 @@ export default function HomePage() {
             </Link>
           </div>
 
+          {/* Recent proposals */}
+          {recentProposals.length > 0 && showRecent && (
+            <div className="mb-10">
+              <div className="flex items-center justify-between mb-6">
+                <p className="text-white/40 font-sans text-xs tracking-wider-custom uppercase">recent proposals — duplicate to start new</p>
+                <button
+                  onClick={() => setShowRecent(false)}
+                  className="text-white/20 hover:text-white/40 font-sans text-xs transition-colors"
+                >
+                  hide
+                </button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {recentProposals.map((p) => (
+                  <motion.div
+                    key={p.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-white/5 border border-white/10 rounded-lg p-5 hover:border-white/20 transition-all group"
+                  >
+                    <p className="font-display text-base font-normal text-white lowercase mb-1 line-clamp-1">
+                      {p.propertyAddress.toLowerCase()}
+                    </p>
+                    <p className="text-white/40 font-sans text-xs font-light mb-1">
+                      {p.clientName}
+                    </p>
+                    <div className="flex items-center gap-2 mb-4">
+                      {p.methodOfSale && (
+                        <span className="px-2 py-0.5 rounded bg-white/5 text-white/40 font-sans text-xs">
+                          {p.methodOfSale.toLowerCase()}
+                        </span>
+                      )}
+                      <span className={`px-2 py-0.5 rounded font-sans text-xs ${
+                        p.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400' :
+                        p.status === 'sent' ? 'bg-blue-500/10 text-blue-400' :
+                        p.status === 'viewed' ? 'bg-amber-500/10 text-amber-400' :
+                        'bg-white/5 text-white/40'
+                      }`}>
+                        {p.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleDuplicate(p.id)}
+                        className="flex-1 px-3 py-2 bg-gold/10 border border-gold/20 rounded text-gold hover:bg-gold/20 font-sans text-xs font-medium transition-colors min-h-[36px]"
+                      >
+                        duplicate
+                      </button>
+                      <a
+                        href={`/proposal/${p.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-2 bg-white/5 border border-white/10 rounded text-white/40 hover:text-white/70 font-sans text-xs font-medium transition-colors min-h-[36px] flex items-center"
+                      >
+                        view
+                      </a>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Form */}
           <div className="bg-white/5 border border-white/10 rounded-lg p-6 sm:p-8 lg:p-10">
-            <form onSubmit={handleSubmit} className="space-y-8">
+            <form ref={formRef} onSubmit={handleSubmit} onChange={handleInputChange} className="space-y-8">
               {/* Result - shown instead of form fields on success */}
               {result?.success ? (
                 <motion.div
@@ -242,28 +534,46 @@ export default function HomePage() {
                     >
                       preview proposal
                     </a>
-                    <button
-                      type="button"
-                      onClick={handleSend}
-                      disabled={isSending || sendResult?.success === true}
-                      className="px-5 py-3 bg-gold text-charcoal rounded font-sans text-sm font-medium hover:bg-gold-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
-                    >
-                      {isSending ? 'sending...' : sendResult?.success ? 'sent' : 'send to vendor'}
-                    </button>
-                  </div>
+                    <a
+                      href={(() => {
+                        const firstName = (result.clientName || '').split(' ')[0] || 'there'
+                        const address = result.propertyAddress || 'your property'
+                        const street = address.split(',')[0]?.trim() || address
+                        const proposalLink = `${origin}${result.url}`
+                        const subject = `Your Property Proposal — ${street}`
+                        const body = `Dear ${firstName},
 
-                  {/* Send result */}
-                  {sendResult && (
-                    <motion.p
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className={`text-sm font-sans font-light ${
-                        sendResult.success ? 'text-sage-300' : 'text-white/50'
-                      }`}
+Thank you for the opportunity to present our proposal for the sale of ${street}. It was a pleasure meeting with you, and I truly appreciate the trust you've placed in Grant's Estate Agents.
+
+I've prepared a personalised proposal that outlines our recommended approach, including our marketing strategy, comparable sales data, and the campaign structure designed to achieve the very best result for you.
+
+You can view your proposal here:
+${proposalLink}
+
+The proposal is interactive — you can review each section at your own pace and, when you're ready, express your interest to proceed directly from the page.
+
+If you have any questions at all, please don't hesitate to call me directly. I'm here to guide you through every step of the process.
+
+I look forward to working with you.
+
+Warm regards,
+
+Stuart Grant
+Principal — Berwick & Pakenham
+Grant's Estate Agents
+M: 0438 554 522
+E: stuart@grantsea.com.au
+W: grantsea.com.au`
+                        return `mailto:${encodeURIComponent(result.clientEmail || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+                      })()}
+                      className="px-5 py-3 bg-gold text-charcoal rounded font-sans text-sm font-medium hover:bg-gold-600 transition-colors min-h-[44px] flex items-center justify-center gap-2"
                     >
-                      {sendResult.message}
-                    </motion.p>
-                  )}
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                      </svg>
+                      send to vendor
+                    </a>
+                  </div>
 
                   {/* Create another */}
                   <button
@@ -276,6 +586,31 @@ export default function HomePage() {
                 </motion.div>
               ) : (
                 <>
+                  {/* Draft indicator */}
+                  <div className="flex items-center justify-between">
+                    <p className="text-white/20 font-sans text-xs">
+                      progress auto-saved
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearDraft()
+                        setAddressValue('')
+                        setHeroUploadUrl('')
+                        setMarketingCosts(DEFAULT_MARKETING_COSTS)
+                        formRef.current?.reset()
+                        // Re-check the N/A radio after reset
+                        setTimeout(() => {
+                          const radios = formRef.current?.querySelectorAll<HTMLInputElement>('input[name="methodOfSale"]')
+                          radios?.forEach(r => { r.checked = r.value === '' })
+                        }, 50)
+                      }}
+                      className="text-white/20 hover:text-white/40 font-sans text-xs transition-colors"
+                    >
+                      clear form
+                    </button>
+                  </div>
+
                   <div>
                     <label htmlFor="clientName" className="block text-sm font-sans font-medium text-white/60 mb-2 lowercase">
                       client name
@@ -420,23 +755,152 @@ export default function HomePage() {
 
                   {/* Divider */}
                   <div className="border-t border-white/5 pt-8">
+                    <p className="text-white/30 font-sans text-xs tracking-wider-custom mb-8">sale details</p>
+                  </div>
+
+                  {/* Method of Sale */}
+                  <div>
+                    <label className="block text-sm font-sans font-medium text-white/60 mb-3 lowercase">
+                      method of sale
+                    </label>
+                    <div className="flex flex-wrap gap-3">
+                      {['Auction', 'Private Sale', 'Expressions of Interest'].map((method) => (
+                        <label key={method} className="relative cursor-pointer">
+                          <input
+                            type="radio"
+                            name="methodOfSale"
+                            value={method}
+                            className="sr-only peer"
+                          />
+                          <div className="px-5 py-3 rounded bg-white/5 border border-white/15 text-white/50 font-sans text-sm font-medium transition-all duration-200 peer-checked:bg-brand/20 peer-checked:border-brand peer-checked:text-white hover:bg-white/10 hover:text-white/70 min-h-[44px] flex items-center">
+                            {method.toLowerCase()}
+                          </div>
+                        </label>
+                      ))}
+                      <label className="relative cursor-pointer">
+                        <input
+                          type="radio"
+                          name="methodOfSale"
+                          value=""
+                          defaultChecked
+                          className="sr-only peer"
+                        />
+                        <div className="px-5 py-3 rounded bg-white/5 border border-white/15 text-white/50 font-sans text-sm font-medium transition-all duration-200 peer-checked:bg-white/10 peer-checked:border-white/30 peer-checked:text-white/70 hover:bg-white/10 hover:text-white/70 min-h-[44px] flex items-center">
+                          n/a
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Price Guide */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor="priceGuideMin" className="block text-sm font-sans font-medium text-white/60 mb-2 lowercase">
+                        price guide — low
+                        <span className="text-white/30 text-xs ml-2">optional</span>
+                      </label>
+                      <input
+                        type="number"
+                        id="priceGuideMin"
+                        name="priceGuideMin"
+                        min="0"
+                        step="10000"
+                        className="w-full px-4 py-3 bg-white/5 border border-white/15 rounded text-white font-sans placeholder-white/20 focus:ring-1 focus:ring-gold focus:border-gold text-base touch-manipulation transition-colors"
+                        placeholder="800000"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="priceGuideMax" className="block text-sm font-sans font-medium text-white/60 mb-2 lowercase">
+                        price guide — high
+                        <span className="text-white/30 text-xs ml-2">optional</span>
+                      </label>
+                      <input
+                        type="number"
+                        id="priceGuideMax"
+                        name="priceGuideMax"
+                        min="0"
+                        step="10000"
+                        className="w-full px-4 py-3 bg-white/5 border border-white/15 rounded text-white font-sans placeholder-white/20 focus:ring-1 focus:ring-gold focus:border-gold text-base touch-manipulation transition-colors"
+                        placeholder="900000"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="border-t border-white/5 pt-8">
                     <p className="text-white/30 font-sans text-xs tracking-wider-custom mb-8">property details</p>
                   </div>
 
+                  {/* Hero image — upload or URL */}
                   <div>
-                    <label htmlFor="heroImage" className="block text-sm font-sans font-medium text-white/60 mb-2 lowercase">
-                      hero image url
+                    <label className="block text-sm font-sans font-medium text-white/60 mb-2 lowercase">
+                      hero image
                       <span className="text-white/30 text-xs ml-2">
-                        {propertyImages && useAutoImage ? 'manual override — leave blank to use auto-fetched image' : 'optional'}
+                        {propertyImages && useAutoImage ? 'override — leave blank to use auto-fetched' : 'upload or paste URL'}
                       </span>
                     </label>
-                    <input
-                      type="url"
-                      id="heroImage"
-                      name="heroImage"
-                      className="w-full px-4 py-3 bg-white/5 border border-white/15 rounded text-white font-sans placeholder-white/20 focus:ring-1 focus:ring-gold focus:border-gold text-base touch-manipulation transition-colors"
-                      placeholder="https://example.com/property-photo.jpg"
-                    />
+
+                    {/* Upload preview */}
+                    {heroUploadUrl && (
+                      <div className="mb-3 relative">
+                        <div className="w-full max-h-[160px] overflow-hidden rounded shadow-md">
+                          <img src={heroUploadUrl} alt="Hero preview" className="w-full h-full max-h-[160px] object-cover rounded" />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setHeroUploadUrl('')}
+                          className="absolute top-2 right-2 w-7 h-7 bg-black/60 rounded-full flex items-center justify-center text-white/70 hover:text-white transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="flex gap-3">
+                      {/* File upload */}
+                      <label className="flex-shrink-0 px-4 py-3 bg-white/5 border border-white/15 rounded text-white/50 hover:text-white/70 hover:bg-white/10 font-sans text-sm font-medium cursor-pointer transition-colors min-h-[44px] flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                        </svg>
+                        {isUploadingHero ? 'uploading...' : 'upload'}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="sr-only"
+                          disabled={isUploadingHero}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0]
+                            if (!file) return
+                            setIsUploadingHero(true)
+                            try {
+                              const fd = new FormData()
+                              fd.append('file', file)
+                              const res = await fetch('/api/upload', { method: 'POST', body: fd })
+                              const data = await res.json()
+                              if (data.url) {
+                                setHeroUploadUrl(data.url)
+                              }
+                            } catch {}
+                            setIsUploadingHero(false)
+                            e.target.value = ''
+                          }}
+                        />
+                      </label>
+                      {/* URL input */}
+                      <input
+                        type="url"
+                        id="heroImage"
+                        name="heroImage"
+                        className="flex-1 px-4 py-3 bg-white/5 border border-white/15 rounded text-white font-sans placeholder-white/20 focus:ring-1 focus:ring-gold focus:border-gold text-base touch-manipulation transition-colors"
+                        placeholder="or paste image URL"
+                      />
+                    </div>
+                    {/* Pass uploaded hero image */}
+                    {heroUploadUrl && (
+                      <input type="hidden" name="heroImage" value={heroUploadUrl} />
+                    )}
                   </div>
 
                   <div>
@@ -448,13 +912,119 @@ export default function HomePage() {
                       type="number"
                       id="commissionRate"
                       name="commissionRate"
-                      step="0.1"
+                      step="0.01"
                       min="0"
                       max="10"
                       className="w-full px-4 py-3 bg-white/5 border border-white/15 rounded text-white font-sans placeholder-white/20 focus:ring-1 focus:ring-gold focus:border-gold text-base touch-manipulation transition-colors"
-                      placeholder="1.5"
+                      placeholder="1.45"
                     />
                   </div>
+
+                  {/* Divider */}
+                  <div className="border-t border-white/5 pt-8">
+                    <p className="text-white/30 font-sans text-xs tracking-wider-custom mb-8">marketing costs</p>
+                  </div>
+
+                  {/* Marketing Costs Editor */}
+                  <div className="space-y-3">
+                    {marketingCosts.map((item, index) => (
+                      <div key={index} className="grid grid-cols-12 gap-2 items-start">
+                        {/* Category */}
+                        <div className="col-span-12 sm:col-span-4">
+                          <input
+                            type="text"
+                            value={item.category}
+                            onChange={(e) => updateMarketingItem(index, 'category', e.target.value)}
+                            className="w-full px-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-gold focus:border-gold transition-colors"
+                            placeholder="Item name"
+                          />
+                        </div>
+                        {/* Description */}
+                        <div className="col-span-12 sm:col-span-4">
+                          <input
+                            type="text"
+                            value={item.description}
+                            onChange={(e) => updateMarketingItem(index, 'description', e.target.value)}
+                            className="w-full px-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-gold focus:border-gold transition-colors"
+                            placeholder="Description"
+                          />
+                        </div>
+                        {/* Cost or Included toggle */}
+                        <div className="col-span-6 sm:col-span-2">
+                          {item.included ? (
+                            <div className="px-3 py-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded text-emerald-400 font-sans text-sm text-center">
+                              included
+                            </div>
+                          ) : (
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 font-sans text-sm">$</span>
+                              <input
+                                type="number"
+                                value={item.cost || ''}
+                                onChange={(e) => updateMarketingItem(index, 'cost', parseFloat(e.target.value) || 0)}
+                                min="0"
+                                step="10"
+                                className="w-full pl-7 pr-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-gold focus:border-gold transition-colors"
+                                placeholder="0"
+                              />
+                            </div>
+                          )}
+                        </div>
+                        {/* Included toggle + remove */}
+                        <div className="col-span-6 sm:col-span-2 flex items-center gap-2">
+                          <label className="flex items-center gap-1.5 cursor-pointer group flex-1">
+                            <div className="relative">
+                              <input
+                                type="checkbox"
+                                checked={item.included}
+                                onChange={(e) => updateMarketingItem(index, 'included', e.target.checked)}
+                                className="sr-only peer"
+                              />
+                              <div className="w-8 h-4.5 bg-white/10 rounded-full peer-checked:bg-emerald-500 transition-colors duration-200" style={{ height: '18px' }} />
+                              <div className="absolute top-0.5 left-0.5 w-3.5 h-3.5 bg-white rounded-full shadow transition-transform duration-200 peer-checked:translate-x-3.5" style={{ width: '14px', height: '14px' }} />
+                            </div>
+                            <span className="text-white/40 font-sans text-xs group-hover:text-white/60 transition-colors whitespace-nowrap">
+                              incl
+                            </span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => removeMarketingItem(index)}
+                            className="w-8 h-8 flex items-center justify-center text-white/20 hover:text-red-400 transition-colors rounded hover:bg-white/5"
+                            aria-label="Remove item"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Add item + total */}
+                    <div className="flex items-center justify-between pt-4">
+                      <button
+                        type="button"
+                        onClick={addMarketingItem}
+                        className="flex items-center gap-2 text-white/40 hover:text-white/70 font-sans text-sm transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                        add item
+                      </button>
+                      <div className="text-right">
+                        <p className="text-white/40 font-sans text-xs mb-1">total campaign cost</p>
+                        <p className="text-gold font-sans text-xl font-semibold">
+                          ${marketingTotal.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Hidden input to pass marketing costs JSON */}
+                  <input type="hidden" name="marketingCosts" value={JSON.stringify(marketingCosts)} />
+                  <input type="hidden" name="marketingTotal" value={marketingTotal.toString()} />
 
                   {/* Divider */}
                   <div className="border-t border-white/5 pt-8">

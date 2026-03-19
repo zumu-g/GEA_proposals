@@ -4,7 +4,8 @@ import { Proposal, AgencyConfig, AdvertisingWeek } from '@/types/proposal'
 import { isValidProposalId } from '@/lib/utils'
 import { getDb } from '@/lib/db'
 
-const AGENCY_CONFIG_PATH = path.join(process.cwd(), 'data', 'agency-config.json')
+const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data')
+const AGENCY_CONFIG_PATH = path.join(DATA_DIR, 'agency-config.json')
 
 // --- Agency config (still file-based — single config, rarely changes) ---
 
@@ -53,6 +54,7 @@ interface ProposalRow {
   marketing_approach: string | null
   database_info: string | null
   internet_listings: string | null
+  on_market_listings: string | null
   created_at: string
   updated_at: string
 }
@@ -83,6 +85,7 @@ function rowToProposal(row: ProposalRow): Proposal {
     marketingApproach: row.marketing_approach || undefined,
     databaseInfo: row.database_info || undefined,
     internetListings: row.internet_listings ? JSON.parse(row.internet_listings) : undefined,
+    onMarketListings: row.on_market_listings ? JSON.parse(row.on_market_listings) : undefined,
     status: row.status as Proposal['status'],
     sentAt: row.sent_at || undefined,
     viewedAt: row.viewed_at || undefined,
@@ -114,6 +117,7 @@ function proposalToParams(proposal: Proposal) {
     marketing_approach: proposal.marketingApproach || null,
     database_info: proposal.databaseInfo || null,
     internet_listings: proposal.internetListings ? JSON.stringify(proposal.internetListings) : null,
+    on_market_listings: proposal.onMarketListings ? JSON.stringify(proposal.onMarketListings) : null,
     status: proposal.status,
     sent_at: proposal.sentAt || null,
     viewed_at: proposal.viewedAt || null,
@@ -132,13 +136,13 @@ export async function saveProposal(proposal: Proposal): Promise<void> {
       hero_image, property_images, price_guide_min, price_guide_max, method_of_sale,
       sale_process, marketing_plan, recent_sales, fees, agency,
       advertising_schedule, total_advertising_cost, area_analysis, team_members,
-      marketing_approach, database_info, internet_listings,
+      marketing_approach, database_info, internet_listings, on_market_listings,
       status, sent_at, viewed_at, approved_at)
     VALUES (@id, @client_name, @client_email, @property_address, @proposal_date,
       @hero_image, @property_images, @price_guide_min, @price_guide_max, @method_of_sale,
       @sale_process, @marketing_plan, @recent_sales, @fees, @agency,
       @advertising_schedule, @total_advertising_cost, @area_analysis, @team_members,
-      @marketing_approach, @database_info, @internet_listings,
+      @marketing_approach, @database_info, @internet_listings, @on_market_listings,
       @status, @sent_at, @viewed_at, @approved_at)
     ON CONFLICT(id) DO UPDATE SET
       client_name=@client_name, client_email=@client_email, property_address=@property_address,
@@ -149,7 +153,7 @@ export async function saveProposal(proposal: Proposal): Promise<void> {
       advertising_schedule=@advertising_schedule, total_advertising_cost=@total_advertising_cost,
       area_analysis=@area_analysis, team_members=@team_members,
       marketing_approach=@marketing_approach, database_info=@database_info,
-      internet_listings=@internet_listings,
+      internet_listings=@internet_listings, on_market_listings=@on_market_listings,
       status=@status, sent_at=@sent_at, viewed_at=@viewed_at, approved_at=@approved_at,
       updated_at=datetime('now')
   `)

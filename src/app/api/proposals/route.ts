@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createProposal, parseCSV, parseExcel } from '@/lib/spreadsheet-parser'
 import { saveProposal, getAgencyConfig, listProposals, deleteProposal } from '@/lib/proposal-generator'
-import { lookupComparables } from '@/lib/comparables-lookup'
+import { lookupComparables, lookupOnMarket } from '@/lib/comparables-lookup'
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,6 +12,11 @@ export async function POST(request: NextRequest) {
     const heroImage = formData.get('heroImage') as string | null
     const autoHeroImage = formData.get('autoHeroImage') as string | null
     const commissionRate = formData.get('commissionRate') as string | null
+    const methodOfSale = formData.get('methodOfSale') as string | null
+    const priceGuideMin = formData.get('priceGuideMin') as string | null
+    const priceGuideMax = formData.get('priceGuideMax') as string | null
+    const marketingCostsJson = formData.get('marketingCosts') as string | null
+    const marketingTotalStr = formData.get('marketingTotal') as string | null
     const file = formData.get('file') as File | null
 
     // Collect auto-fetched property gallery images
@@ -64,14 +69,22 @@ export async function POST(request: NextRequest) {
       ? parsedRate
       : agencyConfig.defaultCommissionRate
 
-    // Auto-lookup comparable sales if no file uploaded
+    // Auto-lookup comparable sales and on-market listings if no file uploaded
+    let onMarketListings
     if (spreadsheetRows.length === 0) {
       try {
         console.log('[proposals] Looking up comparables for:', propertyAddress)
-        const comparables = await lookupComparables(propertyAddress)
+        const [comparables, onMarket] = await Promise.all([
+          lookupComparables(propertyAddress),
+          lookupOnMarket(propertyAddress),
+        ])
         if (comparables.length > 0) {
           spreadsheetRows = comparables
           console.log(`[proposals] Found ${comparables.length} comparable sales`)
+        }
+        if (onMarket.length > 0) {
+          onMarketListings = onMarket
+          console.log(`[proposals] Found ${onMarket.length} on-market listings`)
         }
       } catch (err) {
         console.error('[proposals] Comparables lookup failed:', err)
@@ -94,6 +107,63 @@ export async function POST(request: NextRequest) {
       },
       agency: agencyConfig,
     })
+
+    // Add method of sale and price guide
+    if (methodOfSale) {
+      proposal.methodOfSale = methodOfSale
+    }
+    const minPrice = priceGuideMin ? parseInt(priceGuideMin) : NaN
+    const maxPrice = priceGuideMax ? parseInt(priceGuideMax) : NaN
+    if (Number.isFinite(minPrice) && Number.isFinite(maxPrice) && minPrice > 0 && maxPrice > 0) {
+      proposal.priceGuide = { min: minPrice, max: maxPrice }
+    }
+
+    // Add on-market listings
+    if (onMarketListings && onMarketListings.length > 0) {
+      proposal.onMarketListings = onMarketListings
+    }
+
+    // Add custom marketing costs as advertising schedule
+    if (marketingCostsJson) {
+      try {
+        const items = JSON.parse(marketingCostsJson) as Array<{
+          category: string; description: string; cost: number; included: boolean
+        }>
+        if (items.length > 0) {
+          const prepItems = items.filter(i => i.category)
+          // Campaign prep (week 0) gets all one-off items, weeks 1-4 get ongoing items
+          const campaignPrep = prepItems.filter(i => !['Open Homes', 'Internet Listings'].some(k => i.category.toLowerCase().includes(k.toLowerCase())))
+          const ongoingItems = prepItems.filter(i => ['Open Homes', 'Internet Listings'].some(k => i.category.toLowerCase().includes(k.toLowerCase())))
+
+          const schedule = [
+            {
+              week: 0,
+              activities: campaignPrep.map(i => ({
+                category: i.category,
+                description: i.description,
+                ...(i.included ? { included: true } : { cost: i.cost }),
+              })),
+            },
+            ...([1, 2, 3, 4].map(w => ({
+              week: w,
+              activities: [
+                ...(w === 1 ? [] : []),
+                ...ongoingItems.map(i => ({
+                  category: i.category,
+                  description: w === 1 ? i.description : `Continued ${i.category.toLowerCase()}`,
+                  included: true as const,
+                })),
+                { category: 'Open Home', description: w === 1 ? 'First open home inspection' : 'Open home inspection', included: true as const },
+              ],
+            }))),
+          ]
+          proposal.advertisingSchedule = schedule
+          proposal.totalAdvertisingCost = marketingTotalStr ? parseFloat(marketingTotalStr) : undefined
+        }
+      } catch {
+        // Invalid JSON, ignore — defaults will be used
+      }
+    }
 
     await saveProposal(proposal)
 

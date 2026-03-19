@@ -11,7 +11,7 @@ interface ApprovalSectionProps {
 export function ApprovalSection({ proposal }: ApprovalSectionProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isApproving, setIsApproving] = useState(false)
-  const [isApproved, setIsApproved] = useState(proposal.status === 'approved')
+  const [isApproved, setIsApproved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const prefersReducedMotion = useReducedMotion()
 
@@ -110,7 +110,7 @@ export function ApprovalSection({ proposal }: ApprovalSectionProps) {
               whileHover={prefersReducedMotion ? {} : { scale: 1.02 }}
               whileTap={prefersReducedMotion ? {} : { scale: 0.97 }}
               onClick={() => setIsModalOpen(true)}
-              className="inline-flex items-center px-12 py-5 bg-charcoal text-white font-sans font-medium text-lg tracking-wide rounded-lg hover:bg-charcoal-700 transition-colors duration-200 min-h-[56px] shadow-md hover:shadow-lg print:hidden"
+              className="inline-flex items-center px-12 py-5 bg-brand text-white font-sans font-medium text-lg tracking-wide rounded-lg hover:bg-brand/90 transition-colors duration-200 min-h-[56px] shadow-md hover:shadow-lg print:hidden"
             >
               proceed with proposal
             </motion.button>

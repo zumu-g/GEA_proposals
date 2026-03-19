@@ -6,7 +6,8 @@
  * including address, sold price, sold date, beds, baths, cars, and photos.
  */
 
-import { PropertySale } from '@/types/proposal'
+import { PropertySale, OnMarketListing } from '@/types/proposal'
+import { isApifyAvailable, apifyLookupComparables, apifyLookupOnMarket } from './apify-scraper'
 
 interface AddressParts {
   streetNumber?: string
@@ -91,11 +92,13 @@ interface HomelyListing {
 }
 
 /**
- * Fetch sold listings from homely.com.au for a suburb.
+ * Fetch listings from homely.com.au for a suburb.
+ * @param type 'sold' for completed sales, 'buy' for current on-market listings
  */
-async function fetchHomelyListings(parts: AddressParts): Promise<HomelyListing[]> {
+async function fetchHomelyListings(parts: AddressParts, type: 'sold' | 'buy' = 'sold'): Promise<HomelyListing[]> {
   const suburbSlug = parts.suburb.replace(/\s+/g, '-')
-  const url = `https://www.homely.com.au/sold-properties/${suburbSlug}-${parts.state}-${parts.postcode}`
+  const urlPath = type === 'sold' ? 'sold-properties' : 'homes'
+  const url = `https://www.homely.com.au/${urlPath}/${suburbSlug}-${parts.state}-${parts.postcode}`
 
   console.log(`[comparables] Fetching: ${url}`)
 
@@ -130,7 +133,10 @@ async function fetchHomelyListings(parts: AddressParts): Promise<HomelyListing[]
     for (const key of Object.keys(apollo)) {
       if (key.startsWith('Listing:')) {
         const listing = apollo[key] as HomelyListing
-        if (listing.statusType === 'completed' && listing.listingType === 'sale') {
+        const isMatch = type === 'sold'
+          ? (listing.statusType === 'completed' && listing.listingType === 'sale')
+          : (listing.statusType === 'current' && listing.listingType === 'sale')
+        if (isMatch) {
           listings.push(listing)
         }
       }
@@ -183,17 +189,33 @@ function listingToSale(listing: HomelyListing): PropertySale | null {
 
 /**
  * Main entry point: look up comparable sales for a property address.
- * Returns up to 8 recent sales from the same suburb, prioritising those
- * on the same street and with disclosed prices.
+ * Tries Apify (realestate.com.au) first, falls back to homely.com.au.
+ * Returns up to 8 recent sales from the same suburb.
  */
 export async function lookupComparables(propertyAddress: string): Promise<PropertySale[]> {
+  // Try Apify first (realestate.com.au)
+  if (isApifyAvailable()) {
+    console.log(`[comparables] Trying Apify (realestate.com.au) for: ${propertyAddress}`)
+    try {
+      const apifyResults = await apifyLookupComparables(propertyAddress)
+      if (apifyResults.length > 0) {
+        console.log(`[comparables] Apify returned ${apifyResults.length} results`)
+        return apifyResults
+      }
+      console.log('[comparables] Apify returned no results, falling back to homely')
+    } catch (err) {
+      console.warn('[comparables] Apify failed, falling back to homely:', err)
+    }
+  }
+
+  // Fallback: homely.com.au
   const parts = parseAddress(propertyAddress)
   if (!parts) {
     console.error(`[comparables] Could not parse address: ${propertyAddress}`)
     return []
   }
 
-  console.log(`[comparables] Looking up comparables for: ${propertyAddress}`)
+  console.log(`[comparables] Looking up comparables via homely for: ${propertyAddress}`)
   console.log(`[comparables] Suburb: ${parts.suburb}, State: ${parts.state}, Postcode: ${parts.postcode}`)
 
   const listings = await fetchHomelyListings(parts).catch((err) => {
@@ -223,4 +245,78 @@ export async function lookupComparables(propertyAddress: string): Promise<Proper
   console.log(`[comparables] Returning ${sales.length} comparable sales`)
 
   return sales
+}
+
+/**
+ * Convert a homely listing to an OnMarketListing (currently for sale).
+ */
+function listingToOnMarket(listing: HomelyListing): OnMarketListing | null {
+  const address = listing.address?.longAddress || listing.location?.address || ''
+  if (!address) return null
+
+  const askingPrice =
+    listing.priceDetails?.longDescription ||
+    listing.priceDetails?.shortDescription ||
+    'Contact Agent'
+
+  const imageUrl = listing.media?.photos?.[0]?.webDefaultURI || undefined
+
+  return {
+    address,
+    askingPrice,
+    bedrooms: listing.features?.bedrooms || 0,
+    bathrooms: listing.features?.bathrooms || 0,
+    cars: listing.features?.cars || 0,
+    propertyType: listing.statusLabels?.propertyTypeDescription || 'House',
+    url: listing.canonicalUri
+      ? `https://www.homely.com.au${listing.canonicalUri}`
+      : '',
+    imageUrl,
+  }
+}
+
+/**
+ * Look up properties currently on the market in the same suburb.
+ * Tries Apify (realestate.com.au) first, falls back to homely.com.au.
+ * Returns up to 8 current listings.
+ */
+export async function lookupOnMarket(propertyAddress: string): Promise<OnMarketListing[]> {
+  // Try Apify first (realestate.com.au)
+  if (isApifyAvailable()) {
+    console.log(`[on-market] Trying Apify (realestate.com.au) for: ${propertyAddress}`)
+    try {
+      const apifyResults = await apifyLookupOnMarket(propertyAddress)
+      if (apifyResults.length > 0) {
+        console.log(`[on-market] Apify returned ${apifyResults.length} results`)
+        return apifyResults
+      }
+      console.log('[on-market] Apify returned no results, falling back to homely')
+    } catch (err) {
+      console.warn('[on-market] Apify failed, falling back to homely:', err)
+    }
+  }
+
+  // Fallback: homely.com.au
+  const parts = parseAddress(propertyAddress)
+  if (!parts) {
+    console.error(`[on-market] Could not parse address: ${propertyAddress}`)
+    return []
+  }
+
+  console.log(`[on-market] Looking up current listings via homely for: ${propertyAddress}`)
+
+  const listings = await fetchHomelyListings(parts, 'buy').catch((err) => {
+    console.error('[on-market] Fetch failed:', err)
+    return [] as HomelyListing[]
+  })
+
+  console.log(`[on-market] Found ${listings.length} current listings`)
+
+  const onMarket = listings
+    .map(listingToOnMarket)
+    .filter((l): l is OnMarketListing => l !== null)
+    .slice(0, 8)
+
+  console.log(`[on-market] Returning ${onMarket.length} on-market listings`)
+  return onMarket
 }

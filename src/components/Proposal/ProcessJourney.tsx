@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import type { SaleStep } from '@/types/proposal'
 
@@ -10,6 +10,7 @@ interface ProcessJourneyProps {
 
 export function ProcessJourney({ steps }: ProcessJourneyProps) {
   const prefersReducedMotion = useReducedMotion()
+  const [imageErrors, setImageErrors] = useState<Set<number>>(new Set())
 
   const fadeUp = prefersReducedMotion
     ? {}
@@ -17,7 +18,17 @@ export function ProcessJourney({ steps }: ProcessJourneyProps) {
 
   const fadeUpTransition = { duration: 0.4, ease: 'easeOut' }
 
-  // Colour pairings for the large step number blocks — alternates between forest and sage tones
+  // Default Stocksy images for each step (used when step data has no imageUrl)
+  const defaultStepImages = [
+    '/images/stocksy/consultation.jpg',
+    '/images/stocksy/valuation.jpg',
+    '/images/stocksy/marketing-prep.jpg',
+    '/images/stocksy/launch.jpg',
+    '/images/stocksy/viewings.jpg',
+    '/images/stocksy/completion.jpg',
+  ]
+
+  // Fallback gradient themes when image fails to load
   const stepThemes = [
     { bg: 'from-forest-700 to-forest', text: 'text-forest-200/30' },
     { bg: 'from-sage-600 to-sage-700', text: 'text-sage-200/30' },
@@ -30,7 +41,7 @@ export function ProcessJourney({ steps }: ProcessJourneyProps) {
   return (
     <section className="bg-forest-50 py-20 sm:py-28 lg:py-36">
       <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-16 xl:px-24">
-        {/* Section header — centred label style, no gold accent line */}
+        {/* Section header */}
         <motion.div
           {...fadeUp}
           viewport={{ once: true }}
@@ -55,6 +66,8 @@ export function ProcessJourney({ steps }: ProcessJourneyProps) {
             const isEven = index % 2 === 0
             const theme = stepThemes[index % stepThemes.length]
             const stepNumber = String(step.step).padStart(2, '0')
+            const stepImage = step.imageUrl || defaultStepImages[index % defaultStepImages.length]
+            const hasImage = stepImage && !imageErrors.has(index)
 
             return (
               <motion.div
@@ -71,21 +84,33 @@ export function ProcessJourney({ steps }: ProcessJourneyProps) {
                   isEven ? 'lg:flex-row' : 'lg:flex-row-reverse'
                 } gap-10 lg:gap-16 items-center`}
               >
-                {/* Large typographic step number block */}
+                {/* Image block with step number overlay */}
                 <div className="w-full lg:w-1/2">
-                  <div
-                    className={`aspect-[4/3] rounded-2xl overflow-hidden relative bg-gradient-to-br ${theme.bg} flex items-center justify-center shadow-lg`}
-                  >
-                    {/* Giant background number */}
-                    <span
-                      className={`font-display text-[10rem] sm:text-[13rem] lg:text-[15rem] font-normal select-none leading-none ${theme.text}`}
-                    >
-                      {stepNumber}
-                    </span>
-                    {/* Foreground number */}
-                    <span className="absolute font-display text-7xl sm:text-8xl lg:text-9xl font-normal text-white/90 leading-none">
-                      {stepNumber}
-                    </span>
+                  <div className="aspect-[4/3] rounded-2xl overflow-hidden relative shadow-lg">
+                    {hasImage ? (
+                      <>
+                        <img
+                          src={stepImage}
+                          alt={step.title}
+                          className="w-full h-full object-cover"
+                          onError={() => setImageErrors(prev => new Set(prev).add(index))}
+                        />
+                        {/* Dark overlay for text legibility */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
+                      </>
+                    ) : (
+                      <div className={`w-full h-full bg-gradient-to-br ${theme.bg} flex items-center justify-center`}>
+                        <span className={`font-display text-[10rem] sm:text-[13rem] lg:text-[15rem] font-normal select-none leading-none ${theme.text}`}>
+                          {stepNumber}
+                        </span>
+                      </div>
+                    )}
+                    {/* Step number badge — always visible */}
+                    <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm rounded-full w-12 h-12 flex items-center justify-center shadow-md">
+                      <span className="font-display text-lg font-normal text-charcoal">
+                        {stepNumber}
+                      </span>
+                    </div>
                   </div>
                 </div>
 

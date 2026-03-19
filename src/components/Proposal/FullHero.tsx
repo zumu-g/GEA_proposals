@@ -78,16 +78,18 @@ export function FullHero({ proposal }: FullHeroProps) {
 
       {/* Content */}
       <div className="relative z-10 h-full flex flex-col justify-between px-6 sm:px-8 lg:px-16 xl:px-24">
-        {/* Top: Agency name */}
+        {/* Top: Agency logo */}
         <motion.div
           initial={prefersReducedMotion ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.3 }}
           className="pt-8 sm:pt-12"
         >
-          <p className="text-gold font-sans text-xs sm:text-sm tracking-[0.25em] uppercase">
-            {proposal.agency?.name || 'grant estate agents'}
-          </p>
+          <img
+            src="/images/grants-logo.svg"
+            alt={proposal.agency?.name || "Grant's Estate Agents"}
+            className="h-12 sm:h-16 w-auto"
+          />
         </motion.div>
 
         {/* Centre: Property address */}

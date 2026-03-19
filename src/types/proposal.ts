@@ -21,6 +21,8 @@ export interface AgencyConfig {
   agentTitle?: string;
   agentPhone?: string;
   agentPhoto?: string;
+  agentBio?: string;
+  agentYearsExperience?: number;
   stats?: AgencyStat[];
   offices?: AgencyOffice[];
 }
@@ -59,6 +61,7 @@ export interface Proposal {
   marketingApproach?: string;  // why this marketing strategy
   databaseInfo?: string;  // VIP buyers / database explanation
   internetListings?: string[];  // specific platforms
+  onMarketListings?: OnMarketListing[];
   status: 'draft' | 'sent' | 'viewed' | 'approved' | 'rejected';
   sentAt?: string;
   viewedAt?: string;
@@ -70,6 +73,19 @@ export interface SaleStep {
   title: string;
   description: string;
   duration?: string;
+  imageUrl?: string;
+}
+
+export interface OnMarketListing {
+  address: string;
+  askingPrice: string;
+  bedrooms: number;
+  bathrooms: number;
+  cars: number;
+  propertyType: string;
+  url: string;
+  imageUrl?: string;
+  daysOnMarket?: number;
 }
 
 export interface MarketingItem {

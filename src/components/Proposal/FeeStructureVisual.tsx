@@ -21,7 +21,6 @@ export function FeeStructureVisual({ fees }: FeeStructureVisualProps) {
   const commissionRate = fees?.commissionRate ?? 1.5
   const fixedFees = fees?.fixedFees ?? []
   const inclusions = fees?.inclusions ?? DEFAULT_INCLUSIONS
-  const marketingBudget = fees?.marketingBudget
   const prefersReducedMotion = useReducedMotion()
 
   return (
@@ -68,26 +67,6 @@ export function FeeStructureVisual({ fees }: FeeStructureVisualProps) {
               )}
             </div>
 
-            {/* Marketing budget box — shown side by side on larger screens if present */}
-            {marketingBudget && (
-              <motion.div
-                initial={prefersReducedMotion ? false : { opacity: 0, y: 15 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: prefersReducedMotion ? 0 : 0.15 }}
-                className="bg-charcoal-700 rounded-lg border-l-4 border-sage p-8 sm:p-10 text-center mt-6"
-              >
-                <p className="text-sage font-sans text-xs tracking-[0.25em] uppercase mb-4">
-                  marketing budget
-                </p>
-                <p className="font-display text-4xl sm:text-5xl font-normal text-white leading-none">
-                  {marketingBudget}
-                </p>
-                <p className="text-white/70 font-sans text-sm font-light mt-4">
-                  investment in presenting your property
-                </p>
-              </motion.div>
-            )}
           </motion.div>
 
           {/* Right: Inclusions — takes 3 cols */}
