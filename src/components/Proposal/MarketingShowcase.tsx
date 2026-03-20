@@ -73,12 +73,12 @@ function getIcon(iconKey?: string): React.ReactNode {
 /* ------------------------------------------------------------------ */
 
 const cardGradients = [
-  'from-forest-800/60 to-forest-900/40',
-  'from-charcoal-700/50 to-forest-800/50',
-  'from-sage-800/40 to-forest-800/50',
-  'from-charcoal-800/40 to-charcoal-700/30',
-  'from-forest-700/50 to-sage-800/40',
-  'from-charcoal-600/40 to-forest-700/50',
+  'from-forest-800/50 to-forest-900/40',
+  'from-forest-800/50 to-forest-900/40',
+  'from-forest-800/50 to-forest-900/40',
+  'from-forest-800/50 to-forest-900/40',
+  'from-forest-800/50 to-forest-900/40',
+  'from-forest-800/50 to-forest-900/40',
 ]
 
 /* ------------------------------------------------------------------ */
