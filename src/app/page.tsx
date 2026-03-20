@@ -63,41 +63,67 @@ export default function HomePage() {
   const [heroUploadUrl, setHeroUploadUrl] = useState('')
   const [isUploadingHero, setIsUploadingHero] = useState(false)
 
-  // Comparables search state
-  const [searchedComps, setSearchedComps] = useState<Array<{ address: string; price: number; date: string; bedrooms: number; bathrooms: number; sqft: number; distance: number; url: string; imageUrl?: string; selected: boolean }>>([])
-  const [searchedOnMarket, setSearchedOnMarket] = useState<Array<{ address: string; askingPrice: string; bedrooms: number; bathrooms: number; cars: number; propertyType: string; url: string; imageUrl?: string; selected: boolean }>>([])
+  // Comparable sales (editable table)
+  interface CompRow { address: string; price: string; date: string; bedrooms: string; bathrooms: string; url: string }
+  const [compRows, setCompRows] = useState<CompRow[]>([])
   const [isSearchingComps, setIsSearchingComps] = useState(false)
-  const [compsSearched, setCompsSearched] = useState(false)
+
+  // On-market listings (editable table)
+  interface OnMarketRow { address: string; askingPrice: string; bedrooms: string; bathrooms: string; propertyType: string; url: string }
+  const [onMarketRows, setOnMarketRows] = useState<OnMarketRow[]>([])
 
   const searchComparables = async () => {
     if (!addressValue || isSearchingComps) return
     setIsSearchingComps(true)
-    setCompsSearched(false)
     try {
-      const res = await fetch(`/api/comparables?address=${encodeURIComponent(addressValue)}`)
-      const data = await res.json()
-      if (data.sales) {
-        setSearchedComps(data.sales.map((s: any) => ({ ...s, selected: true })))
+      const [soldRes, buyRes] = await Promise.all([
+        fetch(`/api/comparables?address=${encodeURIComponent(addressValue)}`),
+        fetch(`/api/comparables?address=${encodeURIComponent(addressValue)}&type=buy`),
+      ])
+      const soldData = await soldRes.json()
+      const buyData = await buyRes.json()
+      if (soldData.sales?.length > 0) {
+        setCompRows(soldData.sales.map((s: any) => ({
+          address: s.address || '',
+          price: s.price ? String(s.price) : '',
+          date: s.date || '',
+          bedrooms: s.bedrooms ? String(s.bedrooms) : '',
+          bathrooms: s.bathrooms ? String(s.bathrooms) : '',
+          url: s.url || '',
+        })))
       }
-    } catch {}
-    // Also search on-market
-    try {
-      const res = await fetch(`/api/comparables?address=${encodeURIComponent(addressValue)}&type=buy`)
-      const data = await res.json()
-      if (data.sales) {
-        setSearchedOnMarket(data.sales.map((s: any) => ({ ...s, selected: true })))
+      if (buyData.sales?.length > 0) {
+        setOnMarketRows(buyData.sales.map((s: any) => ({
+          address: s.address || '',
+          askingPrice: s.askingPrice || s.price ? String(s.askingPrice || s.price) : '',
+          bedrooms: s.bedrooms ? String(s.bedrooms) : '',
+          bathrooms: s.bathrooms ? String(s.bathrooms) : '',
+          propertyType: s.propertyType || 'House',
+          url: s.url || '',
+        })))
       }
     } catch {}
     setIsSearchingComps(false)
-    setCompsSearched(true)
   }
 
-  const toggleComp = (index: number) => {
-    setSearchedComps(prev => prev.map((c, i) => i === index ? { ...c, selected: !c.selected } : c))
+  const updateCompRow = (index: number, field: keyof CompRow, value: string) => {
+    setCompRows(prev => prev.map((r, i) => i === index ? { ...r, [field]: value } : r))
+  }
+  const removeCompRow = (index: number) => {
+    setCompRows(prev => prev.filter((_, i) => i !== index))
+  }
+  const addCompRow = () => {
+    setCompRows(prev => [...prev, { address: '', price: '', date: '', bedrooms: '', bathrooms: '', url: '' }])
   }
 
-  const toggleOnMarket = (index: number) => {
-    setSearchedOnMarket(prev => prev.map((c, i) => i === index ? { ...c, selected: !c.selected } : c))
+  const updateOnMarketRow = (index: number, field: keyof OnMarketRow, value: string) => {
+    setOnMarketRows(prev => prev.map((r, i) => i === index ? { ...r, [field]: value } : r))
+  }
+  const removeOnMarketRow = (index: number) => {
+    setOnMarketRows(prev => prev.filter((_, i) => i !== index))
+  }
+  const addOnMarketRow = () => {
+    setOnMarketRows(prev => [...prev, { address: '', askingPrice: '', bedrooms: '', bathrooms: '', propertyType: 'House', url: '' }])
   }
 
   // Marketing costs state
@@ -382,9 +408,8 @@ export default function HomePage() {
         lastFetchedAddressRef.current = ''
         setMarketingCosts(DEFAULT_MARKETING_COSTS)
         setHeroUploadUrl('')
-        setSearchedComps([])
-        setSearchedOnMarket([])
-        setCompsSearched(false)
+        setCompRows([])
+        setOnMarketRows([])
         clearDraft()
         // Refresh recent proposals list
         fetch('/api/proposals').then(r => r.json()).then(d => {
@@ -1071,149 +1096,223 @@ W: grantsea.com.au`
                     <p className="text-white/30 font-sans text-xs tracking-wider-custom mb-8">comparable sales & listings</p>
                   </div>
 
-                  {/* Search comparables */}
-                  <div>
-                    <div className="flex items-end gap-3 mb-4">
-                      <div className="flex-1">
-                        <p className="text-sm font-sans font-medium text-white/60 mb-2 lowercase">
-                          search comparable properties
-                          <span className="text-white/30 text-xs ml-2">uses the property address above</span>
-                        </p>
+                  {/* Search button */}
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm font-sans font-medium text-white/60 lowercase">
+                      recent comparable sales
+                    </p>
+                    <button
+                      type="button"
+                      onClick={searchComparables}
+                      disabled={!addressValue || isSearchingComps}
+                      className="px-4 py-2 bg-white/5 border border-white/15 rounded text-white/60 hover:text-white hover:bg-white/10 font-sans text-xs font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed min-h-[36px] flex items-center gap-2"
+                    >
+                      {isSearchingComps ? (
+                        <>
+                          <div className="w-3 h-3 border-2 border-white/30 border-t-transparent rounded-full animate-spin" />
+                          searching...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                          </svg>
+                          auto-fill from address
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Comparable sales — editable rows */}
+                  <div className="space-y-2">
+                    {compRows.map((row, index) => (
+                      <div key={index} className="grid grid-cols-12 gap-2 items-start">
+                        <div className="col-span-12 sm:col-span-4">
+                          <input
+                            type="text"
+                            value={row.address}
+                            onChange={(e) => updateCompRow(index, 'address', e.target.value)}
+                            className="w-full px-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-gold focus:border-gold transition-colors"
+                            placeholder="Address"
+                          />
+                        </div>
+                        <div className="col-span-4 sm:col-span-2">
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 font-sans text-sm">$</span>
+                            <input
+                              type="text"
+                              value={row.price}
+                              onChange={(e) => updateCompRow(index, 'price', e.target.value)}
+                              className="w-full pl-7 pr-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-gold focus:border-gold transition-colors"
+                              placeholder="Price"
+                            />
+                          </div>
+                        </div>
+                        <div className="col-span-4 sm:col-span-2">
+                          <input
+                            type="text"
+                            value={row.date}
+                            onChange={(e) => updateCompRow(index, 'date', e.target.value)}
+                            className="w-full px-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-gold focus:border-gold transition-colors"
+                            placeholder="Date"
+                          />
+                        </div>
+                        <div className="col-span-2 sm:col-span-1">
+                          <input
+                            type="text"
+                            value={row.bedrooms}
+                            onChange={(e) => updateCompRow(index, 'bedrooms', e.target.value)}
+                            className="w-full px-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-gold focus:border-gold transition-colors text-center"
+                            placeholder="Bed"
+                          />
+                        </div>
+                        <div className="col-span-2 sm:col-span-1">
+                          <input
+                            type="text"
+                            value={row.bathrooms}
+                            onChange={(e) => updateCompRow(index, 'bathrooms', e.target.value)}
+                            className="w-full px-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-gold focus:border-gold transition-colors text-center"
+                            placeholder="Bath"
+                          />
+                        </div>
+                        <div className="col-span-12 sm:col-span-2 flex items-center gap-1">
+                          <input
+                            type="text"
+                            value={row.url}
+                            onChange={(e) => updateCompRow(index, 'url', e.target.value)}
+                            className="flex-1 px-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-gold focus:border-gold transition-colors"
+                            placeholder="URL"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeCompRow(index)}
+                            className="w-8 h-8 flex items-center justify-center text-white/20 hover:text-red-400 transition-colors rounded hover:bg-white/5 flex-shrink-0"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={addCompRow}
+                      className="flex items-center gap-2 text-white/40 hover:text-white/70 font-sans text-sm transition-colors pt-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                      </svg>
+                      add sale
+                    </button>
+                  </div>
+
+                  {/* On-market listings — editable rows */}
+                  <div className="mt-8">
+                    <p className="text-sm font-sans font-medium text-white/60 lowercase mb-4">
+                      currently on market
+                    </p>
+                    <div className="space-y-2">
+                      {onMarketRows.map((row, index) => (
+                        <div key={index} className="grid grid-cols-12 gap-2 items-start">
+                          <div className="col-span-12 sm:col-span-4">
+                            <input
+                              type="text"
+                              value={row.address}
+                              onChange={(e) => updateOnMarketRow(index, 'address', e.target.value)}
+                              className="w-full px-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+                              placeholder="Address"
+                            />
+                          </div>
+                          <div className="col-span-4 sm:col-span-2">
+                            <input
+                              type="text"
+                              value={row.askingPrice}
+                              onChange={(e) => updateOnMarketRow(index, 'askingPrice', e.target.value)}
+                              className="w-full px-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+                              placeholder="Asking price"
+                            />
+                          </div>
+                          <div className="col-span-2 sm:col-span-1">
+                            <input
+                              type="text"
+                              value={row.bedrooms}
+                              onChange={(e) => updateOnMarketRow(index, 'bedrooms', e.target.value)}
+                              className="w-full px-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-colors text-center"
+                              placeholder="Bed"
+                            />
+                          </div>
+                          <div className="col-span-2 sm:col-span-1">
+                            <input
+                              type="text"
+                              value={row.bathrooms}
+                              onChange={(e) => updateOnMarketRow(index, 'bathrooms', e.target.value)}
+                              className="w-full px-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-colors text-center"
+                              placeholder="Bath"
+                            />
+                          </div>
+                          <div className="col-span-4 sm:col-span-2">
+                            <input
+                              type="text"
+                              value={row.propertyType}
+                              onChange={(e) => updateOnMarketRow(index, 'propertyType', e.target.value)}
+                              className="w-full px-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+                              placeholder="Type"
+                            />
+                          </div>
+                          <div className="col-span-12 sm:col-span-2 flex items-center gap-1">
+                            <input
+                              type="text"
+                              value={row.url}
+                              onChange={(e) => updateOnMarketRow(index, 'url', e.target.value)}
+                              className="flex-1 px-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+                              placeholder="URL"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeOnMarketRow(index)}
+                              className="w-8 h-8 flex items-center justify-center text-white/20 hover:text-red-400 transition-colors rounded hover:bg-white/5 flex-shrink-0"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                       <button
                         type="button"
-                        onClick={searchComparables}
-                        disabled={!addressValue || isSearchingComps}
-                        className="px-5 py-3 bg-white/5 border border-white/15 rounded text-white/60 hover:text-white hover:bg-white/10 font-sans text-sm font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed min-h-[44px] flex items-center gap-2"
+                        onClick={addOnMarketRow}
+                        className="flex items-center gap-2 text-white/40 hover:text-white/70 font-sans text-sm transition-colors pt-2"
                       >
-                        {isSearchingComps ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-transparent rounded-full animate-spin" />
-                            searching...
-                          </>
-                        ) : (
-                          <>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-                            </svg>
-                            search
-                          </>
-                        )}
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                        add listing
                       </button>
                     </div>
-
-                    {/* Sold comparables results */}
-                    {compsSearched && (
-                      <div className="space-y-4">
-                        <p className="text-white/40 font-sans text-xs tracking-wider-custom uppercase">
-                          recent sales — {searchedComps.filter(c => c.selected).length} of {searchedComps.length} selected
-                        </p>
-                        {searchedComps.length === 0 && (
-                          <p className="text-white/30 font-sans text-sm font-light py-4">no comparable sales found for this area</p>
-                        )}
-                        <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
-                          {searchedComps.map((comp, index) => (
-                            <div
-                              key={index}
-                              onClick={() => toggleComp(index)}
-                              className={`flex items-center gap-4 p-4 rounded-lg border cursor-pointer transition-all duration-200 ${
-                                comp.selected
-                                  ? 'bg-white/5 border-gold/30'
-                                  : 'bg-white/[0.02] border-white/5 opacity-50'
-                              }`}
-                            >
-                              {/* Checkbox */}
-                              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                                comp.selected ? 'bg-gold border-gold' : 'border-white/20'
-                              }`}>
-                                {comp.selected && (
-                                  <svg className="w-3 h-3 text-charcoal" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                                  </svg>
-                                )}
-                              </div>
-                              {/* Thumbnail */}
-                              {comp.imageUrl && (
-                                <div className="w-12 h-12 rounded overflow-hidden flex-shrink-0">
-                                  <img src={comp.imageUrl} alt="" className="w-full h-full object-cover" />
-                                </div>
-                              )}
-                              {/* Details */}
-                              <div className="flex-1 min-w-0">
-                                <p className="text-white font-sans text-sm font-medium truncate">{comp.address}</p>
-                                <p className="text-white/40 font-sans text-xs">
-                                  ${comp.price?.toLocaleString()} · {comp.bedrooms}bed {comp.bathrooms}bath · {comp.date}
-                                </p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* On-market results */}
-                        {searchedOnMarket.length > 0 && (
-                          <>
-                            <p className="text-white/40 font-sans text-xs tracking-wider-custom uppercase mt-6">
-                              currently on market — {searchedOnMarket.filter(c => c.selected).length} of {searchedOnMarket.length} selected
-                            </p>
-                            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                              {searchedOnMarket.map((listing, index) => (
-                                <div
-                                  key={index}
-                                  onClick={() => toggleOnMarket(index)}
-                                  className={`flex items-center gap-4 p-4 rounded-lg border cursor-pointer transition-all duration-200 ${
-                                    listing.selected
-                                      ? 'bg-white/5 border-emerald-500/30'
-                                      : 'bg-white/[0.02] border-white/5 opacity-50'
-                                  }`}
-                                >
-                                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                                    listing.selected ? 'bg-emerald-500 border-emerald-500' : 'border-white/20'
-                                  }`}>
-                                    {listing.selected && (
-                                      <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                                      </svg>
-                                    )}
-                                  </div>
-                                  {listing.imageUrl && (
-                                    <div className="w-12 h-12 rounded overflow-hidden flex-shrink-0">
-                                      <img src={listing.imageUrl} alt="" className="w-full h-full object-cover" />
-                                    </div>
-                                  )}
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-white font-sans text-sm font-medium truncate">{listing.address}</p>
-                                    <p className="text-white/40 font-sans text-xs">
-                                      {listing.askingPrice} · {listing.bedrooms}bed {listing.bathrooms}bath · {listing.propertyType}
-                                    </p>
-                                  </div>
-                                  <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-sans text-xs flex-shrink-0">live</span>
-                                </div>
-                              ))}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Hidden inputs to pass selected comparables */}
-                    <input type="hidden" name="selectedComps" value={JSON.stringify(searchedComps.filter(c => c.selected).map(({ selected, ...rest }) => rest))} />
-                    <input type="hidden" name="selectedOnMarket" value={JSON.stringify(searchedOnMarket.filter(c => c.selected).map(({ selected, ...rest }) => rest))} />
-
-                    {/* CSV fallback */}
-                    <div className="mt-6">
-                      <label htmlFor="file" className="block text-sm font-sans font-medium text-white/30 mb-2 lowercase">
-                        or upload CSV/Excel
-                        <span className="text-white/20 text-xs ml-2">overrides search results</span>
-                      </label>
-                      <input
-                        type="file"
-                        id="file"
-                        name="file"
-                        accept=".csv,.xlsx,.xls"
-                        className="w-full px-4 py-3 bg-white/[0.02] border border-white/10 rounded text-white/40 font-sans text-sm touch-manipulation file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-white/10 file:text-white/50 hover:file:bg-white/15 transition-colors"
-                      />
-                    </div>
                   </div>
+
+                  {/* Hidden inputs */}
+                  <input type="hidden" name="selectedComps" value={JSON.stringify(compRows.filter(r => r.address).map(r => ({
+                    address: r.address,
+                    price: parseInt(r.price.replace(/[^0-9]/g, '')) || 0,
+                    date: r.date,
+                    bedrooms: parseInt(r.bedrooms) || 0,
+                    bathrooms: parseInt(r.bathrooms) || 0,
+                    sqft: 0,
+                    distance: 0,
+                    url: r.url,
+                  })))} />
+                  <input type="hidden" name="selectedOnMarket" value={JSON.stringify(onMarketRows.filter(r => r.address).map(r => ({
+                    address: r.address,
+                    askingPrice: r.askingPrice,
+                    bedrooms: parseInt(r.bedrooms) || 0,
+                    bathrooms: parseInt(r.bathrooms) || 0,
+                    cars: 0,
+                    propertyType: r.propertyType,
+                    url: r.url,
+                  })))} />
 
                   {/* Error */}
                   {result && !result.success && (
