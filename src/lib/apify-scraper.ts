@@ -116,13 +116,22 @@ async function runApifyActor(searchUrl: string, maxItems: number = 10): Promise<
 
     const data = await res.json()
 
-    // Check for error/rate-limit messages
+    // Check for error/rate-limit/maintenance messages
     if (Array.isArray(data) && data.length > 0 && data[0].message) {
       console.warn(`[apify] Actor message: ${data[0].message}`)
       return []
     }
 
-    return Array.isArray(data) ? data : []
+    // Filter out fake/maintenance results (Apify sometimes returns junk URLs)
+    if (Array.isArray(data)) {
+      return data.filter((item: ApifyPropertyResult) => {
+        if (item.message) return false
+        if (typeof item.url === 'string' && item.url.includes('bypass')) return false
+        return true
+      })
+    }
+
+    return []
   } catch (err) {
     console.error('[apify] Actor run failed:', err)
     return []
