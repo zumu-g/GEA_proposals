@@ -65,19 +65,31 @@ export default function HomePage() {
   const [isUploadingHero, setIsUploadingHero] = useState(false)
 
   // Comparable sales (editable table)
-  interface CompRow { address: string; price: string; date: string; bedrooms: string; bathrooms: string; url: string }
+  interface CompRow { address: string; price: string; date: string; bedrooms: string; bathrooms: string; url: string; included: boolean }
   const [compRows, setCompRows] = useState<CompRow[]>([])
   const [isSearchingComps, setIsSearchingComps] = useState(false)
 
   // On-market listings (editable table)
-  interface OnMarketRow { address: string; askingPrice: string; bedrooms: string; bathrooms: string; propertyType: string; url: string }
+  interface OnMarketRow { address: string; askingPrice: string; bedrooms: string; bathrooms: string; propertyType: string; url: string; included: boolean }
   const [onMarketRows, setOnMarketRows] = useState<OnMarketRow[]>([])
 
   const [compsError, setCompsError] = useState('')
 
+  // Search filters
+  const [filterSuburb, setFilterSuburb] = useState('')
+  const [filterBedsMin, setFilterBedsMin] = useState('')
+  const [filterPriceMin, setFilterPriceMin] = useState('')
+  const [filterPriceMax, setFilterPriceMax] = useState('')
+
+  // Format price for display
+  const fmtPrice = (val: string) => {
+    const num = parseInt(val.replace(/[^0-9]/g, ''))
+    return num ? `$${num.toLocaleString()}` : val
+  }
+
   const searchComparables = async () => {
-    // Get address from state or from the input directly
-    const addr = addressValue || formRef.current?.querySelector<HTMLInputElement>('#propertyAddress')?.value || ''
+    // Use filter suburb if set, otherwise get from address
+    const addr = filterSuburb || addressValue || formRef.current?.querySelector<HTMLInputElement>('#propertyAddress')?.value || ''
     if (!addr) {
       setCompsError('Enter a property address first')
       return
@@ -91,20 +103,32 @@ export default function HomePage() {
       const soldRes = await fetch(`/api/comparables?address=${encodeURIComponent(addr)}`)
       const soldData = await soldRes.json()
 
+      // Apply client-side filters
+      const filterSales = (sales: any[]) => {
+        return sales.filter((s: any) => {
+          if (filterBedsMin && s.bedrooms && Number(s.bedrooms) < Number(filterBedsMin)) return false
+          if (filterPriceMin && s.price && Number(s.price) < Number(filterPriceMin)) return false
+          if (filterPriceMax && s.price && Number(s.price) > Number(filterPriceMax)) return false
+          return true
+        })
+      }
+
       if (soldData.error) {
         setCompsError(`Sold search failed: ${soldData.error}`)
       } else if (soldData.sales?.length > 0) {
-        setCompRows(soldData.sales.map((s: any) => ({
+        const filtered = filterSales(soldData.sales)
+        setCompRows(filtered.map((s: any) => ({
           address: s.address || '',
           price: s.price ? String(s.price) : '',
           date: s.date || '',
           bedrooms: s.bedrooms ? String(s.bedrooms) : '',
           bathrooms: s.bathrooms ? String(s.bathrooms) : '',
           url: s.url || '',
+          included: true,
         })))
-        setCompsError(`Found ${soldData.sales.length} sold properties`)
+        setCompsError(`Found ${filtered.length} sold properties${filtered.length < soldData.sales.length ? ` (filtered from ${soldData.sales.length})` : ''}`)
       } else {
-        setCompsError(`No sold properties found for "${addr}". Try including suburb, state and postcode e.g. "17 Juliet Gardens, Pakenham VIC 3810"`)
+        setCompsError(`No sold properties found for "${addr}". Try a suburb name like "Berwick" or "Pakenham"`)
       }
 
       // On-market search
@@ -119,6 +143,7 @@ export default function HomePage() {
             bathrooms: s.bathrooms ? String(s.bathrooms) : '',
             propertyType: s.propertyType || 'House',
             url: s.url || '',
+            included: true,
           })))
           setCompsError(prev => prev + ` + ${buyData.sales.length} on market`)
         }
@@ -130,23 +155,23 @@ export default function HomePage() {
   }
 
   const updateCompRow = (index: number, field: keyof CompRow, value: string) => {
-    setCompRows(prev => prev.map((r, i) => i === index ? { ...r, [field]: value } : r))
+    setCompRows(prev => prev.map((r, i) => i === index ? { ...r, [field]: field === 'included' ? !!value : value } as CompRow : r))
   }
   const removeCompRow = (index: number) => {
     setCompRows(prev => prev.filter((_, i) => i !== index))
   }
   const addCompRow = () => {
-    setCompRows(prev => [...prev, { address: '', price: '', date: '', bedrooms: '', bathrooms: '', url: '' }])
+    setCompRows(prev => [...prev, { address: '', price: '', date: '', bedrooms: '', bathrooms: '', url: '', included: true }])
   }
 
   const updateOnMarketRow = (index: number, field: keyof OnMarketRow, value: string) => {
-    setOnMarketRows(prev => prev.map((r, i) => i === index ? { ...r, [field]: value } : r))
+    setOnMarketRows(prev => prev.map((r, i) => i === index ? { ...r, [field]: field === 'included' ? !!value : value } as OnMarketRow : r))
   }
   const removeOnMarketRow = (index: number) => {
     setOnMarketRows(prev => prev.filter((_, i) => i !== index))
   }
   const addOnMarketRow = () => {
-    setOnMarketRows(prev => [...prev, { address: '', askingPrice: '', bedrooms: '', bathrooms: '', propertyType: 'House', url: '' }])
+    setOnMarketRows(prev => [...prev, { address: '', askingPrice: '', bedrooms: '', bathrooms: '', propertyType: 'House', url: '', included: true }])
   }
 
   // Marketing costs state
@@ -1239,212 +1264,177 @@ W: grantsea.com.au`
                     <p className="text-white/30 font-sans text-xs tracking-wider-custom mb-8">comparable sales & listings</p>
                   </div>
 
-                  {/* Search button */}
-                  <div className="flex items-center justify-between mb-4">
-                    <p className="text-sm font-sans font-medium text-white/60 lowercase">
-                      recent comparable sales
-                    </p>
-                    <button
-                      type="button"
-                      onClick={searchComparables}
-                      disabled={isSearchingComps}
-                      className="px-4 py-2 bg-white/5 border border-white/15 rounded text-white/60 hover:text-white hover:bg-white/10 font-sans text-xs font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed min-h-[36px] flex items-center gap-2"
-                    >
-                      {isSearchingComps ? (
-                        <>
-                          <div className="w-3 h-3 border-2 border-white/30 border-t-transparent rounded-full animate-spin" />
-                          searching...
-                        </>
-                      ) : (
-                        <>
+                  {/* Search filters */}
+                  <div className="bg-white/[0.03] border border-white/10 rounded-lg p-4 mb-6">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
+                      <div className="col-span-2 sm:col-span-1">
+                        <label className="text-white/30 font-sans text-xs mb-1 block">suburb</label>
+                        <input
+                          type="text"
+                          value={filterSuburb}
+                          onChange={(e) => setFilterSuburb(e.target.value)}
+                          className="w-full px-3 py-2 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-gold focus:border-gold transition-colors"
+                          placeholder="e.g. Berwick"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-white/30 font-sans text-xs mb-1 block">min beds</label>
+                        <select
+                          value={filterBedsMin}
+                          onChange={(e) => setFilterBedsMin(e.target.value)}
+                          className="w-full px-3 py-2 bg-white/5 border border-white/15 rounded text-white font-sans text-sm focus:ring-1 focus:ring-gold focus:border-gold transition-colors"
+                        >
+                          <option value="">any</option>
+                          <option value="1">1+</option>
+                          <option value="2">2+</option>
+                          <option value="3">3+</option>
+                          <option value="4">4+</option>
+                          <option value="5">5+</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-white/30 font-sans text-xs mb-1 block">min price</label>
+                        <input
+                          type="text"
+                          value={filterPriceMin}
+                          onChange={(e) => setFilterPriceMin(e.target.value.replace(/[^0-9]/g, ''))}
+                          className="w-full px-3 py-2 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-gold focus:border-gold transition-colors"
+                          placeholder="500000"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-white/30 font-sans text-xs mb-1 block">max price</label>
+                        <input
+                          type="text"
+                          value={filterPriceMax}
+                          onChange={(e) => setFilterPriceMax(e.target.value.replace(/[^0-9]/g, ''))}
+                          className="w-full px-3 py-2 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-gold focus:border-gold transition-colors"
+                          placeholder="1000000"
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <button
+                          type="button"
+                          onClick={searchComparables}
+                          disabled={isSearchingComps}
+                          className="w-full px-4 py-2 bg-gold/20 border border-gold/30 rounded text-gold hover:bg-gold/30 font-sans text-sm font-medium transition-colors disabled:opacity-30 min-h-[38px] flex items-center justify-center gap-2"
+                        >
+                          {isSearchingComps ? (
+                            <div className="w-4 h-4 border-2 border-gold/30 border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                            </svg>
+                          )}
+                          search
+                        </button>
+                      </div>
+                    </div>
+                    {compsError && (
+                      <p className={`font-sans text-xs font-light ${compsError.startsWith('Found') ? 'text-emerald-400/70' : compsError === 'Searching...' ? 'text-white/40' : 'text-amber-400/70'}`}>
+                        {compsError}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Comparable sales — results with include toggle */}
+                  <p className="text-sm font-sans font-medium text-white/60 lowercase mb-3">
+                    comparable sales — {compRows.filter(r => r.included).length} included
+                  </p>
+                  <div className="space-y-2">
+                    {compRows.map((row, index) => (
+                      <div key={index} className={`flex items-center gap-2 p-3 rounded-lg border transition-all ${row.included ? 'bg-white/5 border-white/10' : 'bg-white/[0.01] border-white/5 opacity-40'}`}>
+                        {/* Include toggle */}
+                        <button
+                          type="button"
+                          onClick={() => updateCompRow(index, 'included', row.included ? '' : 'true')}
+                          className={`w-6 h-6 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${row.included ? 'bg-gold border-gold' : 'border-white/20 hover:border-white/40'}`}
+                        >
+                          {row.included && (
+                            <svg className="w-3.5 h-3.5 text-charcoal" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                            </svg>
+                          )}
+                        </button>
+                        {/* Address */}
+                        <input type="text" value={row.address} onChange={(e) => updateCompRow(index, 'address', e.target.value)}
+                          className="flex-[3] px-2 py-1.5 bg-transparent border-b border-white/10 text-white font-sans text-sm placeholder-white/20 focus:border-gold outline-none transition-colors min-w-0" placeholder="Address" />
+                        {/* Price - formatted */}
+                        <span className="text-gold font-sans text-sm font-medium w-24 text-right flex-shrink-0">{fmtPrice(row.price)}</span>
+                        <input type="hidden" value={row.price} />
+                        {/* Beds/Bath */}
+                        <span className="text-white/50 font-sans text-xs w-16 text-center flex-shrink-0">{row.bedrooms}bed {row.bathrooms}ba</span>
+                        {/* Date */}
+                        <span className="text-white/30 font-sans text-xs w-20 text-center flex-shrink-0 hidden sm:block">{row.date}</span>
+                        {/* Edit button */}
+                        <button type="button" onClick={() => {
+                          const newPrice = prompt('Price:', row.price)
+                          if (newPrice !== null) updateCompRow(index, 'price', newPrice)
+                        }} className="text-white/20 hover:text-white/50 transition-colors flex-shrink-0">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
                           </svg>
-                          auto-fill from address
-                        </>
-                      )}
+                        </button>
+                        {/* Remove */}
+                        <button type="button" onClick={() => removeCompRow(index)}
+                          className="text-white/20 hover:text-red-400 transition-colors flex-shrink-0">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                    <button type="button" onClick={addCompRow}
+                      className="flex items-center gap-2 text-white/40 hover:text-white/70 font-sans text-sm transition-colors pt-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                      </svg>
+                      add sale manually
                     </button>
                   </div>
 
-                  {/* Search status */}
-                  {compsError && (
-                    <p className={`font-sans text-xs font-light mt-2 ${compsError.startsWith('Found') ? 'text-emerald-400/70' : compsError === 'Searching...' ? 'text-white/40' : 'text-amber-400/70'}`}>
-                      {compsError}
+                  {/* On-market listings */}
+                  <div className="mt-8">
+                    <p className="text-sm font-sans font-medium text-white/60 lowercase mb-3">
+                      currently on market — {onMarketRows.filter(r => r.included).length} included
                     </p>
-                  )}
-
-                  {/* Comparable sales — editable rows */}
-                  <div className="space-y-2">
-                    {compRows.map((row, index) => (
-                      <div key={index} className="grid grid-cols-12 gap-2 items-start">
-                        <div className="col-span-12 sm:col-span-4">
-                          <input
-                            type="text"
-                            value={row.address}
-                            onChange={(e) => updateCompRow(index, 'address', e.target.value)}
-                            className="w-full px-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-gold focus:border-gold transition-colors"
-                            placeholder="Address"
-                          />
-                        </div>
-                        <div className="col-span-4 sm:col-span-2">
-                          <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 font-sans text-sm">$</span>
-                            <input
-                              type="text"
-                              value={row.price}
-                              onChange={(e) => updateCompRow(index, 'price', e.target.value)}
-                              className="w-full pl-7 pr-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-gold focus:border-gold transition-colors"
-                              placeholder="Price"
-                            />
-                          </div>
-                        </div>
-                        <div className="col-span-4 sm:col-span-2">
-                          <input
-                            type="text"
-                            value={row.date}
-                            onChange={(e) => updateCompRow(index, 'date', e.target.value)}
-                            className="w-full px-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-gold focus:border-gold transition-colors"
-                            placeholder="Date"
-                          />
-                        </div>
-                        <div className="col-span-2 sm:col-span-1">
-                          <input
-                            type="text"
-                            value={row.bedrooms}
-                            onChange={(e) => updateCompRow(index, 'bedrooms', e.target.value)}
-                            className="w-full px-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-gold focus:border-gold transition-colors text-center"
-                            placeholder="Bed"
-                          />
-                        </div>
-                        <div className="col-span-2 sm:col-span-1">
-                          <input
-                            type="text"
-                            value={row.bathrooms}
-                            onChange={(e) => updateCompRow(index, 'bathrooms', e.target.value)}
-                            className="w-full px-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-gold focus:border-gold transition-colors text-center"
-                            placeholder="Bath"
-                          />
-                        </div>
-                        <div className="col-span-12 sm:col-span-2 flex items-center gap-1">
-                          <input
-                            type="text"
-                            value={row.url}
-                            onChange={(e) => updateCompRow(index, 'url', e.target.value)}
-                            className="flex-1 px-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-gold focus:border-gold transition-colors"
-                            placeholder="URL"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeCompRow(index)}
-                            className="w-8 h-8 flex items-center justify-center text-white/20 hover:text-red-400 transition-colors rounded hover:bg-white/5 flex-shrink-0"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                    <div className="space-y-2">
+                      {onMarketRows.map((row, index) => (
+                        <div key={index} className={`flex items-center gap-2 p-3 rounded-lg border transition-all ${row.included ? 'bg-white/5 border-emerald-500/20' : 'bg-white/[0.01] border-white/5 opacity-40'}`}>
+                          <button type="button"
+                            onClick={() => updateOnMarketRow(index, 'included', row.included ? '' : 'true')}
+                            className={`w-6 h-6 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${row.included ? 'bg-emerald-500 border-emerald-500' : 'border-white/20 hover:border-white/40'}`}>
+                            {row.included && (
+                              <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                              </svg>
+                            )}
+                          </button>
+                          <input type="text" value={row.address} onChange={(e) => updateOnMarketRow(index, 'address', e.target.value)}
+                            className="flex-[3] px-2 py-1.5 bg-transparent border-b border-white/10 text-white font-sans text-sm placeholder-white/20 focus:border-emerald-500 outline-none transition-colors min-w-0" placeholder="Address" />
+                          <span className="text-emerald-400 font-sans text-xs w-28 text-right flex-shrink-0 truncate">{row.askingPrice}</span>
+                          <span className="text-white/50 font-sans text-xs w-16 text-center flex-shrink-0">{row.bedrooms}bed {row.bathrooms}ba</span>
+                          <span className="text-white/30 font-sans text-xs w-20 text-center flex-shrink-0 hidden sm:block truncate">{row.propertyType}</span>
+                          <button type="button" onClick={() => removeOnMarketRow(index)}
+                            className="text-white/20 hover:text-red-400 transition-colors flex-shrink-0">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                             </svg>
                           </button>
                         </div>
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={addCompRow}
-                      className="flex items-center gap-2 text-white/40 hover:text-white/70 font-sans text-sm transition-colors pt-2"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                      </svg>
-                      add sale
-                    </button>
-                  </div>
-
-                  {/* On-market listings — editable rows */}
-                  <div className="mt-8">
-                    <p className="text-sm font-sans font-medium text-white/60 lowercase mb-4">
-                      currently on market
-                    </p>
-                    <div className="space-y-2">
-                      {onMarketRows.map((row, index) => (
-                        <div key={index} className="grid grid-cols-12 gap-2 items-start">
-                          <div className="col-span-12 sm:col-span-4">
-                            <input
-                              type="text"
-                              value={row.address}
-                              onChange={(e) => updateOnMarketRow(index, 'address', e.target.value)}
-                              className="w-full px-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
-                              placeholder="Address"
-                            />
-                          </div>
-                          <div className="col-span-4 sm:col-span-2">
-                            <input
-                              type="text"
-                              value={row.askingPrice}
-                              onChange={(e) => updateOnMarketRow(index, 'askingPrice', e.target.value)}
-                              className="w-full px-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
-                              placeholder="Asking price"
-                            />
-                          </div>
-                          <div className="col-span-2 sm:col-span-1">
-                            <input
-                              type="text"
-                              value={row.bedrooms}
-                              onChange={(e) => updateOnMarketRow(index, 'bedrooms', e.target.value)}
-                              className="w-full px-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-colors text-center"
-                              placeholder="Bed"
-                            />
-                          </div>
-                          <div className="col-span-2 sm:col-span-1">
-                            <input
-                              type="text"
-                              value={row.bathrooms}
-                              onChange={(e) => updateOnMarketRow(index, 'bathrooms', e.target.value)}
-                              className="w-full px-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-colors text-center"
-                              placeholder="Bath"
-                            />
-                          </div>
-                          <div className="col-span-4 sm:col-span-2">
-                            <input
-                              type="text"
-                              value={row.propertyType}
-                              onChange={(e) => updateOnMarketRow(index, 'propertyType', e.target.value)}
-                              className="w-full px-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
-                              placeholder="Type"
-                            />
-                          </div>
-                          <div className="col-span-12 sm:col-span-2 flex items-center gap-1">
-                            <input
-                              type="text"
-                              value={row.url}
-                              onChange={(e) => updateOnMarketRow(index, 'url', e.target.value)}
-                              className="flex-1 px-3 py-2.5 bg-white/5 border border-white/15 rounded text-white font-sans text-sm placeholder-white/20 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
-                              placeholder="URL"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => removeOnMarketRow(index)}
-                              className="w-8 h-8 flex items-center justify-center text-white/20 hover:text-red-400 transition-colors rounded hover:bg-white/5 flex-shrink-0"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
                       ))}
-                      <button
-                        type="button"
-                        onClick={addOnMarketRow}
-                        className="flex items-center gap-2 text-white/40 hover:text-white/70 font-sans text-sm transition-colors pt-2"
-                      >
+                      <button type="button" onClick={addOnMarketRow}
+                        className="flex items-center gap-2 text-white/40 hover:text-white/70 font-sans text-sm transition-colors pt-2">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                         </svg>
-                        add listing
+                        add listing manually
                       </button>
                     </div>
                   </div>
 
-                  {/* Hidden inputs */}
-                  <input type="hidden" name="selectedComps" value={JSON.stringify(compRows.filter(r => r.address).map(r => ({
+                  {/* Hidden inputs — only send included rows */}
+                  <input type="hidden" name="selectedComps" value={JSON.stringify(compRows.filter(r => r.address && r.included).map(r => ({
                     address: r.address,
                     price: parseInt(r.price.replace(/[^0-9]/g, '')) || 0,
                     date: r.date,
@@ -1454,7 +1444,7 @@ W: grantsea.com.au`
                     distance: 0,
                     url: r.url,
                   })))} />
-                  <input type="hidden" name="selectedOnMarket" value={JSON.stringify(onMarketRows.filter(r => r.address).map(r => ({
+                  <input type="hidden" name="selectedOnMarket" value={JSON.stringify(onMarketRows.filter(r => r.address && r.included).map(r => ({
                     address: r.address,
                     askingPrice: r.askingPrice,
                     bedrooms: parseInt(r.bedrooms) || 0,
