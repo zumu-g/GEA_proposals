@@ -63,6 +63,43 @@ export default function HomePage() {
   const [heroUploadUrl, setHeroUploadUrl] = useState('')
   const [isUploadingHero, setIsUploadingHero] = useState(false)
 
+  // Comparables search state
+  const [searchedComps, setSearchedComps] = useState<Array<{ address: string; price: number; date: string; bedrooms: number; bathrooms: number; sqft: number; distance: number; url: string; imageUrl?: string; selected: boolean }>>([])
+  const [searchedOnMarket, setSearchedOnMarket] = useState<Array<{ address: string; askingPrice: string; bedrooms: number; bathrooms: number; cars: number; propertyType: string; url: string; imageUrl?: string; selected: boolean }>>([])
+  const [isSearchingComps, setIsSearchingComps] = useState(false)
+  const [compsSearched, setCompsSearched] = useState(false)
+
+  const searchComparables = async () => {
+    if (!addressValue || isSearchingComps) return
+    setIsSearchingComps(true)
+    setCompsSearched(false)
+    try {
+      const res = await fetch(`/api/comparables?address=${encodeURIComponent(addressValue)}`)
+      const data = await res.json()
+      if (data.sales) {
+        setSearchedComps(data.sales.map((s: any) => ({ ...s, selected: true })))
+      }
+    } catch {}
+    // Also search on-market
+    try {
+      const res = await fetch(`/api/comparables?address=${encodeURIComponent(addressValue)}&type=buy`)
+      const data = await res.json()
+      if (data.sales) {
+        setSearchedOnMarket(data.sales.map((s: any) => ({ ...s, selected: true })))
+      }
+    } catch {}
+    setIsSearchingComps(false)
+    setCompsSearched(true)
+  }
+
+  const toggleComp = (index: number) => {
+    setSearchedComps(prev => prev.map((c, i) => i === index ? { ...c, selected: !c.selected } : c))
+  }
+
+  const toggleOnMarket = (index: number) => {
+    setSearchedOnMarket(prev => prev.map((c, i) => i === index ? { ...c, selected: !c.selected } : c))
+  }
+
   // Marketing costs state
   const [marketingCosts, setMarketingCosts] = useState<MarketingCostItem[]>(DEFAULT_MARKETING_COSTS)
 
@@ -345,6 +382,9 @@ export default function HomePage() {
         lastFetchedAddressRef.current = ''
         setMarketingCosts(DEFAULT_MARKETING_COSTS)
         setHeroUploadUrl('')
+        setSearchedComps([])
+        setSearchedOnMarket([])
+        setCompsSearched(false)
         clearDraft()
         // Refresh recent proposals list
         fetch('/api/proposals').then(r => r.json()).then(d => {
@@ -1028,24 +1068,151 @@ W: grantsea.com.au`
 
                   {/* Divider */}
                   <div className="border-t border-white/5 pt-8">
-                    <p className="text-white/30 font-sans text-xs tracking-wider-custom mb-8">comparable data</p>
+                    <p className="text-white/30 font-sans text-xs tracking-wider-custom mb-8">comparable sales & listings</p>
                   </div>
 
+                  {/* Search comparables */}
                   <div>
-                    <label htmlFor="file" className="block text-sm font-sans font-medium text-white/60 mb-2 lowercase">
-                      recent sales spreadsheet
-                      <span className="text-white/30 text-xs ml-2">optional</span>
-                    </label>
-                    <input
-                      type="file"
-                      id="file"
-                      name="file"
-                      accept=".csv,.xlsx,.xls"
-                      className="w-full px-4 py-3 bg-white/5 border border-white/15 rounded text-white/60 font-sans text-base touch-manipulation file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-gold file:text-charcoal hover:file:bg-gold-600 transition-colors"
-                    />
-                    <p className="text-sm text-white/30 mt-2 font-sans font-light">
-                      CSV or Excel with columns: address, price, date, bedrooms, bathrooms, sq ft, distance
-                    </p>
+                    <div className="flex items-end gap-3 mb-4">
+                      <div className="flex-1">
+                        <p className="text-sm font-sans font-medium text-white/60 mb-2 lowercase">
+                          search comparable properties
+                          <span className="text-white/30 text-xs ml-2">uses the property address above</span>
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={searchComparables}
+                        disabled={!addressValue || isSearchingComps}
+                        className="px-5 py-3 bg-white/5 border border-white/15 rounded text-white/60 hover:text-white hover:bg-white/10 font-sans text-sm font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed min-h-[44px] flex items-center gap-2"
+                      >
+                        {isSearchingComps ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-transparent rounded-full animate-spin" />
+                            searching...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                            </svg>
+                            search
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Sold comparables results */}
+                    {compsSearched && (
+                      <div className="space-y-4">
+                        <p className="text-white/40 font-sans text-xs tracking-wider-custom uppercase">
+                          recent sales — {searchedComps.filter(c => c.selected).length} of {searchedComps.length} selected
+                        </p>
+                        {searchedComps.length === 0 && (
+                          <p className="text-white/30 font-sans text-sm font-light py-4">no comparable sales found for this area</p>
+                        )}
+                        <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+                          {searchedComps.map((comp, index) => (
+                            <div
+                              key={index}
+                              onClick={() => toggleComp(index)}
+                              className={`flex items-center gap-4 p-4 rounded-lg border cursor-pointer transition-all duration-200 ${
+                                comp.selected
+                                  ? 'bg-white/5 border-gold/30'
+                                  : 'bg-white/[0.02] border-white/5 opacity-50'
+                              }`}
+                            >
+                              {/* Checkbox */}
+                              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                                comp.selected ? 'bg-gold border-gold' : 'border-white/20'
+                              }`}>
+                                {comp.selected && (
+                                  <svg className="w-3 h-3 text-charcoal" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                                  </svg>
+                                )}
+                              </div>
+                              {/* Thumbnail */}
+                              {comp.imageUrl && (
+                                <div className="w-12 h-12 rounded overflow-hidden flex-shrink-0">
+                                  <img src={comp.imageUrl} alt="" className="w-full h-full object-cover" />
+                                </div>
+                              )}
+                              {/* Details */}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-white font-sans text-sm font-medium truncate">{comp.address}</p>
+                                <p className="text-white/40 font-sans text-xs">
+                                  ${comp.price?.toLocaleString()} · {comp.bedrooms}bed {comp.bathrooms}bath · {comp.date}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* On-market results */}
+                        {searchedOnMarket.length > 0 && (
+                          <>
+                            <p className="text-white/40 font-sans text-xs tracking-wider-custom uppercase mt-6">
+                              currently on market — {searchedOnMarket.filter(c => c.selected).length} of {searchedOnMarket.length} selected
+                            </p>
+                            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                              {searchedOnMarket.map((listing, index) => (
+                                <div
+                                  key={index}
+                                  onClick={() => toggleOnMarket(index)}
+                                  className={`flex items-center gap-4 p-4 rounded-lg border cursor-pointer transition-all duration-200 ${
+                                    listing.selected
+                                      ? 'bg-white/5 border-emerald-500/30'
+                                      : 'bg-white/[0.02] border-white/5 opacity-50'
+                                  }`}
+                                >
+                                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                                    listing.selected ? 'bg-emerald-500 border-emerald-500' : 'border-white/20'
+                                  }`}>
+                                    {listing.selected && (
+                                      <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                                      </svg>
+                                    )}
+                                  </div>
+                                  {listing.imageUrl && (
+                                    <div className="w-12 h-12 rounded overflow-hidden flex-shrink-0">
+                                      <img src={listing.imageUrl} alt="" className="w-full h-full object-cover" />
+                                    </div>
+                                  )}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-white font-sans text-sm font-medium truncate">{listing.address}</p>
+                                    <p className="text-white/40 font-sans text-xs">
+                                      {listing.askingPrice} · {listing.bedrooms}bed {listing.bathrooms}bath · {listing.propertyType}
+                                    </p>
+                                  </div>
+                                  <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-sans text-xs flex-shrink-0">live</span>
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Hidden inputs to pass selected comparables */}
+                    <input type="hidden" name="selectedComps" value={JSON.stringify(searchedComps.filter(c => c.selected).map(({ selected, ...rest }) => rest))} />
+                    <input type="hidden" name="selectedOnMarket" value={JSON.stringify(searchedOnMarket.filter(c => c.selected).map(({ selected, ...rest }) => rest))} />
+
+                    {/* CSV fallback */}
+                    <div className="mt-6">
+                      <label htmlFor="file" className="block text-sm font-sans font-medium text-white/30 mb-2 lowercase">
+                        or upload CSV/Excel
+                        <span className="text-white/20 text-xs ml-2">overrides search results</span>
+                      </label>
+                      <input
+                        type="file"
+                        id="file"
+                        name="file"
+                        accept=".csv,.xlsx,.xls"
+                        className="w-full px-4 py-3 bg-white/[0.02] border border-white/10 rounded text-white/40 font-sans text-sm touch-manipulation file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-white/10 file:text-white/50 hover:file:bg-white/15 transition-colors"
+                      />
+                    </div>
                   </div>
 
                   {/* Error */}

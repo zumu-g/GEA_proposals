@@ -17,6 +17,8 @@ export async function POST(request: NextRequest) {
     const priceGuideMax = formData.get('priceGuideMax') as string | null
     const marketingCostsJson = formData.get('marketingCosts') as string | null
     const marketingTotalStr = formData.get('marketingTotal') as string | null
+    const selectedCompsJson = formData.get('selectedComps') as string | null
+    const selectedOnMarketJson = formData.get('selectedOnMarket') as string | null
     const file = formData.get('file') as File | null
 
     // Collect auto-fetched property gallery images
@@ -69,9 +71,28 @@ export async function POST(request: NextRequest) {
       ? parsedRate
       : agencyConfig.defaultCommissionRate
 
-    // Auto-lookup comparable sales and on-market listings if no file uploaded
+    // Use pre-selected comparables from setup page, or auto-lookup
     let onMarketListings
-    if (spreadsheetRows.length === 0) {
+    let selectedComps: any[] = []
+    let selectedOnMarket: any[] = []
+
+    try {
+      if (selectedCompsJson) selectedComps = JSON.parse(selectedCompsJson)
+      if (selectedOnMarketJson) selectedOnMarket = JSON.parse(selectedOnMarketJson)
+    } catch {}
+
+    if (selectedComps.length > 0) {
+      // User picked comparables from the search
+      spreadsheetRows = selectedComps
+      console.log(`[proposals] Using ${selectedComps.length} pre-selected comparable sales`)
+    }
+    if (selectedOnMarket.length > 0) {
+      onMarketListings = selectedOnMarket
+      console.log(`[proposals] Using ${selectedOnMarket.length} pre-selected on-market listings`)
+    }
+
+    // Auto-lookup if nothing was pre-selected and no file uploaded
+    if (spreadsheetRows.length === 0 && selectedComps.length === 0) {
       try {
         console.log('[proposals] Looking up comparables for:', propertyAddress)
         const [comparables, onMarket] = await Promise.all([
@@ -82,7 +103,7 @@ export async function POST(request: NextRequest) {
           spreadsheetRows = comparables
           console.log(`[proposals] Found ${comparables.length} comparable sales`)
         }
-        if (onMarket.length > 0) {
+        if (onMarket.length > 0 && !onMarketListings) {
           onMarketListings = onMarket
           console.log(`[proposals] Found ${onMarket.length} on-market listings`)
         }

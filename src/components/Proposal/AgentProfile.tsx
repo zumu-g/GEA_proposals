@@ -152,23 +152,6 @@ export function AgentProfile({ agent, databaseInfo }: AgentProfileProps) {
               </motion.div>
             )}
 
-            {/* Buyer network / database info */}
-            {databaseInfo && (
-              <motion.div
-                initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: prefersReducedMotion ? 0 : 0.3 }}
-                className="bg-white rounded-xl p-6 sm:p-8 shadow-sm"
-              >
-                <h4 className="font-display text-xl font-normal text-charcoal lowercase mb-3">
-                  our buyer network
-                </h4>
-                <p className="font-sans text-base font-light text-charcoal-400 leading-relaxed">
-                  {databaseInfo}
-                </p>
-              </motion.div>
-            )}
           </motion.div>
         </div>
       </div>

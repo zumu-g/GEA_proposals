@@ -13,7 +13,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'address parameter required' }, { status: 400 })
   }
 
+  const type = searchParams.get('type')
+
   try {
+    if (type === 'buy') {
+      const listings = await lookupOnMarket(address)
+      return NextResponse.json({ address, count: listings.length, sales: listings, source: isApifyAvailable() ? 'apify' : 'homely' })
+    }
     const sales = await lookupComparables(address)
     return NextResponse.json({ address, count: sales.length, sales, source: isApifyAvailable() ? 'apify' : 'homely' })
   } catch (error) {
