@@ -193,22 +193,7 @@ function listingToSale(listing: HomelyListing): PropertySale | null {
  * Returns up to 8 recent sales from the same suburb.
  */
 export async function lookupComparables(propertyAddress: string): Promise<PropertySale[]> {
-  // Try Apify first (realestate.com.au)
-  if (isApifyAvailable()) {
-    console.log(`[comparables] Trying Apify (realestate.com.au) for: ${propertyAddress}`)
-    try {
-      const apifyResults = await apifyLookupComparables(propertyAddress)
-      if (apifyResults.length > 0) {
-        console.log(`[comparables] Apify returned ${apifyResults.length} results`)
-        return apifyResults
-      }
-      console.log('[comparables] Apify returned no results, falling back to homely')
-    } catch (err) {
-      console.warn('[comparables] Apify failed, falling back to homely:', err)
-    }
-  }
-
-  // Fallback: homely.com.au
+  // Use homely.com.au directly (Apify actors are unreliable)
   const parts = parseAddress(propertyAddress)
   if (!parts) {
     console.error(`[comparables] Could not parse address: ${propertyAddress}`)
@@ -281,22 +266,7 @@ function listingToOnMarket(listing: HomelyListing): OnMarketListing | null {
  * Returns up to 8 current listings.
  */
 export async function lookupOnMarket(propertyAddress: string): Promise<OnMarketListing[]> {
-  // Try Apify first (realestate.com.au)
-  if (isApifyAvailable()) {
-    console.log(`[on-market] Trying Apify (realestate.com.au) for: ${propertyAddress}`)
-    try {
-      const apifyResults = await apifyLookupOnMarket(propertyAddress)
-      if (apifyResults.length > 0) {
-        console.log(`[on-market] Apify returned ${apifyResults.length} results`)
-        return apifyResults
-      }
-      console.log('[on-market] Apify returned no results, falling back to homely')
-    } catch (err) {
-      console.warn('[on-market] Apify failed, falling back to homely:', err)
-    }
-  }
-
-  // Fallback: homely.com.au
+  // Use homely.com.au directly
   const parts = parseAddress(propertyAddress)
   if (!parts) {
     console.error(`[on-market] Could not parse address: ${propertyAddress}`)
