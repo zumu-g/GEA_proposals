@@ -70,11 +70,20 @@ export function parseAddress(address: string): AddressParts | null {
   }
 
   // No state/postcode — try to detect suburb from known Casey/Cardinia list
-  // Extract the last word(s) as potential suburb: "17 Juliet Gardens, Pakenham" → "Pakenham"
   const cleaned = address.replace(/[,]/g, ' ').replace(/\s+/g, ' ').trim()
   const words = cleaned.split(' ')
 
-  // Try last 1, 2, or 3 words as suburb name
+  // Try the whole input as a suburb name first (e.g. just "Berwick" or "Narre Warren")
+  const wholeAsSuburb = cleaned.toLowerCase()
+  if (SUBURB_POSTCODES[wholeAsSuburb]) {
+    return {
+      suburb: wholeAsSuburb,
+      state: 'vic',
+      postcode: SUBURB_POSTCODES[wholeAsSuburb],
+    }
+  }
+
+  // Try last 1, 2, or 3 words as suburb name: "17 Juliet Gardens, Pakenham" → "Pakenham"
   for (let n = 3; n >= 1; n--) {
     if (words.length < n + 1) continue
     const candidate = words.slice(-n).join(' ').toLowerCase()

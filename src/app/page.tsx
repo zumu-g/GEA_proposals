@@ -87,6 +87,38 @@ export default function HomePage() {
     return num ? `$${num.toLocaleString()}` : val
   }
 
+  // Store raw unfiltered results for re-filtering without re-fetching
+  const [rawComps, setRawComps] = useState<any[]>([])
+  const [rawOnMarket, setRawOnMarket] = useState<any[]>([])
+
+  // Apply filters to raw results and update rows
+  const applyFilters = useCallback((sold: any[], onMarket: any[]) => {
+    const filtered = sold.filter((s: any) => {
+      if (filterBedsMin && s.bedrooms && Number(s.bedrooms) < Number(filterBedsMin)) return false
+      if (filterPriceMin && s.price && Number(s.price) < Number(filterPriceMin)) return false
+      if (filterPriceMax && s.price && Number(s.price) > Number(filterPriceMax)) return false
+      return true
+    })
+    setCompRows(filtered.map((s: any) => ({
+      address: s.address || '', price: s.price ? String(s.price) : '', date: s.date || '',
+      bedrooms: s.bedrooms ? String(s.bedrooms) : '', bathrooms: s.bathrooms ? String(s.bathrooms) : '',
+      url: s.url || '', included: true,
+    })))
+    setOnMarketRows(onMarket.map((s: any) => ({
+      address: s.address || '', askingPrice: s.askingPrice || (s.price ? String(s.price) : ''),
+      bedrooms: s.bedrooms ? String(s.bedrooms) : '', bathrooms: s.bathrooms ? String(s.bathrooms) : '',
+      propertyType: s.propertyType || 'House', url: s.url || '', included: true,
+    })))
+    setCompsError(`Found ${filtered.length} sold${filtered.length < sold.length ? ` (filtered from ${sold.length})` : ''} + ${onMarket.length} on market`)
+  }, [filterBedsMin, filterPriceMin, filterPriceMax])
+
+  // Re-apply filters when filter values change (without re-fetching)
+  useEffect(() => {
+    if (rawComps.length > 0 || rawOnMarket.length > 0) {
+      applyFilters(rawComps, rawOnMarket)
+    }
+  }, [filterBedsMin, filterPriceMin, filterPriceMax, rawComps, rawOnMarket, applyFilters])
+
   const searchComparables = async () => {
     // Use filter suburb if set, otherwise get from address
     const addr = filterSuburb || addressValue || formRef.current?.querySelector<HTMLInputElement>('#propertyAddress')?.value || ''
@@ -103,51 +135,27 @@ export default function HomePage() {
       const soldRes = await fetch(`/api/comparables?address=${encodeURIComponent(addr)}`)
       const soldData = await soldRes.json()
 
-      // Apply client-side filters
-      const filterSales = (sales: any[]) => {
-        return sales.filter((s: any) => {
-          if (filterBedsMin && s.bedrooms && Number(s.bedrooms) < Number(filterBedsMin)) return false
-          if (filterPriceMin && s.price && Number(s.price) < Number(filterPriceMin)) return false
-          if (filterPriceMax && s.price && Number(s.price) > Number(filterPriceMax)) return false
-          return true
-        })
-      }
-
       if (soldData.error) {
         setCompsError(`Sold search failed: ${soldData.error}`)
-      } else if (soldData.sales?.length > 0) {
-        const filtered = filterSales(soldData.sales)
-        setCompRows(filtered.map((s: any) => ({
-          address: s.address || '',
-          price: s.price ? String(s.price) : '',
-          date: s.date || '',
-          bedrooms: s.bedrooms ? String(s.bedrooms) : '',
-          bathrooms: s.bathrooms ? String(s.bathrooms) : '',
-          url: s.url || '',
-          included: true,
-        })))
-        setCompsError(`Found ${filtered.length} sold properties${filtered.length < soldData.sales.length ? ` (filtered from ${soldData.sales.length})` : ''}`)
       } else {
-        setCompsError(`No sold properties found for "${addr}". Try a suburb name like "Berwick" or "Pakenham"`)
-      }
+        const sold = soldData.sales || []
+        setRawComps(sold)
 
-      // On-market search
-      try {
-        const buyRes = await fetch(`/api/comparables?address=${encodeURIComponent(addr)}&type=buy`)
-        const buyData = await buyRes.json()
-        if (buyData.sales?.length > 0) {
-          setOnMarketRows(buyData.sales.map((s: any) => ({
-            address: s.address || '',
-            askingPrice: s.askingPrice || (s.price ? String(s.price) : ''),
-            bedrooms: s.bedrooms ? String(s.bedrooms) : '',
-            bathrooms: s.bathrooms ? String(s.bathrooms) : '',
-            propertyType: s.propertyType || 'House',
-            url: s.url || '',
-            included: true,
-          })))
-          setCompsError(prev => prev + ` + ${buyData.sales.length} on market`)
+        // On-market search
+        let onMarket: any[] = []
+        try {
+          const buyRes = await fetch(`/api/comparables?address=${encodeURIComponent(addr)}&type=buy`)
+          const buyData = await buyRes.json()
+          onMarket = buyData.sales || []
+          setRawOnMarket(onMarket)
+        } catch {}
+
+        if (sold.length === 0 && onMarket.length === 0) {
+          setCompsError(`No properties found for "${addr}". Try a suburb name like "Berwick" or "Pakenham"`)
+        } else {
+          applyFilters(sold, onMarket)
         }
-      } catch {}
+      }
     } catch (err) {
       setCompsError(`Search failed: ${err instanceof Error ? err.message : 'network error'}`)
     }
