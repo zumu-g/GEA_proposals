@@ -97,8 +97,12 @@ interface HomelyListing {
  */
 async function fetchHomelyListings(parts: AddressParts, type: 'sold' | 'buy' = 'sold'): Promise<HomelyListing[]> {
   const suburbSlug = parts.suburb.replace(/\s+/g, '-')
-  const urlPath = type === 'sold' ? 'sold-properties' : 'homes'
-  const url = `https://www.homely.com.au/${urlPath}/${suburbSlug}-${parts.state}-${parts.postcode}`
+  let url: string
+  if (type === 'sold') {
+    url = `https://www.homely.com.au/sold-properties/${suburbSlug}-${parts.state}-${parts.postcode}`
+  } else {
+    url = `https://www.homely.com.au/for-sale/${suburbSlug}-${parts.state}-${parts.postcode}/real-estate`
+  }
 
   console.log(`[comparables] Fetching: ${url}`)
 
@@ -107,6 +111,7 @@ async function fetchHomelyListings(parts: AddressParts, type: 'sold' | 'buy' = '
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
       'Accept': 'text/html,application/xhtml+xml',
     },
+    redirect: 'follow',
   })
 
   if (!res.ok) {
@@ -135,7 +140,7 @@ async function fetchHomelyListings(parts: AddressParts, type: 'sold' | 'buy' = '
         const listing = apollo[key] as HomelyListing
         const isMatch = type === 'sold'
           ? (listing.statusType === 'completed' && listing.listingType === 'sale')
-          : (listing.statusType === 'current' && listing.listingType === 'sale')
+          : (['current', 'available'].includes(listing.statusType) && listing.listingType === 'sale')
         if (isMatch) {
           listings.push(listing)
         }
