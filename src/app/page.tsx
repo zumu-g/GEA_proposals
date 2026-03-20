@@ -104,7 +104,7 @@ export default function HomePage() {
         })))
         setCompsError(`Found ${soldData.sales.length} sold properties`)
       } else {
-        setCompsError(`No sold properties found for "${addr}" (${soldData.count || 0} results)`)
+        setCompsError(`No sold properties found for "${addr}". Try including suburb, state and postcode e.g. "17 Juliet Gardens, Pakenham VIC 3810"`)
       }
 
       // On-market search
