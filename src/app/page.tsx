@@ -50,6 +50,7 @@ export default function HomePage() {
   const submittingRef = useRef(false)
   const [recentProposals, setRecentProposals] = useState<RecentProposal[]>([])
   const [showRecent, setShowRecent] = useState(true)
+  const [editingProposalId, setEditingProposalId] = useState<string | null>(null)
 
   // Property image auto-fetch state
   const [propertyImages, setPropertyImages] = useState<PropertyImages | null>(null)
@@ -312,6 +313,88 @@ export default function HomePage() {
     }
   }
 
+  const handleEdit = async (proposalId: string) => {
+    try {
+      const res = await fetch(`/api/proposals?id=${proposalId}`)
+      const proposal = await res.json()
+      if (!proposal || proposal.error) return
+
+      setEditingProposalId(proposalId)
+      setResult(null)
+
+      // Pre-fill address
+      setAddressValue(proposal.propertyAddress || '')
+
+      // Pre-fill hero image
+      if (proposal.heroImage) setHeroUploadUrl(proposal.heroImage)
+
+      // Pre-fill marketing costs
+      if (proposal.advertisingSchedule) {
+        const items: MarketingCostItem[] = []
+        for (const week of proposal.advertisingSchedule) {
+          for (const act of week.activities) {
+            if (week.week > 1 && act.included) continue
+            items.push({
+              category: act.category,
+              description: act.description,
+              cost: act.cost || 0,
+              included: !!act.included,
+            })
+          }
+        }
+        if (items.length > 0) setMarketingCosts(items)
+      }
+
+      // Pre-fill comparables
+      if (proposal.recentSales?.length > 0) {
+        setCompRows(proposal.recentSales.map((s: any) => ({
+          address: s.address || '',
+          price: s.price ? String(s.price) : '',
+          date: s.date || '',
+          bedrooms: s.bedrooms ? String(s.bedrooms) : '',
+          bathrooms: s.bathrooms ? String(s.bathrooms) : '',
+          url: s.url || '',
+        })))
+      }
+
+      // Pre-fill on-market
+      if (proposal.onMarketListings?.length > 0) {
+        setOnMarketRows(proposal.onMarketListings.map((s: any) => ({
+          address: s.address || '',
+          askingPrice: s.askingPrice || '',
+          bedrooms: s.bedrooms ? String(s.bedrooms) : '',
+          bathrooms: s.bathrooms ? String(s.bathrooms) : '',
+          propertyType: s.propertyType || 'House',
+          url: s.url || '',
+        })))
+      }
+
+      // Pre-fill form inputs after render
+      setTimeout(() => {
+        const form = formRef.current
+        if (!form) return
+
+        const setVal = (id: string, val: string) => {
+          const el = form.querySelector<HTMLInputElement>(`#${id}`)
+          if (el && val) el.value = val
+        }
+
+        setVal('clientName', proposal.clientName || '')
+        setVal('clientEmail', proposal.clientEmail || '')
+        setVal('commissionRate', proposal.fees?.commissionRate ? String(proposal.fees.commissionRate) : '')
+        setVal('priceGuideMin', proposal.priceGuide?.min ? String(proposal.priceGuide.min) : '')
+        setVal('priceGuideMax', proposal.priceGuide?.max ? String(proposal.priceGuide.max) : '')
+
+        if (proposal.methodOfSale) {
+          const radios = form.querySelectorAll<HTMLInputElement>('input[name="methodOfSale"]')
+          radios.forEach(r => { r.checked = r.value === proposal.methodOfSale })
+        }
+      }, 100)
+
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    } catch {}
+  }
+
   // Check if address looks complete (has a 4-digit postcode)
   const isAddressComplete = useCallback((address: string) => {
     return /\d{4}\s*$/.test(address.trim())
@@ -384,6 +467,11 @@ export default function HomePage() {
 
     const formData = new FormData(e.currentTarget)
 
+    // If editing, add the proposal ID
+    if (editingProposalId) {
+      formData.append('editProposalId', editingProposalId)
+    }
+
     try {
       const response = await fetch('/api/proposals', {
         method: 'POST',
@@ -410,6 +498,7 @@ export default function HomePage() {
         setHeroUploadUrl('')
         setCompRows([])
         setOnMarketRows([])
+        setEditingProposalId(null)
         clearDraft()
         // Refresh recent proposals list
         fetch('/api/proposals').then(r => r.json()).then(d => {
@@ -534,8 +623,14 @@ export default function HomePage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <button
+                        onClick={() => handleEdit(p.id)}
+                        className="flex-1 px-3 py-2 bg-brand/10 border border-brand/20 rounded text-brand hover:bg-brand/20 font-sans text-xs font-medium transition-colors min-h-[36px]"
+                      >
+                        edit
+                      </button>
+                      <button
                         onClick={() => handleDuplicate(p.id)}
-                        className="flex-1 px-3 py-2 bg-gold/10 border border-gold/20 rounded text-gold hover:bg-gold/20 font-sans text-xs font-medium transition-colors min-h-[36px]"
+                        className="px-3 py-2 bg-gold/10 border border-gold/20 rounded text-gold hover:bg-gold/20 font-sans text-xs font-medium transition-colors min-h-[36px]"
                       >
                         duplicate
                       </button>
@@ -667,6 +762,16 @@ W: grantsea.com.au`
                 </motion.div>
               ) : (
                 <>
+                  {/* Editing indicator */}
+                  {editingProposalId && (
+                    <div className="flex items-center gap-3 px-4 py-3 bg-brand/10 border border-brand/20 rounded-lg mb-4">
+                      <svg className="w-4 h-4 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                      </svg>
+                      <span className="text-brand font-sans text-sm font-medium">editing existing proposal</span>
+                    </div>
+                  )}
+
                   {/* Draft indicator */}
                   <div className="flex items-center justify-between">
                     <p className="text-white/20 font-sans text-xs">
@@ -1341,15 +1446,35 @@ W: grantsea.com.au`
                     </motion.div>
                   )}
 
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="lg"
-                    isLoading={isSubmitting}
-                    className="w-auto"
-                  >
-                    create proposal
-                  </Button>
+                  <div className="flex items-center gap-4">
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      size="lg"
+                      isLoading={isSubmitting}
+                      className="w-auto"
+                    >
+                      {editingProposalId ? 'update proposal' : 'create proposal'}
+                    </Button>
+                    {editingProposalId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingProposalId(null)
+                          formRef.current?.reset()
+                          setAddressValue('')
+                          setHeroUploadUrl('')
+                          setMarketingCosts(DEFAULT_MARKETING_COSTS)
+                          setCompRows([])
+                          setOnMarketRows([])
+                          clearDraft()
+                        }}
+                        className="text-white/30 hover:text-white/50 font-sans text-sm transition-colors"
+                      >
+                        cancel edit
+                      </button>
+                    )}
+                  </div>
                 </>
               )}
             </form>

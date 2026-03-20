@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createProposal, parseCSV, parseExcel } from '@/lib/spreadsheet-parser'
-import { saveProposal, getAgencyConfig, listProposals, deleteProposal } from '@/lib/proposal-generator'
+import { saveProposal, getProposal, getAgencyConfig, listProposals, deleteProposal } from '@/lib/proposal-generator'
 import { lookupComparables, lookupOnMarket } from '@/lib/comparables-lookup'
 
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
+    const editProposalId = formData.get('editProposalId') as string | null
     const clientName = formData.get('clientName') as string
     const clientEmail = formData.get('clientEmail') as string
     const propertyAddress = formData.get('propertyAddress') as string
@@ -183,6 +184,19 @@ export async function POST(request: NextRequest) {
         }
       } catch {
         // Invalid JSON, ignore — defaults will be used
+      }
+    }
+
+    // If editing, update the existing proposal instead of creating new
+    if (editProposalId) {
+      const existing = await getProposal(editProposalId)
+      if (existing) {
+        proposal.id = editProposalId
+        proposal.status = existing.status
+        proposal.proposalDate = existing.proposalDate
+        proposal.sentAt = existing.sentAt
+        proposal.viewedAt = existing.viewedAt
+        proposal.approvedAt = existing.approvedAt
       }
     }
 
