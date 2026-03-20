@@ -85,15 +85,11 @@ export default function HomePage() {
     if (isSearchingComps) return
 
     setIsSearchingComps(true)
-    setCompsError('')
+    setCompsError('Searching...')
 
     try {
-      const [soldRes, buyRes] = await Promise.all([
-        fetch(`/api/comparables?address=${encodeURIComponent(addr)}`),
-        fetch(`/api/comparables?address=${encodeURIComponent(addr)}&type=buy`),
-      ])
+      const soldRes = await fetch(`/api/comparables?address=${encodeURIComponent(addr)}`)
       const soldData = await soldRes.json()
-      const buyData = await buyRes.json()
 
       if (soldData.error) {
         setCompsError(`Sold search failed: ${soldData.error}`)
@@ -106,20 +102,27 @@ export default function HomePage() {
           bathrooms: s.bathrooms ? String(s.bathrooms) : '',
           url: s.url || '',
         })))
+        setCompsError(`Found ${soldData.sales.length} sold properties`)
       } else {
-        setCompsError(`No sold properties found for "${addr}"`)
+        setCompsError(`No sold properties found for "${addr}" (${soldData.count || 0} results)`)
       }
 
-      if (buyData.sales?.length > 0) {
-        setOnMarketRows(buyData.sales.map((s: any) => ({
-          address: s.address || '',
-          askingPrice: s.askingPrice || s.price ? String(s.askingPrice || s.price) : '',
-          bedrooms: s.bedrooms ? String(s.bedrooms) : '',
-          bathrooms: s.bathrooms ? String(s.bathrooms) : '',
-          propertyType: s.propertyType || 'House',
-          url: s.url || '',
-        })))
-      }
+      // On-market search
+      try {
+        const buyRes = await fetch(`/api/comparables?address=${encodeURIComponent(addr)}&type=buy`)
+        const buyData = await buyRes.json()
+        if (buyData.sales?.length > 0) {
+          setOnMarketRows(buyData.sales.map((s: any) => ({
+            address: s.address || '',
+            askingPrice: s.askingPrice || (s.price ? String(s.price) : ''),
+            bedrooms: s.bedrooms ? String(s.bedrooms) : '',
+            bathrooms: s.bathrooms ? String(s.bathrooms) : '',
+            propertyType: s.propertyType || 'House',
+            url: s.url || '',
+          })))
+          setCompsError(prev => prev + ` + ${buyData.sales.length} on market`)
+        }
+      } catch {}
     } catch (err) {
       setCompsError(`Search failed: ${err instanceof Error ? err.message : 'network error'}`)
     }
@@ -1263,9 +1266,11 @@ W: grantsea.com.au`
                     </button>
                   </div>
 
-                  {/* Search error/status */}
+                  {/* Search status */}
                   {compsError && (
-                    <p className="text-amber-400/70 font-sans text-xs font-light mt-2">{compsError}</p>
+                    <p className={`font-sans text-xs font-light mt-2 ${compsError.startsWith('Found') ? 'text-emerald-400/70' : compsError === 'Searching...' ? 'text-white/40' : 'text-amber-400/70'}`}>
+                      {compsError}
+                    </p>
                   )}
 
                   {/* Comparable sales — editable rows */}
