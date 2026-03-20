@@ -73,17 +73,31 @@ export default function HomePage() {
   interface OnMarketRow { address: string; askingPrice: string; bedrooms: string; bathrooms: string; propertyType: string; url: string }
   const [onMarketRows, setOnMarketRows] = useState<OnMarketRow[]>([])
 
+  const [compsError, setCompsError] = useState('')
+
   const searchComparables = async () => {
-    if (!addressValue || isSearchingComps) return
+    // Get address from state or from the input directly
+    const addr = addressValue || formRef.current?.querySelector<HTMLInputElement>('#propertyAddress')?.value || ''
+    if (!addr) {
+      setCompsError('Enter a property address first')
+      return
+    }
+    if (isSearchingComps) return
+
     setIsSearchingComps(true)
+    setCompsError('')
+
     try {
       const [soldRes, buyRes] = await Promise.all([
-        fetch(`/api/comparables?address=${encodeURIComponent(addressValue)}`),
-        fetch(`/api/comparables?address=${encodeURIComponent(addressValue)}&type=buy`),
+        fetch(`/api/comparables?address=${encodeURIComponent(addr)}`),
+        fetch(`/api/comparables?address=${encodeURIComponent(addr)}&type=buy`),
       ])
       const soldData = await soldRes.json()
       const buyData = await buyRes.json()
-      if (soldData.sales?.length > 0) {
+
+      if (soldData.error) {
+        setCompsError(`Sold search failed: ${soldData.error}`)
+      } else if (soldData.sales?.length > 0) {
         setCompRows(soldData.sales.map((s: any) => ({
           address: s.address || '',
           price: s.price ? String(s.price) : '',
@@ -92,7 +106,10 @@ export default function HomePage() {
           bathrooms: s.bathrooms ? String(s.bathrooms) : '',
           url: s.url || '',
         })))
+      } else {
+        setCompsError(`No sold properties found for "${addr}"`)
       }
+
       if (buyData.sales?.length > 0) {
         setOnMarketRows(buyData.sales.map((s: any) => ({
           address: s.address || '',
@@ -103,7 +120,9 @@ export default function HomePage() {
           url: s.url || '',
         })))
       }
-    } catch {}
+    } catch (err) {
+      setCompsError(`Search failed: ${err instanceof Error ? err.message : 'network error'}`)
+    }
     setIsSearchingComps(false)
   }
 
@@ -1225,7 +1244,7 @@ W: grantsea.com.au`
                     <button
                       type="button"
                       onClick={searchComparables}
-                      disabled={!addressValue || isSearchingComps}
+                      disabled={isSearchingComps}
                       className="px-4 py-2 bg-white/5 border border-white/15 rounded text-white/60 hover:text-white hover:bg-white/10 font-sans text-xs font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed min-h-[36px] flex items-center gap-2"
                     >
                       {isSearchingComps ? (
@@ -1243,6 +1262,11 @@ W: grantsea.com.au`
                       )}
                     </button>
                   </div>
+
+                  {/* Search error/status */}
+                  {compsError && (
+                    <p className="text-amber-400/70 font-sans text-xs font-light mt-2">{compsError}</p>
+                  )}
 
                   {/* Comparable sales — editable rows */}
                   <div className="space-y-2">
