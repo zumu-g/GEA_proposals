@@ -21,7 +21,7 @@ interface StatsOverviewProps {
 const stats = [
   { key: 'total', label: 'total', accent: 'border-white/10', valueColor: 'text-white' },
   { key: 'draft', label: 'drafts', accent: 'border-charcoal-500', valueColor: 'text-white' },
-  { key: 'awaitingResponse', label: 'awaiting response', accent: 'border-gold/30', valueColor: 'text-gold' },
+  { key: 'awaitingResponse', label: 'awaiting response', accent: 'border-[#C41E2A]/30', valueColor: 'text-[#C41E2A]' },
   { key: 'hotLeads', label: 'hot leads', accent: 'border-sage/30', valueColor: 'text-sage-300' },
   { key: 'approved', label: 'approved', accent: 'border-forest-400/30', valueColor: 'text-forest-300' },
   { key: 'recentlyCreated', label: 'last 7 days', accent: 'border-white/10', valueColor: 'text-white/70' },

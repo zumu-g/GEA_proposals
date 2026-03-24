@@ -1,6 +1,6 @@
 /**
- * Cron scheduler for polling AgentMail inbox.
- * Runs pollInbox() every 5 minutes using node-cron.
+ * Cron scheduler for polling AgentMail inbox and processing nurture touchpoints.
+ * Runs pollInbox() every 5 minutes and processDueTouchpoints() every 15 minutes.
  *
  * Exports:
  *   startCron()  — start the scheduler (idempotent)
@@ -10,12 +10,17 @@
 
 import cron from 'node-cron'
 import { pollInbox } from './email-intake'
+import { processDueTouchpoints } from './nurture'
 
-let task: cron.ScheduledTask | null = null
+let inboxTask: cron.ScheduledTask | null = null
+let nurtureTask: cron.ScheduledTask | null = null
 let running = false
 let lastPollTime: string | null = null
 let lastPollResult: { processed: number; errors: number } | null = null
+let lastNurtureTime: string | null = null
+let lastNurtureResult: { processed: number; errors: number } | null = null
 let pollCount = 0
+let nurtureCount = 0
 
 function timestamp(): string {
   return new Date().toISOString()
@@ -48,32 +53,69 @@ async function executePoll(): Promise<void> {
   }
 }
 
+async function executeNurture(): Promise<void> {
+  const start = Date.now()
+  console.log(`[${timestamp()}] [cron] Processing nurture touchpoints...`)
+
+  try {
+    const result = await processDueTouchpoints()
+    const elapsed = Date.now() - start
+    lastNurtureTime = timestamp()
+    lastNurtureResult = { processed: result.processed, errors: result.errors }
+    nurtureCount++
+
+    if (result.processed > 0 || result.errors > 0) {
+      console.log(
+        `[${lastNurtureTime}] [cron] Nurture #${nurtureCount} complete in ${elapsed}ms — ` +
+          `${result.processed} processed, ${result.errors} errors`
+      )
+    }
+  } catch (err) {
+    lastNurtureTime = timestamp()
+    lastNurtureResult = { processed: 0, errors: 1 }
+    nurtureCount++
+
+    console.error(
+      `[${lastNurtureTime}] [cron] Nurture #${nurtureCount} failed:`,
+      err instanceof Error ? err.message : err
+    )
+  }
+}
+
 /**
  * Start the cron scheduler. Idempotent — calling twice is safe.
  */
 export function startCron(): void {
-  if (running && task) {
+  if (running && inboxTask) {
     console.log(`[${timestamp()}] [cron] Already running, skipping duplicate start`)
     return
   }
 
-  // Schedule: every 5 minutes
-  task = cron.schedule('*/5 * * * *', () => {
-    // Fire-and-forget; errors are caught inside executePoll
+  // Schedule: poll inbox every 5 minutes
+  inboxTask = cron.schedule('*/5 * * * *', () => {
     executePoll()
   })
 
+  // Schedule: process nurture touchpoints every 15 minutes
+  nurtureTask = cron.schedule('*/15 * * * *', () => {
+    executeNurture()
+  })
+
   running = true
-  console.log(`[${timestamp()}] [cron] Started — polling inbox every 5 minutes`)
+  console.log(`[${timestamp()}] [cron] Started — inbox every 5 min, nurture every 15 min`)
 }
 
 /**
  * Stop the cron scheduler.
  */
 export function stopCron(): void {
-  if (task) {
-    task.stop()
-    task = null
+  if (inboxTask) {
+    inboxTask.stop()
+    inboxTask = null
+  }
+  if (nurtureTask) {
+    nurtureTask.stop()
+    nurtureTask = null
   }
   running = false
   console.log(`[${timestamp()}] [cron] Stopped`)
@@ -88,7 +130,10 @@ export function getCronStatus() {
     lastPollTime,
     lastPollResult,
     pollCount,
-    schedule: '*/5 * * * *',
-    description: 'Every 5 minutes',
+    lastNurtureTime,
+    lastNurtureResult,
+    nurtureCount,
+    schedule: '*/5 * * * * (inbox), */15 * * * * (nurture)',
+    description: 'Inbox every 5 minutes, nurture every 15 minutes',
   }
 }

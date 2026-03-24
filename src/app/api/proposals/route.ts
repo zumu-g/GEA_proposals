@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
     const marketingTotalStr = formData.get('marketingTotal') as string | null
     const selectedCompsJson = formData.get('selectedComps') as string | null
     const selectedOnMarketJson = formData.get('selectedOnMarket') as string | null
+    const comparablesHandled = formData.get('comparablesHandled') as string | null
     const file = formData.get('file') as File | null
 
     // Collect auto-fetched property gallery images
@@ -82,6 +83,9 @@ export async function POST(request: NextRequest) {
       if (selectedOnMarketJson) selectedOnMarket = JSON.parse(selectedOnMarketJson)
     } catch {}
 
+    console.log(`[proposals] selectedCompsJson length: ${selectedCompsJson?.length ?? 'null'}, parsed: ${selectedComps.length}`)
+    console.log(`[proposals] selectedOnMarketJson length: ${selectedOnMarketJson?.length ?? 'null'}, parsed: ${selectedOnMarket.length}`)
+
     if (selectedComps.length > 0) {
       // User picked comparables from the search
       spreadsheetRows = selectedComps
@@ -92,8 +96,9 @@ export async function POST(request: NextRequest) {
       console.log(`[proposals] Using ${selectedOnMarket.length} pre-selected on-market listings`)
     }
 
-    // Auto-lookup if nothing was pre-selected and no file uploaded
-    if (spreadsheetRows.length === 0 && selectedComps.length === 0) {
+    // Auto-lookup if nothing was pre-selected, no file uploaded, AND comparables weren't explicitly handled
+    // When comparablesHandled is true, the user went through the wizard comparables step — respect their selection (even if empty)
+    if (spreadsheetRows.length === 0 && selectedComps.length === 0 && !comparablesHandled) {
       try {
         console.log('[proposals] Looking up comparables for:', propertyAddress)
         const [comparables, onMarket] = await Promise.all([

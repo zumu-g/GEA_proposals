@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { StatsOverview, DashboardSummary } from './StatsOverview'
 import { ProposalCard, DashboardProposal } from './ProposalCard'
+import { NotificationsPanel } from './NotificationsPanel'
 
 type ViewMode = 'board' | 'list'
 
@@ -28,10 +29,10 @@ const STAGES: StageConfig[] = [
   {
     key: 'sent',
     label: 'sent',
-    color: 'text-gold',
-    dotColor: 'bg-gold',
-    borderColor: 'border-gold/20',
-    bgColor: 'bg-gold/[0.04]',
+    color: 'text-[#C41E2A]/70',
+    dotColor: 'bg-[#C41E2A]',
+    borderColor: 'border-[#C41E2A]/20',
+    bgColor: 'bg-[#C41E2A]/[0.04]',
   },
   {
     key: 'viewed',
@@ -78,6 +79,7 @@ export function PipelineBoard({
   const [pollLoading, setPollLoading] = useState(false)
   const [pollResult, setPollResult] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [highlightedProposalId, setHighlightedProposalId] = useState<string | null>(null)
   const pollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Clear poll result after 4s
@@ -101,7 +103,7 @@ export function PipelineBoard({
         setSummary(data.summary)
       }
     } catch {
-      // Fail silently — data stays stale
+      // Fail silently -- data stays stale
     } finally {
       setRefreshing(false)
     }
@@ -133,8 +135,84 @@ export function PipelineBoard({
     }
   }
 
+  const handleNavigateToProposal = useCallback((proposalId: string) => {
+    setHighlightedProposalId(proposalId)
+    // Find which stage the proposal is in and scroll to it
+    const el = document.getElementById(`proposal-${proposalId}`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+    // Clear highlight after 3s
+    setTimeout(() => setHighlightedProposalId(null), 3000)
+  }, [])
+
+  // Compute quick stats
+  const callsDueToday = proposals.filter(p => {
+    // Proposals that are sent/viewed and stale (3+ days without activity)
+    if (p.status === 'sent' && p.daysInStage >= 3) return true
+    return false
+  }).length
+
+  const emailsPending = proposals.filter(p => p.status === 'draft').length
+  const needsAttention = proposals.filter(p => {
+    if (p.status === 'sent' && p.daysInStage >= 5) return true
+    if (p.status === 'viewed' && p.daysInStage >= 1) return true
+    return false
+  }).length
+
   return (
     <div className="space-y-8">
+      {/* Header with notifications */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-white font-display text-2xl">pipeline</h1>
+          <p className="text-white/40 font-sans text-sm mt-1">manage proposals and track activity</p>
+        </div>
+        <NotificationsPanel onNavigateToProposal={handleNavigateToProposal} />
+      </div>
+
+      {/* Quick stats row */}
+      <motion.div
+        initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: 'easeOut' }}
+        className="grid grid-cols-3 gap-3"
+      >
+        <div className="bg-white/[0.04] border border-white/[0.08] rounded-xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-white/[0.06] flex items-center justify-center text-white/50 text-lg">
+            {summary.total}
+          </div>
+          <div>
+            <p className="text-white/50 font-sans text-[10px] tracking-wider-custom uppercase">total proposals</p>
+            <p className="text-white font-sans text-sm font-medium">{summary.total} active</p>
+          </div>
+        </div>
+
+        <div className={`bg-white/[0.04] border rounded-xl p-4 flex items-center gap-3 ${needsAttention > 0 ? 'border-[#C41E2A]/30' : 'border-white/[0.08]'}`}>
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg ${needsAttention > 0 ? 'bg-[#C41E2A]/10 text-[#C41E2A]' : 'bg-white/[0.06] text-white/50'}`}>
+            {needsAttention}
+          </div>
+          <div>
+            <p className="text-white/50 font-sans text-[10px] tracking-wider-custom uppercase">needs attention</p>
+            <p className={`font-sans text-sm font-medium ${needsAttention > 0 ? 'text-[#C41E2A]' : 'text-white/40'}`}>
+              {needsAttention > 0 ? `${needsAttention} follow-up${needsAttention !== 1 ? 's' : ''} due` : 'all clear'}
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-white/[0.04] border border-white/[0.08] rounded-xl p-4 flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg ${emailsPending > 0 ? 'bg-charcoal-600 text-white/60' : 'bg-white/[0.06] text-white/50'}`}>
+            {emailsPending}
+          </div>
+          <div>
+            <p className="text-white/50 font-sans text-[10px] tracking-wider-custom uppercase">drafts pending</p>
+            <p className="text-white/60 font-sans text-sm font-medium">
+              {emailsPending > 0 ? `${emailsPending} to review` : 'none pending'}
+            </p>
+          </div>
+        </div>
+      </motion.div>
+
       {/* Stats overview */}
       <StatsOverview summary={summary} />
 
@@ -169,7 +247,7 @@ export function PipelineBoard({
           <button
             onClick={refresh}
             disabled={refreshing}
-            className="px-3 py-1.5 bg-white/[0.04] border border-white/[0.08] rounded-lg text-white/40 hover:text-white/60 font-sans text-xs transition-colors disabled:opacity-50 min-h-[36px]"
+            className="px-3 py-1.5 bg-white/[0.04] border border-white/[0.08] rounded-lg text-white/40 hover:text-white/60 font-sans text-xs transition-colors disabled:opacity-50 min-h-[36px] active:scale-[0.97]"
           >
             {refreshing ? 'refreshing...' : 'refresh'}
           </button>
@@ -194,7 +272,7 @@ export function PipelineBoard({
           <button
             onClick={handlePoll}
             disabled={pollLoading}
-            className="px-4 py-2 bg-white/[0.04] border border-white/[0.08] rounded-lg text-white/50 hover:text-white/70 hover:border-white/[0.15] font-sans text-xs font-medium transition-colors disabled:opacity-50 min-h-[36px]"
+            className="px-4 py-2 bg-white/[0.04] border border-white/[0.08] rounded-lg text-white/50 hover:text-white/70 hover:border-white/[0.15] font-sans text-xs font-medium transition-colors disabled:opacity-50 min-h-[36px] active:scale-[0.97]"
           >
             {pollLoading ? 'checking...' : 'poll inbox'}
           </button>
@@ -202,7 +280,7 @@ export function PipelineBoard({
           {/* New proposal */}
           <a
             href="mailto:newproposal@agentmail.to?subject=New%20Proposal&body=Client%20Name%3A%20%0AClient%20Email%3A%20%0AProperty%20Address%3A%20%0APrice%20Guide%3A%20%0AMethod%20of%20Sale%3A%20"
-            className="px-4 py-2 bg-gold/90 hover:bg-gold text-charcoal rounded-lg font-sans text-xs font-medium transition-colors min-h-[36px] inline-flex items-center"
+            className="px-4 py-2 bg-[#C41E2A] hover:bg-[#C41E2A]/90 text-white rounded-lg font-sans text-xs font-medium transition-colors min-h-[36px] inline-flex items-center active:scale-[0.97]"
           >
             + new proposal
           </a>
@@ -248,6 +326,8 @@ export function PipelineBoard({
                           key={proposal.id}
                           proposal={proposal}
                           index={index}
+                          highlighted={highlightedProposalId === proposal.id}
+                          onActivityLogged={refresh}
                         />
                       ))
                     )}
@@ -282,6 +362,8 @@ export function PipelineBoard({
                         key={proposal.id}
                         proposal={proposal}
                         index={index}
+                        highlighted={highlightedProposalId === proposal.id}
+                        onActivityLogged={refresh}
                       />
                     ))}
                   </AnimatePresence>
@@ -299,7 +381,7 @@ export function PipelineBoard({
                 email{' '}
                 <a
                   href="mailto:newproposal@agentmail.to"
-                  className="text-gold/60 hover:text-gold transition-colors"
+                  className="text-[#C41E2A]/60 hover:text-[#C41E2A] transition-colors"
                 >
                   newproposal@agentmail.to
                 </a>{' '}

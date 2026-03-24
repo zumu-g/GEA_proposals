@@ -8,6 +8,10 @@
 
 import { parseAddress } from './comparables-lookup'
 
+const APIFY_TOKEN = process.env.APIFY_API_TOKEN
+const ACTOR_ID = 'azzouzana~real-estate-au-scraper-pro'
+const APIFY_BASE = 'https://api.apify.com/v2'
+
 export interface PropertyImages {
   heroImage: string | null
   galleryImages: string[]
@@ -365,15 +369,105 @@ async function fetchFromDomain(address: string): Promise<PropertyImages> {
 }
 
 /**
+ * Fetch property images via Apify realestate.com.au scraper.
+ * Searches for the specific property address and extracts images from the result.
+ */
+async function fetchFromApify(address: string): Promise<PropertyImages> {
+  if (!APIFY_TOKEN) {
+    console.log('[property-images] No APIFY_API_TOKEN — skipping Apify')
+    return EMPTY_RESULT
+  }
+
+  const parts = parseAddress(address)
+  if (!parts) return EMPTY_RESULT
+
+  // Build a realestate.com.au search URL for this specific address
+  const suburbSlug = parts.suburb.toLowerCase().replace(/\s+/g, '-')
+  const stateSlug = parts.state.toLowerCase()
+  const streetSlug = [parts.streetNumber, parts.streetName].filter(Boolean).join(' ').toLowerCase().replace(/\s+/g, '-')
+
+  // Search sold first (property may have sold recently), then buy
+  const urls = [
+    `https://www.realestate.com.au/sold/property-unit+apartment+villa+house-with-${streetSlug ? streetSlug + '-' : ''}in-${suburbSlug},+${stateSlug}+${parts.postcode}/list-1`,
+    `https://www.realestate.com.au/buy/property-unit+apartment+villa+house-in-${suburbSlug},+${stateSlug}+${parts.postcode}/list-1`,
+  ]
+
+  for (const searchUrl of urls) {
+    console.log(`[property-images] Apify search: ${searchUrl}`)
+
+    try {
+      const url = `${APIFY_BASE}/acts/${ACTOR_ID}/run-sync-get-dataset-items?token=${APIFY_TOKEN}`
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          startUrls: [{ url: searchUrl }],
+          maxItems: 5,
+        }),
+        signal: AbortSignal.timeout(60_000),
+      })
+
+      if (!res.ok) continue
+
+      const data = await res.json()
+      if (!Array.isArray(data) || data.length === 0) continue
+
+      // Find the result matching our street address
+      const streetLower = (parts.streetNumber + ' ' + parts.streetName).toLowerCase().trim()
+      const match = data.find((r: Record<string, unknown>) => {
+        const addr = String(r.fullAddress || r.address || r.streetAddress || '').toLowerCase()
+        return addr.includes(streetLower)
+      }) || data[0] // Fall back to first result if no exact match
+
+      // Extract images
+      const heroImage = (match.mainImage || match.imageUrl || match.headerImage ||
+        (Array.isArray(match.images) && match.images[0]) ||
+        (Array.isArray(match.photos) && match.photos[0]) || null) as string | null
+
+      const gallery: string[] = []
+      if (Array.isArray(match.images)) {
+        gallery.push(...match.images.filter((img: string) => img !== heroImage))
+      } else if (Array.isArray(match.photos)) {
+        gallery.push(...match.photos.filter((img: string) => img !== heroImage))
+      }
+
+      if (heroImage) {
+        console.log(`[property-images] Apify found hero image + ${gallery.length} gallery images`)
+        return {
+          heroImage,
+          galleryImages: gallery.slice(0, 10),
+          source: 'realestate.com.au (via Apify)',
+        }
+      }
+    } catch (err) {
+      console.error('[property-images] Apify lookup failed:', err)
+    }
+  }
+
+  return EMPTY_RESULT
+}
+
+/**
  * Main entry point: look up property images for an Australian address.
  *
- * Tries realestate.com.au first, then falls back to domain.com.au.
+ * Priority: Apify (realestate.com.au) → direct realestate.com.au → domain.com.au → homely.com.au
  * Returns gracefully with empty result if all lookups fail.
  */
 export async function lookupPropertyImages(propertyAddress: string): Promise<PropertyImages> {
   console.log(`[property-images] Looking up images for: ${propertyAddress}`)
 
-  // Try realestate.com.au first
+  // Try Apify first (most reliable for images)
+  const apifyResult = await fetchFromApify(propertyAddress).catch((err) => {
+    console.error('[property-images] Apify lookup failed:', err)
+    return EMPTY_RESULT
+  })
+
+  if (apifyResult.heroImage || apifyResult.galleryImages.length > 0) {
+    return apifyResult
+  }
+
+  // Try direct realestate.com.au scraping
+  console.log('[property-images] No images from Apify, trying direct realestate.com.au')
   const reaResult = await fetchFromRealEstate(propertyAddress).catch((err) => {
     console.error('[property-images] realestate.com.au lookup failed:', err)
     return EMPTY_RESULT

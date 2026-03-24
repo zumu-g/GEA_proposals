@@ -64,11 +64,13 @@ function initSchema(db: Database.Database) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       plan_id INTEGER NOT NULL,
       type TEXT NOT NULL, -- email, call, sms
+      day_number INTEGER NOT NULL DEFAULT 0,
       subject TEXT,
       content TEXT,
+      talking_points TEXT, -- JSON array of talking points for call touchpoints
       scheduled_for TEXT NOT NULL,
       completed_at TEXT,
-      status TEXT NOT NULL DEFAULT 'pending', -- pending, sent, completed, skipped
+      status TEXT NOT NULL DEFAULT 'pending', -- pending, sent, completed, skipped, pending_call
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (plan_id) REFERENCES nurture_plans(id) ON DELETE CASCADE
     );
@@ -78,6 +80,21 @@ function initSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_activities_created ON activities(created_at);
     CREATE INDEX IF NOT EXISTS idx_nurture_touchpoints_scheduled ON nurture_touchpoints(scheduled_for);
     CREATE INDEX IF NOT EXISTS idx_nurture_touchpoints_status ON nurture_touchpoints(status);
+
+    CREATE TABLE IF NOT EXISTS notification_dismissals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      notification_key TEXT NOT NULL UNIQUE, -- unique key like "call_due:proposal_id:touchpoint_id"
+      dismissed_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS notification_reads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      notification_key TEXT NOT NULL UNIQUE,
+      read_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_notification_dismissals_key ON notification_dismissals(notification_key);
+    CREATE INDEX IF NOT EXISTS idx_notification_reads_key ON notification_reads(notification_key);
   `)
 
   // Add new columns for expanded proposal sections (safe to re-run)
@@ -90,6 +107,9 @@ function initSchema(db: Database.Database) {
     'ALTER TABLE proposals ADD COLUMN database_info TEXT',
     'ALTER TABLE proposals ADD COLUMN internet_listings TEXT',      // JSON
     'ALTER TABLE proposals ADD COLUMN on_market_listings TEXT',     // JSON
+    // Nurture touchpoints — new columns for AI-generated plans
+    'ALTER TABLE nurture_touchpoints ADD COLUMN day_number INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE nurture_touchpoints ADD COLUMN talking_points TEXT',
   ]
 
   for (const sql of newColumns) {

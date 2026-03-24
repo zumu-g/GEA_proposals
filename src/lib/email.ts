@@ -53,6 +53,34 @@ export async function sendProposalEmail(proposal: Proposal): Promise<{ success: 
   }
 }
 
+export async function sendNurtureEmail(
+  proposal: Proposal,
+  subject: string,
+  bodyHtml: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await getResend().emails.send({
+      from: `Stuart Grant - Grant's Estate Agents <${FROM_EMAIL}>`,
+      to: [proposal.clientEmail],
+      subject,
+      html: buildNurtureEmailHtml({
+        propertyAddress: proposal.propertyAddress,
+        bodyHtml,
+      }),
+    })
+
+    if (error) {
+      console.error('Nurture email error:', error)
+      return { success: false, error: error.message }
+    }
+
+    return { success: true }
+  } catch (err) {
+    console.error('Nurture email send error:', err)
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to send nurture email' }
+  }
+}
+
 export async function sendApprovalNotification(proposal: Proposal): Promise<{ success: boolean; error?: string }> {
   const agencyEmail = proposal.agency?.contactEmail || process.env.AGENCY_EMAIL
   if (!agencyEmail) {
@@ -122,7 +150,7 @@ function buildProposalEmailHtml(data: ProposalEmailData): string {
       <td align="center" style="padding: 40px 20px;">
         <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; width: 100%;">
 
-          <!-- Gold accent line -->
+          <!-- Red accent line -->
           <tr>
             <td style="background-color: #C41E2A; height: 4px; font-size: 0;">&nbsp;</td>
           </tr>
@@ -158,7 +186,7 @@ function buildProposalEmailHtml(data: ProposalEmailData): string {
                 <tr>
                   <td>
                     <a href="${url}" target="_blank"
-                       style="display: inline-block; background-color: #C41E2A; color: #1A1A1A; text-decoration: none; padding: 16px 32px; font-size: 16px; font-weight: 500; letter-spacing: 0.5px; border-radius: 4px;">
+                       style="display: inline-block; background-color: #C41E2A; color: #FFFFFF; text-decoration: none; padding: 16px 32px; font-size: 16px; font-weight: 500; letter-spacing: 0.5px; border-radius: 4px;">
                       view your proposal
                     </a>
                   </td>
@@ -180,6 +208,93 @@ function buildProposalEmailHtml(data: ProposalEmailData): string {
               </p>
               ${email ? `<p style="color: rgba(255,255,255,0.3); font-size: 13px; font-weight: 300; margin: 0 0 4px 0;">${email}</p>` : ''}
               ${phone ? `<p style="color: rgba(255,255,255,0.3); font-size: 13px; font-weight: 300; margin: 0;">${phone}</p>` : ''}
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
+interface NurtureEmailData {
+  propertyAddress: string
+  bodyHtml: string
+}
+
+function buildNurtureEmailHtml(data: NurtureEmailData): string {
+  const address = escapeHtml(data.propertyAddress)
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #FAFAFA; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #FAFAFA;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; width: 100%;">
+
+          <!-- Red accent line -->
+          <tr>
+            <td style="background-color: #C41E2A; height: 4px; font-size: 0;">&nbsp;</td>
+          </tr>
+
+          <!-- Header -->
+          <tr>
+            <td style="background-color: #1A1A1A; padding: 32px 40px;">
+              <p style="color: #C41E2A; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; margin: 0 0 12px 0;">
+                grant's estate agents
+              </p>
+              <p style="color: rgba(255,255,255,0.5); font-size: 14px; font-weight: 300; margin: 0; text-transform: lowercase;">
+                ${address.toLowerCase()}
+              </p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="background-color: #FFFFFF; padding: 40px;">
+              <div style="color: #4A4A4A; font-size: 16px; line-height: 1.7; font-weight: 300;">
+                ${data.bodyHtml}
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #1A1A1A; padding: 32px 40px;">
+              <p style="color: rgba(255,255,255,0.7); font-size: 14px; font-weight: 300; margin: 0 0 4px 0;">
+                Stuart Grant
+              </p>
+              <p style="color: rgba(255,255,255,0.5); font-size: 13px; font-weight: 300; margin: 0 0 12px 0;">
+                Principal — Grant's Estate Agents
+              </p>
+              <p style="color: rgba(255,255,255,0.3); font-size: 13px; font-weight: 300; margin: 0 0 4px 0;">
+                <a href="tel:0438554522" style="color: rgba(255,255,255,0.4); text-decoration: none;">0438 554 522</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="tel:0397673200" style="color: rgba(255,255,255,0.4); text-decoration: none;">03 9767 3200</a>
+              </p>
+              <p style="color: rgba(255,255,255,0.3); font-size: 13px; font-weight: 300; margin: 0 0 4px 0;">
+                <a href="mailto:info@grantsea.com.au" style="color: rgba(255,255,255,0.4); text-decoration: none;">info@grantsea.com.au</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="https://grantsea.com.au" style="color: rgba(255,255,255,0.4); text-decoration: none;">grantsea.com.au</a>
+              </p>
+              <p style="color: rgba(255,255,255,0.3); font-size: 12px; font-weight: 300; margin: 0;">
+                1/5 Gloucester Avenue, Berwick VIC 3806
+              </p>
+            </td>
+          </tr>
+
+          <!-- Unsubscribe -->
+          <tr>
+            <td style="padding: 16px 40px; background-color: #F5F5F5;">
+              <p style="color: #A3A3A3; font-size: 11px; font-weight: 300; margin: 0; text-align: center;">
+                Grant's Estate Agents Pty Ltd | ABN 80 595 235 807<br>
+                Berwick&nbsp;&nbsp;|&nbsp;&nbsp;Narre Warren&nbsp;&nbsp;|&nbsp;&nbsp;Pakenham<br>
+                <a href="mailto:info@grantsea.com.au?subject=Unsubscribe" style="color: #A3A3A3; text-decoration: underline;">Unsubscribe</a> from follow-up emails
+              </p>
             </td>
           </tr>
 

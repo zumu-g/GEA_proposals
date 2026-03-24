@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getProposal, updateProposal } from '@/lib/proposal-generator'
 import { sendProposalEmail } from '@/lib/email'
+import { createNurturePlan } from '@/lib/nurture'
 
 export async function POST(request: NextRequest) {
   try {
@@ -44,6 +45,14 @@ export async function POST(request: NextRequest) {
       status: proposal.status === 'draft' ? 'sent' : proposal.status,
       sentAt: proposal.sentAt || new Date().toISOString(),
     })
+
+    // Auto-create nurture plan for follow-up touchpoints
+    try {
+      createNurturePlan(proposalId)
+    } catch (nurtureErr) {
+      console.error('Failed to create nurture plan:', nurtureErr instanceof Error ? nurtureErr.message : nurtureErr)
+      // Non-blocking — proposal was still sent successfully
+    }
 
     return NextResponse.json({
       success: true,

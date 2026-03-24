@@ -4,7 +4,8 @@
  * Uses azzouzana/real-estate-au-scraper-pro to fetch sold and on-market
  * property data from realestate.com.au via the Apify API.
  *
- * Falls back to homely.com.au scraper if Apify is unavailable.
+ * PRIMARY data source — homely.com.au is the fallback.
+ * Works for any suburb in Australia (no postcode restriction).
  */
 
 import { PropertySale, OnMarketListing } from '@/types/proposal'
@@ -14,25 +15,9 @@ const APIFY_TOKEN = process.env.APIFY_API_TOKEN
 const ACTOR_ID = 'azzouzana~real-estate-au-scraper-pro'
 const APIFY_BASE = 'https://api.apify.com/v2'
 
-// Only scrape suburbs within City of Casey and Cardinia Shire
-// Postcodes: Casey 3802-3806, 3975-3978 | Cardinia 3807-3818, 3820, 3840-3842
-const CASEY_CARDINIA_POSTCODES = new Set([
-  // City of Casey
-  '3802', '3803', '3804', '3805', '3806',  // Endeavour Hills, Narre Warren, Berwick
-  '3975', '3976', '3977', '3978',          // Lynbrook, Hampton Park, Cranbourne, Clyde
-  '3174', '3175',                           // Noble Park, Dandenong South (parts)
-  // Cardinia Shire
-  '3807', '3808', '3809', '3810', '3811', '3812', '3813', '3814', '3815', '3816', '3818',
-  '3820',                                   // Pakenham, Officer, Beaconsfield, Koo Wee Rup, etc.
-  '3840', '3841', '3842',                   // Warragul, Drouin (fringe Cardinia)
-])
-
-/**
- * Check if an address is within the Casey/Cardinia service area.
- */
-export function isInServiceArea(postcode: string): boolean {
-  return CASEY_CARDINIA_POSTCODES.has(postcode)
-}
+// Max results per query type
+const MAX_SOLD_RESULTS = 50
+const MAX_BUY_RESULTS = 30
 
 interface ApifyPropertyResult {
   // Common fields from realestate.com.au scraper
@@ -52,6 +37,7 @@ interface ApifyPropertyResult {
   bathrooms?: number
   carSpaces?: number
   parkingSpaces?: number
+  cars?: number
   landSize?: number
   landArea?: number
   buildingSize?: number
@@ -60,6 +46,7 @@ interface ApifyPropertyResult {
   listingUrl?: string
   imageUrl?: string
   mainImage?: string
+  headerImage?: string
   images?: string[]
   photos?: string[]
   daysOnSite?: number
@@ -73,30 +60,29 @@ interface ApifyPropertyResult {
 
 /**
  * Build a realestate.com.au search URL for a suburb.
+ * Format: https://www.realestate.com.au/sold/property-unit+apartment+villa+house-in-berwick,+vic+3806/list-1
  */
 function buildSearchUrl(suburb: string, state: string, postcode: string, type: 'sold' | 'buy'): string {
-  const suburbSlug = suburb.toLowerCase().replace(/\s+/g, '+')
+  const suburbSlug = suburb.toLowerCase().replace(/\s+/g, '-')
   const stateSlug = state.toLowerCase()
-  if (type === 'sold') {
-    return `https://www.realestate.com.au/sold/in-${suburbSlug},+${stateSlug}+${postcode}/`
-  }
-  return `https://www.realestate.com.au/buy/in-${suburbSlug},+${stateSlug}+${postcode}/`
+  const propertyTypes = 'property-unit+apartment+villa+house'
+  return `https://www.realestate.com.au/${type}/${propertyTypes}-in-${suburbSlug},+${stateSlug}+${postcode}/list-1`
 }
 
 /**
  * Run the Apify actor synchronously and return dataset items.
  * Uses run-sync-get-dataset-items for simplicity.
- * Timeout: 90 seconds.
+ * Timeout: 120 seconds.
  */
-async function runApifyActor(searchUrl: string, maxItems: number = 10): Promise<ApifyPropertyResult[]> {
+async function runApifyActor(searchUrl: string, maxItems: number = MAX_SOLD_RESULTS): Promise<ApifyPropertyResult[]> {
   if (!APIFY_TOKEN) {
     console.warn('[apify] No APIFY_API_TOKEN configured')
     return []
   }
 
-  const url = `${APIFY_BASE}/acts/${ACTOR_ID}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&maxItems=${maxItems}`
+  const url = `${APIFY_BASE}/acts/${ACTOR_ID}/run-sync-get-dataset-items?token=${APIFY_TOKEN}`
 
-  console.log(`[apify] Running actor with URL: ${searchUrl}`)
+  console.log(`[apify] Running actor with URL: ${searchUrl} (maxItems: ${maxItems})`)
 
   try {
     const res = await fetch(url, {
@@ -104,8 +90,9 @@ async function runApifyActor(searchUrl: string, maxItems: number = 10): Promise<
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         startUrls: [{ url: searchUrl }],
+        maxItems,
       }),
-      signal: AbortSignal.timeout(90_000),
+      signal: AbortSignal.timeout(120_000),
     })
 
     if (!res.ok) {
@@ -157,9 +144,10 @@ function parsePrice(priceStr: string | undefined): number {
 
 /**
  * Get the best image URL from a result.
+ * Tries multiple fields the actor may return.
  */
 function getImage(r: ApifyPropertyResult): string | undefined {
-  return r.mainImage || r.imageUrl ||
+  return r.mainImage || r.imageUrl || r.headerImage ||
     (r.images && r.images.length > 0 ? r.images[0] : undefined) ||
     (r.photos && r.photos.length > 0 ? r.photos[0] : undefined)
 }
@@ -176,8 +164,9 @@ function getUrl(r: ApifyPropertyResult): string {
 
 /**
  * Convert Apify result to PropertySale (for sold properties).
+ * Includes extra fields: cars, landSize, propertyType.
  */
-function resultToSale(r: ApifyPropertyResult): PropertySale | null {
+function resultToSale(r: ApifyPropertyResult): (PropertySale & { cars?: number; landSize?: number; propertyType?: string }) | null {
   const address = getAddress(r)
   if (!address) return null
 
@@ -194,6 +183,9 @@ function resultToSale(r: ApifyPropertyResult): PropertySale | null {
     distance: 0,
     url: getUrl(r),
     imageUrl: getImage(r),
+    cars: r.carSpaces || r.cars || r.parkingSpaces || 0,
+    landSize: r.landSize || r.landArea || 0,
+    propertyType: r.propertyType || 'House',
   }
 }
 
@@ -211,7 +203,7 @@ function resultToOnMarket(r: ApifyPropertyResult): OnMarketListing | null {
     askingPrice: typeof askingPrice === 'string' ? askingPrice : String(askingPrice),
     bedrooms: r.bedrooms || 0,
     bathrooms: r.bathrooms || 0,
-    cars: r.carSpaces || r.parkingSpaces || 0,
+    cars: r.carSpaces || r.cars || r.parkingSpaces || 0,
     propertyType: r.propertyType || 'House',
     url: getUrl(r),
     imageUrl: getImage(r),
@@ -221,7 +213,7 @@ function resultToOnMarket(r: ApifyPropertyResult): OnMarketListing | null {
 
 /**
  * Look up comparable sold properties from realestate.com.au via Apify.
- * Returns up to 8 recent sales.
+ * Returns up to 50 recent sales for any Australian suburb.
  */
 export async function apifyLookupComparables(propertyAddress: string): Promise<PropertySale[]> {
   const parts = parseAddress(propertyAddress)
@@ -230,15 +222,10 @@ export async function apifyLookupComparables(propertyAddress: string): Promise<P
     return []
   }
 
-  if (!isInServiceArea(parts.postcode)) {
-    console.log(`[apify] Postcode ${parts.postcode} outside Casey/Cardinia — skipping Apify`)
-    return []
-  }
-
   const searchUrl = buildSearchUrl(parts.suburb, parts.state, parts.postcode, 'sold')
-  const results = await runApifyActor(searchUrl, 12)
+  const results = await runApifyActor(searchUrl, MAX_SOLD_RESULTS)
 
-  console.log(`[apify] Got ${results.length} sold results`)
+  console.log(`[apify] Got ${results.length} sold results for ${parts.suburb}`)
 
   const sales = results
     .map(resultToSale)
@@ -255,12 +242,12 @@ export async function apifyLookupComparables(propertyAddress: string): Promise<P
     })
   }
 
-  return sales.slice(0, 8)
+  return sales.slice(0, MAX_SOLD_RESULTS)
 }
 
 /**
  * Look up properties currently on the market from realestate.com.au via Apify.
- * Returns up to 8 current listings.
+ * Returns up to 30 current listings for any Australian suburb.
  */
 export async function apifyLookupOnMarket(propertyAddress: string): Promise<OnMarketListing[]> {
   const parts = parseAddress(propertyAddress)
@@ -269,20 +256,15 @@ export async function apifyLookupOnMarket(propertyAddress: string): Promise<OnMa
     return []
   }
 
-  if (!isInServiceArea(parts.postcode)) {
-    console.log(`[apify] Postcode ${parts.postcode} outside Casey/Cardinia — skipping Apify`)
-    return []
-  }
-
   const searchUrl = buildSearchUrl(parts.suburb, parts.state, parts.postcode, 'buy')
-  const results = await runApifyActor(searchUrl, 10)
+  const results = await runApifyActor(searchUrl, MAX_BUY_RESULTS)
 
-  console.log(`[apify] Got ${results.length} buy results`)
+  console.log(`[apify] Got ${results.length} buy results for ${parts.suburb}`)
 
   return results
     .map(resultToOnMarket)
     .filter((l): l is OnMarketListing => l !== null)
-    .slice(0, 8)
+    .slice(0, MAX_BUY_RESULTS)
 }
 
 /**
@@ -290,4 +272,39 @@ export async function apifyLookupOnMarket(propertyAddress: string): Promise<OnMa
  */
 export function isApifyAvailable(): boolean {
   return !!APIFY_TOKEN
+}
+
+/**
+ * Force a fresh Apify scrape for a suburb.
+ * Called by the "Refresh Data" button — always hits the API, no caching.
+ */
+export async function refreshApifyData(
+  suburb: string,
+  type: 'sold' | 'buy'
+): Promise<{ sold?: PropertySale[]; onMarket?: OnMarketListing[] }> {
+  const parts = parseAddress(suburb)
+  if (!parts) {
+    console.error(`[apify:refresh] Could not parse address/suburb: ${suburb}`)
+    return {}
+  }
+
+  console.log(`[apify:refresh] Forcing fresh ${type} scrape for ${parts.suburb} ${parts.state} ${parts.postcode}`)
+
+  const searchUrl = buildSearchUrl(parts.suburb, parts.state, parts.postcode, type)
+  const maxItems = type === 'sold' ? MAX_SOLD_RESULTS : MAX_BUY_RESULTS
+  const results = await runApifyActor(searchUrl, maxItems)
+
+  console.log(`[apify:refresh] Got ${results.length} results`)
+
+  if (type === 'sold') {
+    const sold = results
+      .map(resultToSale)
+      .filter((s): s is PropertySale => s !== null)
+    return { sold }
+  } else {
+    const onMarket = results
+      .map(resultToOnMarket)
+      .filter((l): l is OnMarketListing => l !== null)
+    return { onMarket }
+  }
 }
