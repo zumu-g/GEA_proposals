@@ -1,6 +1,12 @@
 /**
- * Cron scheduler for polling AgentMail inbox and processing nurture touchpoints.
- * Runs pollInbox() every 5 minutes and processDueTouchpoints() every 15 minutes.
+ * Cron scheduler for polling AgentMail inbox, processing nurture touchpoints,
+ * and refreshing the property cache.
+ *
+ * Schedules:
+ *   - Inbox poll: every 5 minutes
+ *   - Nurture touchpoints: every 15 minutes
+ *   - Daily on-market cache refresh: 6:00 AM AEST (20:00 UTC previous day)
+ *   - Weekly sold cache refresh: Monday 5:00 AM AEST (Sunday 19:00 UTC)
  *
  * Exports:
  *   startCron()  — start the scheduler (idempotent)
@@ -11,16 +17,25 @@
 import cron from 'node-cron'
 import { pollInbox } from './email-intake'
 import { processDueTouchpoints } from './nurture'
+import { runDailyCacheRefresh, runWeeklySoldRefresh } from './cache-refresh'
 
 let inboxTask: cron.ScheduledTask | null = null
 let nurtureTask: cron.ScheduledTask | null = null
+let dailyCacheTask: cron.ScheduledTask | null = null
+let weeklySoldTask: cron.ScheduledTask | null = null
 let running = false
 let lastPollTime: string | null = null
 let lastPollResult: { processed: number; errors: number } | null = null
 let lastNurtureTime: string | null = null
 let lastNurtureResult: { processed: number; errors: number } | null = null
+let lastDailyCacheTime: string | null = null
+let lastDailyCacheResult: { refreshed: number; errors: number } | null = null
+let lastWeeklySoldTime: string | null = null
+let lastWeeklySoldResult: { refreshed: number; errors: number } | null = null
 let pollCount = 0
 let nurtureCount = 0
+let dailyCacheCount = 0
+let weeklySoldCount = 0
 
 function timestamp(): string {
   return new Date().toISOString()
@@ -82,6 +97,60 @@ async function executeNurture(): Promise<void> {
   }
 }
 
+async function executeDailyCacheRefresh(): Promise<void> {
+  const start = Date.now()
+  console.log(`[${timestamp()}] [cron] Starting daily on-market cache refresh...`)
+
+  try {
+    const result = await runDailyCacheRefresh()
+    const elapsed = Date.now() - start
+    lastDailyCacheTime = timestamp()
+    lastDailyCacheResult = { refreshed: result.refreshed.length, errors: result.errors.length }
+    dailyCacheCount++
+
+    console.log(
+      `[${lastDailyCacheTime}] [cron] Daily cache refresh #${dailyCacheCount} complete in ${elapsed}ms — ` +
+        `${result.refreshed.length} suburbs refreshed, ${result.errors.length} errors`
+    )
+  } catch (err) {
+    lastDailyCacheTime = timestamp()
+    lastDailyCacheResult = { refreshed: 0, errors: 1 }
+    dailyCacheCount++
+
+    console.error(
+      `[${lastDailyCacheTime}] [cron] Daily cache refresh #${dailyCacheCount} failed:`,
+      err instanceof Error ? err.message : err
+    )
+  }
+}
+
+async function executeWeeklySoldRefresh(): Promise<void> {
+  const start = Date.now()
+  console.log(`[${timestamp()}] [cron] Starting weekly sold cache refresh...`)
+
+  try {
+    const result = await runWeeklySoldRefresh()
+    const elapsed = Date.now() - start
+    lastWeeklySoldTime = timestamp()
+    lastWeeklySoldResult = { refreshed: result.refreshed.length, errors: result.errors.length }
+    weeklySoldCount++
+
+    console.log(
+      `[${lastWeeklySoldTime}] [cron] Weekly sold refresh #${weeklySoldCount} complete in ${elapsed}ms — ` +
+        `${result.refreshed.length} suburbs refreshed, ${result.errors.length} errors`
+    )
+  } catch (err) {
+    lastWeeklySoldTime = timestamp()
+    lastWeeklySoldResult = { refreshed: 0, errors: 1 }
+    weeklySoldCount++
+
+    console.error(
+      `[${lastWeeklySoldTime}] [cron] Weekly sold refresh #${weeklySoldCount} failed:`,
+      err instanceof Error ? err.message : err
+    )
+  }
+}
+
 /**
  * Start the cron scheduler. Idempotent — calling twice is safe.
  */
@@ -101,8 +170,21 @@ export function startCron(): void {
     executeNurture()
   })
 
+  // Schedule: daily on-market cache refresh at 6:00 AM AEST (20:00 UTC previous day)
+  dailyCacheTask = cron.schedule('0 20 * * *', () => {
+    executeDailyCacheRefresh()
+  })
+
+  // Schedule: weekly sold cache refresh — Monday 5:00 AM AEST (Sunday 19:00 UTC)
+  weeklySoldTask = cron.schedule('0 19 * * 0', () => {
+    executeWeeklySoldRefresh()
+  })
+
   running = true
-  console.log(`[${timestamp()}] [cron] Started — inbox every 5 min, nurture every 15 min`)
+  console.log(
+    `[${timestamp()}] [cron] Started — inbox every 5 min, nurture every 15 min, ` +
+      `on-market cache daily 6am AEST, sold cache weekly Mon 5am AEST`
+  )
 }
 
 /**
@@ -116,6 +198,14 @@ export function stopCron(): void {
   if (nurtureTask) {
     nurtureTask.stop()
     nurtureTask = null
+  }
+  if (dailyCacheTask) {
+    dailyCacheTask.stop()
+    dailyCacheTask = null
+  }
+  if (weeklySoldTask) {
+    weeklySoldTask.stop()
+    weeklySoldTask = null
   }
   running = false
   console.log(`[${timestamp()}] [cron] Stopped`)
@@ -133,7 +223,13 @@ export function getCronStatus() {
     lastNurtureTime,
     lastNurtureResult,
     nurtureCount,
-    schedule: '*/5 * * * * (inbox), */15 * * * * (nurture)',
-    description: 'Inbox every 5 minutes, nurture every 15 minutes',
+    lastDailyCacheTime,
+    lastDailyCacheResult,
+    dailyCacheCount,
+    lastWeeklySoldTime,
+    lastWeeklySoldResult,
+    weeklySoldCount,
+    schedule: '*/5 * * * * (inbox), */15 * * * * (nurture), 0 20 * * * (daily cache), 0 19 * * 0 (weekly sold)',
+    description: 'Inbox every 5 min, nurture every 15 min, on-market cache daily 6am AEST, sold cache weekly Mon 5am AEST',
   }
 }

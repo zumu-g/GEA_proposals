@@ -95,6 +95,49 @@ function initSchema(db: Database.Database) {
 
     CREATE INDEX IF NOT EXISTS idx_notification_dismissals_key ON notification_dismissals(notification_key);
     CREATE INDEX IF NOT EXISTS idx_notification_reads_key ON notification_reads(notification_key);
+
+    CREATE TABLE IF NOT EXISTS cached_properties (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      address TEXT NOT NULL,
+      suburb TEXT NOT NULL,
+      state TEXT DEFAULT 'vic',
+      postcode TEXT,
+      street_address TEXT,
+      price REAL,
+      price_display TEXT,
+      bedrooms INTEGER DEFAULT 0,
+      bathrooms INTEGER DEFAULT 0,
+      car_spaces INTEGER DEFAULT 0,
+      property_type TEXT DEFAULT 'House',
+      land_size TEXT,
+      listing_type TEXT NOT NULL CHECK(listing_type IN ('sold', 'on_market')),
+      sold_date TEXT,
+      days_on_market INTEGER,
+      url TEXT,
+      image_url TEXT,
+      images TEXT,
+      lat REAL,
+      lng REAL,
+      source TEXT DEFAULT 'homely',
+      scraped_at TEXT NOT NULL DEFAULT (datetime('now')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(address, listing_type)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_cached_props_suburb ON cached_properties(suburb);
+    CREATE INDEX IF NOT EXISTS idx_cached_props_type ON cached_properties(listing_type);
+    CREATE INDEX IF NOT EXISTS idx_cached_props_suburb_type ON cached_properties(suburb, listing_type);
+    CREATE INDEX IF NOT EXISTS idx_cached_props_scraped ON cached_properties(scraped_at);
+
+    CREATE TABLE IF NOT EXISTS cache_metadata (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      suburb TEXT NOT NULL,
+      listing_type TEXT NOT NULL CHECK(listing_type IN ('sold', 'on_market')),
+      last_scraped_at TEXT NOT NULL,
+      result_count INTEGER DEFAULT 0,
+      source TEXT DEFAULT 'homely',
+      UNIQUE(suburb, listing_type)
+    );
   `)
 
   // Add new columns for expanded proposal sections (safe to re-run)

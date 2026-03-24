@@ -153,6 +153,8 @@ export default function ForSalePropertiesStep({
   const [isSearching, setIsSearching] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
   const [dataSource, setDataSource] = useState('')
+  const [isCached, setIsCached] = useState(false)
+  const [cacheAge, setCacheAge] = useState('')
   const hasSearchedRef = useRef(false)
 
   // ─── Distance filter (primary) ─────────────────────────────────────────
@@ -312,6 +314,8 @@ export default function ForSalePropertiesStep({
 
         const src = buyData.source || ''
         setDataSource(src)
+        setIsCached(!!buyData.cached)
+        setCacheAge(buyData.cacheAge || '')
 
         if (onMarketResult.length === 0) {
           setStatusMessage(
@@ -338,7 +342,7 @@ export default function ForSalePropertiesStep({
 
     const suburb = extractSuburb(addr)
     setIsRefreshing(true)
-    setStatusMessage('Refreshing data...')
+    setStatusMessage('Refreshing from homely...')
     excludedOnMarketRef.current.clear()
     removedOnMarketRef.current.clear()
 
@@ -357,6 +361,8 @@ export default function ForSalePropertiesStep({
 
       const src = buyData.source || ''
       setDataSource(src)
+      setIsCached(false)
+      setCacheAge('just now')
 
       if (onMarketResult.length === 0) {
         setStatusMessage(`No on-market listings found on refresh.`)
@@ -739,9 +745,16 @@ export default function ForSalePropertiesStep({
             )}
 
             {dataSource && (
-              <div className="px-5 py-1.5 border-t border-gray-100">
+              <div className="px-5 py-1.5 border-t border-gray-100 flex items-center gap-1.5">
+                <span
+                  className={`inline-block w-1.5 h-1.5 rounded-full ${
+                    isCached ? 'bg-emerald-400' : 'bg-amber-400'
+                  }`}
+                />
                 <p className="text-gray-400 font-sans text-[10px]">
-                  Data from {dataSource}
+                  {isCached
+                    ? `From local cache${cacheAge ? ` (updated ${cacheAge})` : ''}`
+                    : `Live data from ${dataSource}${cacheAge ? ` — updated ${cacheAge}` : ''}`}
                 </p>
               </div>
             )}
@@ -859,12 +872,16 @@ export default function ForSalePropertiesStep({
 
                       {/* Content */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-gray-900 font-sans text-sm font-medium truncate">
+                        <div>
+                          <div className="flex items-start justify-between gap-3 mb-1">
+                            <p className="text-gray-900 font-sans text-sm font-medium leading-snug">
                               {row.address}
                             </p>
-                            <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                            <p className="text-emerald-600 font-sans text-base font-bold whitespace-nowrap">
+                              {row.askingPrice}
+                            </p>
+                          </div>
+                            <div className="flex items-center gap-3 flex-wrap">
                               <span className="flex items-center gap-1 text-gray-500 font-sans text-xs">
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 0 1-1.125-1.125v-3.75ZM14.25 8.625c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v8.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 0 1-1.125-1.125v-8.25ZM3.75 16.125c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v2.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 0 1-1.125-1.125v-2.25Z" />
@@ -892,12 +909,6 @@ export default function ForSalePropertiesStep({
                                 on market
                               </span>
                             </div>
-                          </div>
-                          <div className="text-right flex-shrink-0">
-                            <p className="text-emerald-600 font-sans text-sm font-semibold truncate max-w-[140px]">
-                              {row.askingPrice}
-                            </p>
-                          </div>
                         </div>
                       </div>
 
