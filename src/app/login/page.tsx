@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 
 export default function LoginPage() {
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -14,7 +15,7 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!password.trim()) return
+    if (!email.trim() || !password.trim()) return
 
     setIsLoading(true)
     setError('')
@@ -23,7 +24,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ email, password }),
       })
 
       const data = await res.json()
@@ -62,7 +63,20 @@ export default function LoginPage() {
         </div>
 
         {/* Login form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value)
+                setError('')
+              }}
+              placeholder="email address"
+              autoFocus
+              className="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white font-sans text-base placeholder-white/25 focus:ring-2 focus:ring-[#C41E2A]/50 focus:border-[#C41E2A]/30 transition-all outline-none"
+            />
+          </div>
           <div>
             <input
               type="password"
@@ -71,8 +85,7 @@ export default function LoginPage() {
                 setPassword(e.target.value)
                 setError('')
               }}
-              placeholder="enter password"
-              autoFocus
+              placeholder="password"
               className="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white font-sans text-base placeholder-white/25 focus:ring-2 focus:ring-[#C41E2A]/50 focus:border-[#C41E2A]/30 transition-all outline-none"
             />
           </div>
@@ -89,7 +102,7 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={isLoading || !password.trim()}
+            disabled={isLoading || !email.trim() || !password.trim()}
             className="w-full py-4 bg-[#C41E2A] hover:bg-[#a81823] rounded-xl text-white font-sans text-base font-medium transition-all disabled:opacity-30 active:scale-[0.98] shadow-lg shadow-[#C41E2A]/20"
           >
             {isLoading ? (

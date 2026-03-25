@@ -17,7 +17,7 @@ export function middleware(request: NextRequest) {
 
   // Check auth cookie
   const authCookie = request.cookies.get(COOKIE_NAME)
-  if (authCookie?.value === 'authenticated') {
+  if (authCookie?.value) {
     return NextResponse.next()
   }
 
