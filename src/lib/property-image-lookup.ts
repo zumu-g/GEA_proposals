@@ -7,10 +7,13 @@
  */
 
 import { parseAddress } from './comparables-lookup'
+// Firecrawl used via REST API (SDK has zod compat issues with Next.js 14)
 
 const APIFY_TOKEN = process.env.APIFY_API_TOKEN
 const ACTOR_ID = 'azzouzana~real-estate-au-scraper-pro'
 const APIFY_BASE = 'https://api.apify.com/v2'
+
+const FIRECRAWL_KEY = process.env.FIRECRAWL_API_KEY
 
 export interface PropertyImages {
   heroImage: string | null
@@ -27,13 +30,47 @@ const EMPTY_RESULT: PropertyImages = {
 const USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
 
+// Map of abbreviated street types to their full forms used in realestate.com.au URLs
+const STREET_TYPE_MAP: Record<string, string> = {
+  st: 'street', rd: 'road', dr: 'drive', ave: 'avenue', ct: 'court',
+  cres: 'crescent', cr: 'crescent', pl: 'place', blvd: 'boulevard',
+  tce: 'terrace', pde: 'parade', hwy: 'highway', ln: 'lane',
+  cl: 'close', cct: 'circuit', gr: 'grove', way: 'way',
+  prom: 'promenade', esp: 'esplanade', rt: 'retreat', ri: 'rise',
+  vw: 'view', gdn: 'garden', gdns: 'gardens', pk: 'park',
+  sq: 'square', mews: 'mews', ch: 'chase', wk: 'walk',
+  wy: 'way', gra: 'grange', trk: 'track', rw: 'row',
+}
+
+/**
+ * Expand an abbreviated street type to its full form.
+ * e.g. "Dr" → "Drive", "Ave" → "Avenue", "St" → "Street"
+ */
+function expandStreetType(abbrev: string): string {
+  const lower = abbrev.toLowerCase()
+  return STREET_TYPE_MAP[lower] || lower
+}
+
 // Shape returned by the realestate.com.au suggest API
+interface ReaSuggestionSource {
+  streetName?: string
+  suburb?: string
+  streetNumber?: string
+  shortAddress?: string
+  state?: string
+  postcode?: string
+  streetType?: string
+  street?: string
+  url?: string
+}
+
 interface ReaSuggestion {
   display: {
     text: string
     subText?: string
+    subtext?: string
   }
-  source?: string
+  source?: ReaSuggestionSource | string
   id?: string
   slug?: string
   type?: string
@@ -70,16 +107,26 @@ async function searchRealEstate(address: string): Promise<string | null> {
       return null
     }
 
-    // Find the best match — prefer one with a slug or id
+    // Find the best match
     const best = suggestions[0]
     console.log(`[property-images] Best suggestion: ${best.display?.text}`)
 
-    // The slug is typically in the id field or can be derived
-    if (best.slug) return best.slug
-    if (best.id) return best.id
+    // Build slug from structured source data — use shortAddress AS-IS
+    // realestate.com.au uses ABBREVIATED street types in slugs: /property/14-casey-dr-berwick-vic-3806
+    // The suggest API's shortAddress already has the correct abbreviations ("14 Casey Dr")
+    // DO NOT expand abbreviations — expanded forms (e.g. "drive") return wrong/empty pages
+    const src = typeof best.source === 'object' ? best.source : null
+    if (src?.shortAddress && src?.suburb && src?.state && src?.postcode) {
+      const slug = `${src.shortAddress} ${src.suburb} ${src.state} ${src.postcode}`
+        .toLowerCase()
+        .replace(/[,]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '')
+      console.log(`[property-images] Built slug from source: ${slug}`)
+      return slug
+    }
 
-    // Try to build a slug from the display text
-    // realestate.com.au uses format: /property/42-smith-st-brighton-vic-3186
+    // Fallback: build slug from display text as-is (already has correct abbreviations)
     const slugText = (best.display?.text || '')
       .toLowerCase()
       .replace(/[,]/g, '')
@@ -95,6 +142,7 @@ async function searchRealEstate(address: string): Promise<string | null> {
 
 /**
  * Build a realestate.com.au property slug from parsed address parts.
+ * Keeps abbreviated street types as-is (realestate.com.au uses abbreviated forms in URLs).
  */
 function buildSlugFromParts(address: string): string | null {
   const parts = parseAddress(address)
@@ -102,7 +150,9 @@ function buildSlugFromParts(address: string): string | null {
 
   const segments: string[] = []
   if (parts.streetNumber) segments.push(parts.streetNumber.toLowerCase())
-  if (parts.streetName) segments.push(...parts.streetName.split(/\s+/))
+  if (parts.streetName) {
+    segments.push(...parts.streetName.split(/\s+/))
+  }
   segments.push(...parts.suburb.split(/\s+/))
   segments.push(parts.state)
   segments.push(parts.postcode)
@@ -448,15 +498,146 @@ async function fetchFromApify(address: string): Promise<PropertyImages> {
 }
 
 /**
+ * Fetch property images via Firecrawl (bypasses rate limits and bot detection).
+ * Scrapes the realestate.com.au property page using Firecrawl's proxy + JS rendering.
+ */
+async function fetchFromFirecrawl(address: string): Promise<PropertyImages> {
+  if (!FIRECRAWL_KEY) {
+    console.log('[property-images] No FIRECRAWL_API_KEY — skipping Firecrawl')
+    return EMPTY_RESULT
+  }
+
+  // Use suggest API to find the exact property slug (most reliable)
+  let slug = await searchRealEstate(address)
+
+  // Fallback: build slug from parsed address parts
+  if (!slug) {
+    slug = buildSlugFromParts(address)
+    if (!slug) return EMPTY_RESULT
+    console.log(`[property-images] Firecrawl using fallback slug: ${slug}`)
+  }
+
+  const propertyUrl = `https://www.realestate.com.au/property/${slug}`
+  console.log(`[property-images] Firecrawl scraping: ${propertyUrl}`)
+
+  try {
+    const res = await fetch('https://api.firecrawl.dev/v1/scrape', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${FIRECRAWL_KEY}`,
+      },
+      body: JSON.stringify({
+        url: propertyUrl,
+        formats: ['html'],
+        waitFor: 2000,
+        timeout: 30000,
+      }),
+      signal: AbortSignal.timeout(45000),
+    })
+
+    if (!res.ok) {
+      console.error(`[property-images] Firecrawl API returned ${res.status}`)
+      return EMPTY_RESULT
+    }
+
+    const result = await res.json()
+
+    if (!result.success || !result.data?.html) {
+      console.error(`[property-images] Firecrawl scrape failed: ${JSON.stringify(result.error || 'no HTML')}`)
+      return EMPTY_RESULT
+    }
+
+    const html = result.data.html
+
+    // Strategy 1: Find images with the property address in alt text
+    // These are the ACTUAL property photos, not nearby/similar properties
+    // Pattern: <img alt="14 Casey Drive, Berwick, Vic 3806" src="https://i2.au.reastatic.net/...">
+    // or: src="..." ... alt="14 Casey ..."
+    const addressForAlt = address.replace(/,/g, '').replace(/\s+/g, ' ').trim()
+    const firstWord = addressForAlt.split(' ').slice(0, 3).join('[^"]*') // "14[^"]*Casey[^"]*Drive"
+    const altPattern = new RegExp(
+      `<img[^>]*(?:alt="[^"]*${firstWord}[^"]*"[^>]*src="([^"]+)"|src="([^"]+)"[^>]*alt="[^"]*${firstWord}[^"]*")`,
+      'gi'
+    )
+    const altMatches = [...html.matchAll(altPattern)]
+    const seenHashes = new Set<string>()
+    const photos: string[] = []
+
+    for (const m of altMatches) {
+      const url = m[1] || m[2]
+      if (!url || !url.includes('reastatic.net')) continue
+      const hashMatch = url.match(/\/([a-f0-9]{40,})\//)
+      const hash = hashMatch ? hashMatch[1] : url
+      if (seenHashes.has(hash)) continue
+      seenHashes.add(hash)
+      const fullSize = url.replace(/\/\d+x\d+[^/]*\//, '/800x600/')
+      photos.push(fullSize)
+    }
+
+    // Strategy 2: Also grab /main.jpg images (property photos, not listing thumbnails)
+    if (photos.length === 0) {
+      const mainPattern = /https:\/\/i\d\.au\.reastatic\.net\/\d+x\d+[^"<>\s]*\/main\.(?:jpg|jpeg|webp|png)/gi
+      const mainMatches = [...html.matchAll(mainPattern)]
+      for (const m of mainMatches) {
+        const url = m[0]
+        // Skip logos and branding (small dimensions like 340x64, 212x40)
+        if (/\/(?:340x64|212x40|100x100|32x32)\//.test(url)) continue
+        const hashMatch = url.match(/\/([a-f0-9]{40,})\//)
+        const hash = hashMatch ? hashMatch[1] : url
+        if (seenHashes.has(hash)) continue
+        seenHashes.add(hash)
+        const fullSize = url.replace(/\/\d+x\d+[^/]*\//, '/800x600/')
+        photos.push(fullSize)
+      }
+    }
+
+    // Strategy 3: Fallback to generic extraction
+    if (photos.length === 0) {
+      const { hero, gallery } = extractImagesFromHtml(html)
+      if (!hero && gallery.length === 0) {
+        console.log('[property-images] Firecrawl: no images found in scraped HTML')
+        return EMPTY_RESULT
+      }
+      console.log(`[property-images] Firecrawl found ${gallery.length + (hero ? 1 : 0)} images (generic extraction)`)
+      return { heroImage: hero, galleryImages: gallery, source: 'realestate.com.au (via Firecrawl)' }
+    }
+
+    const hero = photos[0]
+    const gallery = photos.slice(1, 15)
+
+    console.log(`[property-images] Firecrawl found ${photos.length} property photos (hero + ${gallery.length} gallery)`)
+    return {
+      heroImage: hero,
+      galleryImages: gallery,
+      source: 'realestate.com.au (via Firecrawl)',
+    }
+  } catch (err) {
+    console.error('[property-images] Firecrawl failed:', err)
+    return EMPTY_RESULT
+  }
+}
+
+/**
  * Main entry point: look up property images for an Australian address.
  *
- * Priority: Apify (realestate.com.au) → direct realestate.com.au → domain.com.au → homely.com.au
+ * Priority: Firecrawl → Apify → direct realestate.com.au → domain.com.au → homely.com.au
  * Returns gracefully with empty result if all lookups fail.
  */
 export async function lookupPropertyImages(propertyAddress: string): Promise<PropertyImages> {
   console.log(`[property-images] Looking up images for: ${propertyAddress}`)
 
-  // Try Apify first (most reliable for images)
+  // Try Firecrawl first (bypasses rate limits via proxy + JS rendering)
+  const firecrawlResult = await fetchFromFirecrawl(propertyAddress).catch((err) => {
+    console.error('[property-images] Firecrawl lookup failed:', err)
+    return EMPTY_RESULT
+  })
+
+  if (firecrawlResult.heroImage || firecrawlResult.galleryImages.length > 0) {
+    return firecrawlResult
+  }
+
+  // Try Apify
   const apifyResult = await fetchFromApify(propertyAddress).catch((err) => {
     console.error('[property-images] Apify lookup failed:', err)
     return EMPTY_RESULT

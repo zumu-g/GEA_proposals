@@ -213,13 +213,23 @@ export default function HomePage() {
   }, [propertyAddress, isAddressComplete, fetchPropertyImages])
 
   // Auto-fetch images when address changes (debounced)
+  // Clear old images immediately so step 2 shows loading state
+  const prevAddressRef = useRef(propertyAddress)
   useEffect(() => {
     if (!propertyAddress || !isAddressComplete(propertyAddress)) return
+
+    // If address changed, clear old images and show loading
+    if (propertyAddress !== prevAddressRef.current) {
+      prevAddressRef.current = propertyAddress
+      setPropertyImages(null)
+      lastFetchedAddressRef.current = ''
+      setIsFetchingImages(true)
+    }
 
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
     debounceTimerRef.current = setTimeout(() => {
       fetchPropertyImages(propertyAddress)
-    }, 1000)
+    }, 500)
 
     return () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
@@ -654,6 +664,7 @@ export default function HomePage() {
             propertyAddress,
           }}
           autoImages={autoImageUrls}
+          isFetchingImages={isFetchingImages}
           onChange={handleFieldChange}
           onAutoFetchImages={handleAutoFetchImages}
         />

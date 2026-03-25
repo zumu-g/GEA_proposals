@@ -20,13 +20,27 @@ export interface AddressSuggestion {
   slug?: string         // realestate.com.au slug if available
 }
 
+interface ReaSuggestionSource {
+  streetName?: string
+  suburb?: string
+  streetNumber?: string
+  shortAddress?: string
+  state?: string
+  streetType?: string
+  postcode?: string
+  street?: string
+  streetNumberFrom?: string
+}
+
 interface ReaSuggestionDisplay {
-  text?: string    // e.g. "17 Rose Garden Avenue"
-  subText?: string // e.g. "Officer VIC 3809"
+  text?: string      // e.g. "17 Rose Garden Ave, Officer, VIC 3809"
+  subtext?: string   // e.g. "Property history" (lowercase t)
+  subText?: string   // legacy format (camelCase)
 }
 
 interface ReaSuggestion {
   display?: ReaSuggestionDisplay
+  source?: ReaSuggestionSource
   id?: string
   slug?: string
   type?: string
@@ -43,7 +57,8 @@ export async function suggestAddresses(query: string): Promise<AddressSuggestion
   }
 
   const encoded = encodeURIComponent(trimmed)
-  const url = `${SUGGEST_URL}?max=8&type=address&src=homepage&query=${encoded}`
+  // Fetch more results so we still have enough after filtering to VIC only
+  const url = `${SUGGEST_URL}?max=20&type=address&src=homepage&query=${encoded}`
 
   try {
     const res = await fetch(url, {
@@ -65,6 +80,8 @@ export async function suggestAddresses(query: string): Promise<AddressSuggestion
     return suggestions
       .filter((s) => s.display?.text)
       .map((s) => parseSuggestion(s))
+      .filter((s) => s.state === 'VIC')
+      .slice(0, 8)
   } catch (err) {
     console.error('[address-suggest] Failed to fetch suggestions:', err)
     return []
@@ -73,13 +90,43 @@ export async function suggestAddresses(query: string): Promise<AddressSuggestion
 
 /**
  * Parse a raw realestate.com.au suggestion into a clean AddressSuggestion.
+ *
+ * The API returns structured data in `source` (suburb, state, postcode, shortAddress)
+ * and a display string in `display.text` (e.g. "17 Rose Garden Ave, Officer, VIC 3809").
  */
 function parseSuggestion(s: ReaSuggestion): AddressSuggestion {
-  const street = s.display?.text || ''
-  const subText = s.display?.subText || ''
+  const src = s.source
+  const displayText = s.display?.text || ''
 
-  // subText is typically "Suburb STATE Postcode" e.g. "Officer VIC 3809"
-  const parts = subText.trim().split(/\s+/)
+  // Prefer structured source data when available
+  if (src) {
+    const street = src.shortAddress || displayText
+    const suburb = src.suburb || ''
+    const state = src.state || ''
+    const postcode = src.postcode || ''
+    const fullAddress = [street, suburb, `${state} ${postcode}`.trim()]
+      .filter(Boolean)
+      .join(', ')
+
+    return {
+      display: fullAddress,
+      suburb,
+      state,
+      postcode,
+      streetAddress: street,
+      fullAddress,
+      slug: s.slug || s.id || undefined,
+    }
+  }
+
+  // Fallback: parse from display.text (e.g. "17 Rose Garden Ave, Officer, VIC 3809")
+  const fullAddress = displayText
+  const commaIdx = displayText.indexOf(',')
+  const street = commaIdx > -1 ? displayText.substring(0, commaIdx).trim() : displayText
+  const rest = commaIdx > -1 ? displayText.substring(commaIdx + 1).trim() : ''
+
+  // Try to parse "Officer, VIC 3809" or "Officer VIC 3809" from the rest
+  const parts = rest.replace(/,/g, ' ').trim().split(/\s+/)
   const postcode = parts.length > 0 && /^\d{4}$/.test(parts[parts.length - 1])
     ? parts.pop()!
     : ''
@@ -87,10 +134,6 @@ function parseSuggestion(s: ReaSuggestion): AddressSuggestion {
     ? parts.pop()!
     : ''
   const suburb = parts.join(' ')
-
-  const fullAddress = subText
-    ? `${street}, ${subText}`
-    : street
 
   return {
     display: fullAddress,

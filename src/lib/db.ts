@@ -138,6 +138,30 @@ function initSchema(db: Database.Database) {
       source TEXT DEFAULT 'homely',
       UNIQUE(suburb, listing_type)
     );
+
+    CREATE TABLE IF NOT EXISTS sold_properties (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      address TEXT NOT NULL,
+      suburb TEXT NOT NULL,
+      state TEXT NOT NULL DEFAULT 'vic',
+      postcode TEXT NOT NULL,
+      price INTEGER,
+      bedrooms INTEGER DEFAULT 0,
+      bathrooms INTEGER DEFAULT 0,
+      car_spaces INTEGER DEFAULT 0,
+      property_type TEXT DEFAULT 'House',
+      sold_date TEXT,
+      land_size TEXT,
+      url TEXT,
+      image_url TEXT,
+      lat REAL,
+      lng REAL,
+      source TEXT DEFAULT 'realestate.com.au',
+      scraped_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(address, sold_date)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_sold_suburb ON sold_properties(suburb);
   `)
 
   // Add new columns for expanded proposal sections (safe to re-run)

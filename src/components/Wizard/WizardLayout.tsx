@@ -360,6 +360,12 @@ export function WizardLayout({
 
   // ── Animation variants ────────────────────────────────────────────────
 
+  // Track if this is the first render — skip enter animation on mount so content is immediately visible
+  const isFirstRenderRef = useRef(true)
+  useEffect(() => {
+    isFirstRenderRef.current = false
+  }, [])
+
   const slideVariants = {
     enter: (dir: number) => ({
       x: prefersReducedMotion ? 0 : dir > 0 ? 80 : -80,
@@ -488,7 +494,7 @@ export function WizardLayout({
                 key={steps[currentStep]?.id ?? currentStep}
                 custom={direction}
                 variants={slideVariants}
-                initial="enter"
+                initial={isFirstRenderRef.current ? false : 'enter'}
                 animate="center"
                 exit="exit"
                 transition={transition}

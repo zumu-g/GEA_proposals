@@ -1,4 +1,5 @@
 import { getDb } from './db'
+import type { ScrapedSale } from './firecrawl-scraper'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -348,4 +349,118 @@ export function clearCache(suburb?: string): void {
     db.prepare('DELETE FROM cached_properties').run()
     db.prepare('DELETE FROM cache_metadata').run()
   }
+}
+
+// ─── Sold Properties (scraped via firecrawl) ────────────────────────────────
+
+/** Map a sold_properties DB row to a ScrapedSale object */
+function rowToScrapedSale(row: Record<string, unknown>): ScrapedSale {
+  return {
+    address: row.address as string,
+    suburb: row.suburb as string,
+    state: (row.state as string) || 'vic',
+    postcode: row.postcode as string,
+    price: (row.price as number) ?? 0,
+    bedrooms: (row.bedrooms as number) || 0,
+    bathrooms: (row.bathrooms as number) || 0,
+    carSpaces: (row.car_spaces as number) || 0,
+    propertyType: (row.property_type as string) || 'House',
+    soldDate: (row.sold_date as string) || '',
+    landSize: row.land_size as string | undefined,
+    url: (row.url as string) || '',
+    imageUrl: row.image_url as string | undefined,
+    lat: row.lat as number | undefined,
+    lng: row.lng as number | undefined,
+    source: 'realestate.com.au',
+  }
+}
+
+/** Bulk upsert scraped sold properties into the sold_properties table */
+export function upsertSoldProperties(properties: ScrapedSale[]): number {
+  if (properties.length === 0) return 0
+
+  const db = getDb()
+
+  const stmt = db.prepare(`
+    INSERT OR REPLACE INTO sold_properties (
+      address, suburb, state, postcode,
+      price, bedrooms, bathrooms, car_spaces,
+      property_type, sold_date, land_size,
+      url, image_url, lat, lng,
+      source, scraped_at
+    ) VALUES (
+      ?, ?, ?, ?,
+      ?, ?, ?, ?,
+      ?, ?, ?,
+      ?, ?, ?, ?,
+      ?, datetime('now')
+    )
+  `)
+
+  const upsertMany = db.transaction((props: ScrapedSale[]) => {
+    let count = 0
+    for (const p of props) {
+      stmt.run(
+        p.address,
+        p.suburb,
+        p.state || 'vic',
+        p.postcode || '',
+        p.price ?? null,
+        p.bedrooms || 0,
+        p.bathrooms || 0,
+        p.carSpaces || 0,
+        p.propertyType || 'House',
+        p.soldDate || null,
+        p.landSize || null,
+        p.url || null,
+        p.imageUrl || null,
+        p.lat ?? null,
+        p.lng ?? null,
+        p.source || 'realestate.com.au',
+      )
+      count++
+    }
+    return count
+  })
+
+  return upsertMany(properties)
+}
+
+/** Get all sold properties for a suburb (case-insensitive) */
+export function getSoldPropertiesBySuburb(suburb: string): ScrapedSale[] {
+  const db = getDb()
+  const rows = db.prepare(
+    'SELECT * FROM sold_properties WHERE LOWER(suburb) = LOWER(?) ORDER BY sold_date DESC'
+  ).all(suburb) as Record<string, unknown>[]
+  return rows.map(rowToScrapedSale)
+}
+
+/** Get sold properties for multiple suburbs (case-insensitive) */
+export function getSoldPropertiesBySuburbs(suburbs: string[]): ScrapedSale[] {
+  if (suburbs.length === 0) return []
+
+  const db = getDb()
+  const placeholders = suburbs.map(() => 'LOWER(?)').join(', ')
+  const rows = db.prepare(
+    `SELECT * FROM sold_properties WHERE LOWER(suburb) IN (${placeholders}) ORDER BY sold_date DESC`
+  ).all(...suburbs) as Record<string, unknown>[]
+  return rows.map(rowToScrapedSale)
+}
+
+/** Get the most recent scraped_at timestamp for a suburb, or null if never scraped */
+export function getLastScrapedDate(suburb: string): string | null {
+  const db = getDb()
+  const row = db.prepare(
+    'SELECT MAX(scraped_at) as last_scraped FROM sold_properties WHERE LOWER(suburb) = LOWER(?)'
+  ).get(suburb) as { last_scraped: string | null } | undefined
+  return row?.last_scraped ?? null
+}
+
+/** Count of sold properties for a suburb */
+export function getSoldPropertyCount(suburb: string): number {
+  const db = getDb()
+  const row = db.prepare(
+    'SELECT COUNT(*) as cnt FROM sold_properties WHERE LOWER(suburb) = LOWER(?)'
+  ).get(suburb) as { cnt: number }
+  return row.cnt
 }

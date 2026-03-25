@@ -7,6 +7,7 @@
  *   - Nurture touchpoints: every 15 minutes
  *   - Daily on-market cache refresh: 6:00 AM AEST (20:00 UTC previous day)
  *   - Weekly sold cache refresh: Monday 5:00 AM AEST (Sunday 19:00 UTC)
+ *   - Daily Firecrawl sold refresh: 7:00 AM AEST (21:00 UTC previous day)
  *
  * Exports:
  *   startCron()  — start the scheduler (idempotent)
@@ -17,12 +18,13 @@
 import cron from 'node-cron'
 import { pollInbox } from './email-intake'
 import { processDueTouchpoints } from './nurture'
-import { runDailyCacheRefresh, runWeeklySoldRefresh } from './cache-refresh'
+import { runDailyCacheRefresh, runWeeklySoldRefresh, runDailyFirecrawlRefresh } from './cache-refresh'
 
 let inboxTask: cron.ScheduledTask | null = null
 let nurtureTask: cron.ScheduledTask | null = null
 let dailyCacheTask: cron.ScheduledTask | null = null
 let weeklySoldTask: cron.ScheduledTask | null = null
+let firecrawlSoldTask: cron.ScheduledTask | null = null
 let running = false
 let lastPollTime: string | null = null
 let lastPollResult: { processed: number; errors: number } | null = null
@@ -32,10 +34,13 @@ let lastDailyCacheTime: string | null = null
 let lastDailyCacheResult: { refreshed: number; errors: number } | null = null
 let lastWeeklySoldTime: string | null = null
 let lastWeeklySoldResult: { refreshed: number; errors: number } | null = null
+let lastFirecrawlSoldTime: string | null = null
+let lastFirecrawlSoldResult: { status: string } | null = null
 let pollCount = 0
 let nurtureCount = 0
 let dailyCacheCount = 0
 let weeklySoldCount = 0
+let firecrawlSoldCount = 0
 
 function timestamp(): string {
   return new Date().toISOString()
@@ -151,6 +156,32 @@ async function executeWeeklySoldRefresh(): Promise<void> {
   }
 }
 
+async function executeFirecrawlSoldRefresh(): Promise<void> {
+  const start = Date.now()
+  console.log(`[${timestamp()}] [cron] Running daily Firecrawl sold properties refresh...`)
+
+  try {
+    await runDailyFirecrawlRefresh()
+    const elapsed = Date.now() - start
+    lastFirecrawlSoldTime = timestamp()
+    lastFirecrawlSoldResult = { status: 'ok' }
+    firecrawlSoldCount++
+
+    console.log(
+      `[${lastFirecrawlSoldTime}] [cron] Firecrawl sold refresh #${firecrawlSoldCount} complete in ${elapsed}ms`
+    )
+  } catch (err) {
+    lastFirecrawlSoldTime = timestamp()
+    lastFirecrawlSoldResult = { status: 'error' }
+    firecrawlSoldCount++
+
+    console.error(
+      `[${lastFirecrawlSoldTime}] [cron] Firecrawl sold refresh #${firecrawlSoldCount} failed:`,
+      err instanceof Error ? err.message : err
+    )
+  }
+}
+
 /**
  * Start the cron scheduler. Idempotent — calling twice is safe.
  */
@@ -180,10 +211,15 @@ export function startCron(): void {
     executeWeeklySoldRefresh()
   })
 
+  // Schedule: daily Firecrawl sold refresh — 7:00 AM AEST (21:00 UTC previous day)
+  firecrawlSoldTask = cron.schedule('0 21 * * *', () => {
+    executeFirecrawlSoldRefresh()
+  })
+
   running = true
   console.log(
     `[${timestamp()}] [cron] Started — inbox every 5 min, nurture every 15 min, ` +
-      `on-market cache daily 6am AEST, sold cache weekly Mon 5am AEST`
+      `on-market cache daily 6am AEST, sold cache weekly Mon 5am AEST, Firecrawl sold daily 7am AEST`
   )
 }
 
@@ -207,6 +243,10 @@ export function stopCron(): void {
     weeklySoldTask.stop()
     weeklySoldTask = null
   }
+  if (firecrawlSoldTask) {
+    firecrawlSoldTask.stop()
+    firecrawlSoldTask = null
+  }
   running = false
   console.log(`[${timestamp()}] [cron] Stopped`)
 }
@@ -229,7 +269,10 @@ export function getCronStatus() {
     lastWeeklySoldTime,
     lastWeeklySoldResult,
     weeklySoldCount,
-    schedule: '*/5 * * * * (inbox), */15 * * * * (nurture), 0 20 * * * (daily cache), 0 19 * * 0 (weekly sold)',
-    description: 'Inbox every 5 min, nurture every 15 min, on-market cache daily 6am AEST, sold cache weekly Mon 5am AEST',
+    lastFirecrawlSoldTime,
+    lastFirecrawlSoldResult,
+    firecrawlSoldCount,
+    schedule: '*/5 * * * * (inbox), */15 * * * * (nurture), 0 20 * * * (daily cache), 0 19 * * 0 (weekly sold), 0 21 * * * (firecrawl sold)',
+    description: 'Inbox every 5 min, nurture every 15 min, on-market cache daily 6am AEST, sold cache weekly Mon 5am AEST, Firecrawl sold daily 7am AEST',
   }
 }

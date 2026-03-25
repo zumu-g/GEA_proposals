@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { lookupComparables, lookupOnMarket, searchComparables, getLastSource, SearchFilters, parseAddress } from '@/lib/comparables-lookup'
+import { lookupComparables, lookupOnMarket, searchComparables, getLastSource, SearchFilters, parseAddress, NEIGHBORING_SUBURBS } from '@/lib/comparables-lookup'
 import { isApifyAvailable, refreshApifyData } from '@/lib/apify-scraper'
 import { getProposal, saveProposal, logActivity } from '@/lib/proposal-generator'
 
@@ -11,6 +11,7 @@ let isCacheFresh: ((suburb: string, listingType: string, maxAgeHours?: number) =
 let getCacheMetadata: ((suburb: string) => any) | null = null
 let refreshSoldCache: ((suburb: string) => Promise<{ count: number; source: string }>) | null = null
 let refreshOnMarketCache: ((suburb: string) => Promise<{ count: number; source: string }>) | null = null
+let getSoldPropertiesBySuburbs: ((suburbs: string[]) => any[]) | null = null
 
 try {
   const propertyCache = require('@/lib/property-cache')
@@ -19,6 +20,7 @@ try {
   getCachedOnMarket = propertyCache.getCachedOnMarket
   isCacheFresh = propertyCache.isCacheFresh
   getCacheMetadata = propertyCache.getCacheMetadata
+  getSoldPropertiesBySuburbs = propertyCache.getSoldPropertiesBySuburbs
   refreshSoldCache = cacheRefresh.refreshSoldCache
   refreshOnMarketCache = cacheRefresh.refreshOnMarketCache
   cacheAvailable = true
@@ -157,8 +159,75 @@ export async function GET(request: Request) {
   const listingType = type === 'buy' ? 'on_market' : 'sold'
   const cacheFilters = buildCacheFilters(searchParams)
 
+  const sourceParam = searchParams.get('source')
+
   try {
-    // ── Step 1: Try local SQLite cache first (unless refresh forced) ──────
+    // ── Step 0: source=local — read directly from sold_properties table ───
+    if (sourceParam === 'local' && getSoldPropertiesBySuburbs) {
+      console.log(`[api/comparables] source=local — reading directly from sold_properties for ${suburb}`)
+      const neighbors = NEIGHBORING_SUBURBS[suburb] || []
+      const allSuburbs = [suburb, ...neighbors]
+      const localSales = getSoldPropertiesBySuburbs(allSuburbs)
+
+      const results = localSales.map(toApiFormat)
+
+      return NextResponse.json({
+        address,
+        type,
+        count: results.length,
+        sales: results,
+        source: 'local-db',
+        cached: true,
+        filters: cacheFilters,
+      })
+    }
+
+    if (sourceParam === 'local' && !getSoldPropertiesBySuburbs) {
+      return NextResponse.json(
+        { error: 'Local database module not available' },
+        { status: 503 }
+      )
+    }
+
+    // ── Step 0: Try local sold_properties DB first (Firecrawl data, freshest) ──
+    if (!refresh && listingType === 'sold' && getSoldPropertiesBySuburbs) {
+      try {
+        const neighbors = NEIGHBORING_SUBURBS[suburb] || []
+        const allSuburbs = [suburb, ...neighbors]
+        const localSales = getSoldPropertiesBySuburbs(allSuburbs)
+
+        if (localSales.length >= 5) {
+          console.log(`[api/comparables] Local DB HIT for ${suburb} — ${localSales.length} sold properties`)
+          return NextResponse.json({
+            address,
+            type,
+            count: localSales.length,
+            sales: localSales.map((s: any) => ({
+              address: s.address,
+              price: s.price,
+              date: s.soldDate || s.sold_date || '',
+              bedrooms: s.bedrooms || 0,
+              bathrooms: s.bathrooms || 0,
+              cars: s.carSpaces || s.car_spaces || 0,
+              propertyType: s.propertyType || s.property_type || 'House',
+              url: s.url || '',
+              imageUrl: s.imageUrl || s.image_url || '',
+              lat: s.lat,
+              lng: s.lng,
+              distance: 0,
+              sqft: 0,
+            })),
+            source: 'local-db',
+            cached: false,
+            cacheAge: 'fresh',
+          })
+        }
+      } catch (err) {
+        console.error('[api/comparables] Local DB read failed:', err)
+      }
+    }
+
+    // ── Step 1: Try old SQLite cache (homely data, unless refresh forced) ──────
     if (!refresh && cacheAvailable && isCacheFresh && getCachedSold && getCachedOnMarket) {
       try {
         // Sold data is good for 7 days, on-market for 24 hours

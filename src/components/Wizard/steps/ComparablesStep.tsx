@@ -362,6 +362,8 @@ export default function ComparablesStep({
 
   const handleSelectSuggestion = useCallback((suggestion: AddressSuggestion) => {
     setConfirmedAddress(suggestion.fullAddress)
+    setSubjectLat(null)
+    setSubjectLng(null)
     setAddressInput('')
     setShowSuggestions(false)
     setAddressSuggestions([])
@@ -370,6 +372,8 @@ export default function ComparablesStep({
   const handleConfirmTypedAddress = useCallback(() => {
     if (addressInput.trim()) {
       setConfirmedAddress(addressInput.trim())
+      setSubjectLat(null)
+      setSubjectLng(null)
       setAddressInput('')
       setShowSuggestions(false)
       setAddressSuggestions([])
@@ -599,11 +603,18 @@ export default function ComparablesStep({
         const src = soldData.source || buyData.source || ''
         setDataSource(src)
 
-        // Detect subject lat/lng from results
-        const first = [...sold, ...onMarketResult].find((s: any) => s.lat && s.lng)
-        if (first) {
-          setSubjectLat(first.lat)
-          setSubjectLng(first.lng)
+        // Geocode the actual subject property for accurate distances
+        if (!subjectLat || !subjectLng) {
+          try {
+            const geoRes = await fetch(`/api/geocode?address=${encodeURIComponent(addr)}`)
+            const geoData = await geoRes.json()
+            if (geoData.lat && geoData.lng) {
+              setSubjectLat(geoData.lat)
+              setSubjectLng(geoData.lng)
+            }
+          } catch {
+            console.warn('[ComparablesStep] Geocoding failed for subject property')
+          }
         }
 
         if (sold.length === 0 && onMarketResult.length === 0) {
@@ -621,7 +632,7 @@ export default function ComparablesStep({
       setIsSearching(false)
       hasSearchedRef.current = true
     },
-    [confirmedAddress, isSearching, applyFilters]
+    [confirmedAddress, isSearching, applyFilters, subjectLat, subjectLng]
   )
 
   // ─── Refresh function ─────────────────────────────────────────────────
@@ -658,10 +669,18 @@ export default function ComparablesStep({
       const src = soldData.source || buyData.source || ''
       setDataSource(src)
 
-      const first = [...sold, ...onMarketResult].find((s: any) => s.lat && s.lng)
-      if (first) {
-        setSubjectLat(first.lat)
-        setSubjectLng(first.lng)
+      // Geocode the subject property if not already done
+      if (!subjectLat || !subjectLng) {
+        try {
+          const geoRes = await fetch(`/api/geocode?address=${encodeURIComponent(addr)}`)
+          const geoData = await geoRes.json()
+          if (geoData.lat && geoData.lng) {
+            setSubjectLat(geoData.lat)
+            setSubjectLng(geoData.lng)
+          }
+        } catch {
+          console.warn('[ComparablesStep] Geocoding failed on refresh')
+        }
       }
 
       if (sold.length === 0 && onMarketResult.length === 0) {
@@ -862,6 +881,8 @@ export default function ComparablesStep({
                 type="button"
                 onClick={() => {
                   setConfirmedAddress('')
+                  setSubjectLat(null)
+                  setSubjectLng(null)
                   setAddressInput(confirmedAddress)
                   setTimeout(() => addressInputRef.current?.focus(), 100)
                 }}

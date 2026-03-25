@@ -34,6 +34,48 @@ function normaliseAddress(address: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Australian street type & state abbreviation expansion (improves Nominatim)
+// ---------------------------------------------------------------------------
+
+const STREET_ABBREVS: Record<string, string> = {
+  'st': 'Street', 'rd': 'Road', 'ave': 'Avenue', 'dr': 'Drive',
+  'cres': 'Crescent', 'cr': 'Crescent', 'ct': 'Court', 'pl': 'Place',
+  'ln': 'Lane', 'tce': 'Terrace', 'pde': 'Parade', 'cct': 'Circuit',
+  'cl': 'Close', 'bvd': 'Boulevard', 'blvd': 'Boulevard', 'hwy': 'Highway',
+  'way': 'Way', 'gr': 'Grove', 'gv': 'Grove', 'pk': 'Park',
+  'rise': 'Rise', 'mews': 'Mews', 'esp': 'Esplanade',
+}
+
+const STATE_ABBREVS: Record<string, string> = {
+  'vic': 'Victoria', 'nsw': 'New South Wales', 'qld': 'Queensland',
+  'sa': 'South Australia', 'wa': 'Western Australia', 'tas': 'Tasmania',
+  'nt': 'Northern Territory', 'act': 'Australian Capital Territory',
+}
+
+/**
+ * Expand common Australian street type and state abbreviations
+ * to improve Nominatim geocoding hit rate.
+ * E.g. "12 Collins Cres, Berwick VIC 3806" → "12 Collins Crescent, Berwick Victoria 3806"
+ */
+function expandAbbreviations(address: string): string {
+  let expanded = address
+
+  // Expand street type abbreviations (word boundary match, case-insensitive)
+  for (const [abbr, full] of Object.entries(STREET_ABBREVS)) {
+    const regex = new RegExp(`\\b${abbr}\\b`, 'gi')
+    expanded = expanded.replace(regex, full)
+  }
+
+  // Expand state abbreviations
+  for (const [abbr, full] of Object.entries(STATE_ABBREVS)) {
+    const regex = new RegExp(`\\b${abbr}\\b`, 'gi')
+    expanded = expanded.replace(regex, full)
+  }
+
+  return expanded
+}
+
+// ---------------------------------------------------------------------------
 // Rate limiting — max 1 request per second to Nominatim
 // ---------------------------------------------------------------------------
 
@@ -67,10 +109,89 @@ export async function geocodeAddress(
     return geocodeCache.get(key) ?? null
   }
 
+  // Try with expanded abbreviations first (better Nominatim hit rate)
+  const expanded = expandAbbreviations(address)
+  const queries = [expanded]
+  // If expansion changed the string, also try the original as fallback
+  if (expanded !== address) queries.push(address)
+
+  for (const query of queries) {
+    await rateLimit()
+
+    const url = new URL('https://nominatim.openstreetmap.org/search')
+    url.searchParams.set('q', query)
+    url.searchParams.set('format', 'json')
+    url.searchParams.set('countrycodes', 'au')
+    url.searchParams.set('limit', '1')
+
+    try {
+      const res = await fetch(url.toString(), {
+        headers: {
+          'User-Agent': 'GEA-Proposals/1.0',
+          Accept: 'application/json',
+        },
+      })
+
+      if (!res.ok) {
+        console.error(
+          `[geocoding] Nominatim returned ${res.status} for "${query}"`,
+        )
+        continue
+      }
+
+      const data = (await res.json()) as Array<{
+        lat: string
+        lon: string
+        display_name?: string
+      }>
+
+      if (!data || data.length === 0) {
+        console.warn(`[geocoding] No results for "${query}"`)
+        continue
+      }
+
+      const result: GeocodedLocation = {
+        lat: parseFloat(data[0].lat),
+        lng: parseFloat(data[0].lon),
+      }
+
+      geocodeCache.set(key, result)
+      console.log(
+        `[geocoding] ${address} → ${result.lat.toFixed(5)}, ${result.lng.toFixed(5)}`,
+      )
+      return result
+    } catch (err) {
+      console.error(`[geocoding] Failed to geocode "${query}":`, err)
+    }
+  }
+
+  // All attempts failed — try suburb-only as last resort
+  const suburbFallback = await geocodeSuburbFallback(address)
+  geocodeCache.set(key, suburbFallback)
+  return suburbFallback
+}
+
+/**
+ * Fallback: geocode just the suburb to get approximate coordinates.
+ * Extracts suburb from address and queries Nominatim for the suburb centre.
+ */
+async function geocodeSuburbFallback(
+  address: string,
+): Promise<GeocodedLocation | null> {
+  // Try to extract "Suburb VIC 3806" or "Suburb, VIC 3806" from the address
+  const match = address.match(
+    /,?\s*([A-Za-z\s]+?)\s*,?\s*(VIC|NSW|QLD|SA|WA|TAS|NT|ACT)\s+(\d{4})\s*$/i,
+  )
+  if (!match) return null
+
+  const suburb = match[1].trim()
+  const state = STATE_ABBREVS[match[2].toLowerCase()] || match[2]
+  const query = `${suburb}, ${state}, Australia`
+
   await rateLimit()
 
   const url = new URL('https://nominatim.openstreetmap.org/search')
-  url.searchParams.set('q', address)
+  url.searchParams.set('q', query)
   url.searchParams.set('format', 'json')
   url.searchParams.set('countrycodes', 'au')
   url.searchParams.set('limit', '1')
@@ -83,35 +204,20 @@ export async function geocodeAddress(
       },
     })
 
-    if (!res.ok) {
-      console.error(
-        `[geocoding] Nominatim returned ${res.status} for "${address}"`,
-      )
-      geocodeCache.set(key, null)
-      return null
-    }
-
+    if (!res.ok) return null
     const data = (await res.json()) as Array<{ lat: string; lon: string }>
-
-    if (!data || data.length === 0) {
-      console.warn(`[geocoding] No results for "${address}"`)
-      geocodeCache.set(key, null)
-      return null
-    }
+    if (!data || data.length === 0) return null
 
     const result: GeocodedLocation = {
       lat: parseFloat(data[0].lat),
       lng: parseFloat(data[0].lon),
     }
 
-    geocodeCache.set(key, result)
     console.log(
-      `[geocoding] ${address} → ${result.lat.toFixed(5)}, ${result.lng.toFixed(5)}`,
+      `[geocoding] Suburb fallback for "${address}" → ${suburb} → ${result.lat.toFixed(5)}, ${result.lng.toFixed(5)}`,
     )
     return result
-  } catch (err) {
-    console.error(`[geocoding] Failed to geocode "${address}":`, err)
-    geocodeCache.set(key, null)
+  } catch {
     return null
   }
 }

@@ -198,7 +198,7 @@ export default function SoldPropertiesStep({
   const [distanceFilter, setDistanceFilter] = useState(2)
 
   // ─── Secondary filters ────────────────────────────────────────────────
-  const [showFilters, setShowFilters] = useState(false)
+  const [showFilters, setShowFilters] = useState(true)
   const [priceMin, setPriceMin] = useState('')
   const [priceMax, setPriceMax] = useState('')
   const [bedsMin, setBedsMin] = useState('')
@@ -293,6 +293,8 @@ export default function SoldPropertiesStep({
 
   const handleSelectSuggestion = useCallback((suggestion: AddressSuggestion) => {
     setConfirmedAddress(suggestion.fullAddress)
+    setSubjectLat(null)
+    setSubjectLng(null)
     setAddressInput('')
     setShowSuggestions(false)
     setAddressSuggestions([])
@@ -301,6 +303,8 @@ export default function SoldPropertiesStep({
   const handleConfirmTypedAddress = useCallback(() => {
     if (addressInput.trim()) {
       setConfirmedAddress(addressInput.trim())
+      setSubjectLat(null)
+      setSubjectLng(null)
       setAddressInput('')
       setShowSuggestions(false)
       setAddressSuggestions([])
@@ -403,9 +407,26 @@ export default function SoldPropertiesStep({
       )
 
       const soldCount = filteredSold.length
-      setStatusMessage(
-        `Found ${soldCount} sold properties${soldCount < sold.length ? ` (from ${sold.length})` : ''}`
-      )
+
+      // If distance filter produced 0 results but we have data, show helpful message
+      if (soldCount === 0 && sold.length > 0 && distanceFilter !== Infinity && sLat && sLng) {
+        // Find the nearest property to suggest a better distance
+        let nearest = Infinity
+        for (const s of sold) {
+          if (s.lat && s.lng) {
+            const dist = haversineKm(sLat, sLng, s.lat, s.lng)
+            if (dist < nearest) nearest = dist
+          }
+        }
+        const suggestedDist = nearest < 1 ? '1km' : nearest < 2 ? '2km' : nearest < 5 ? '5km' : '10km'
+        setStatusMessage(
+          `No properties within ${distanceFilter < 1 ? `${distanceFilter * 1000}m` : `${distanceFilter}km`} — nearest is ${formatDistance(nearest)} away. Try ${suggestedDist}.`
+        )
+      } else {
+        setStatusMessage(
+          `Found ${soldCount} sold properties${soldCount < sold.length ? ` (from ${sold.length})` : ''}`
+        )
+      }
     },
     [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, soldWithin, sortBy, subjectLat, subjectLng]
   )
@@ -448,11 +469,18 @@ export default function SoldPropertiesStep({
         setIsCached(!!soldData.cached)
         setCacheAge(soldData.cacheAge || '')
 
-        // Detect subject lat/lng from results
-        const first = sold.find((s: any) => s.lat && s.lng)
-        if (first) {
-          setSubjectLat(first.lat)
-          setSubjectLng(first.lng)
+        // Geocode the actual subject property for accurate distances
+        if (!subjectLat || !subjectLng) {
+          try {
+            const geoRes = await fetch(`/api/geocode?address=${encodeURIComponent(addr)}`)
+            const geoData = await geoRes.json()
+            if (geoData.lat && geoData.lng) {
+              setSubjectLat(geoData.lat)
+              setSubjectLng(geoData.lng)
+            }
+          } catch {
+            console.warn('[SoldPropertiesStep] Geocoding failed for subject property')
+          }
         }
 
         if (sold.length === 0) {
@@ -470,7 +498,7 @@ export default function SoldPropertiesStep({
       setIsSearching(false)
       hasSearchedRef.current = true
     },
-    [confirmedAddress, isSearching, applyFilters]
+    [confirmedAddress, isSearching, applyFilters, subjectLat, subjectLng]
   )
 
   // ─── Refresh function ─────────────────────────────────────────────────
@@ -502,10 +530,18 @@ export default function SoldPropertiesStep({
       setIsCached(false)
       setCacheAge('just now')
 
-      const first = sold.find((s: any) => s.lat && s.lng)
-      if (first) {
-        setSubjectLat(first.lat)
-        setSubjectLng(first.lng)
+      // Geocode the subject property if not already done
+      if (!subjectLat || !subjectLng) {
+        try {
+          const geoRes = await fetch(`/api/geocode?address=${encodeURIComponent(addr)}`)
+          const geoData = await geoRes.json()
+          if (geoData.lat && geoData.lng) {
+            setSubjectLat(geoData.lat)
+            setSubjectLng(geoData.lng)
+          }
+        } catch {
+          console.warn('[SoldPropertiesStep] Geocoding failed on refresh')
+        }
       }
 
       if (sold.length === 0) {
@@ -521,18 +557,18 @@ export default function SoldPropertiesStep({
     setIsRefreshing(false)
   }, [confirmedAddress, isRefreshing, isSearching, applyFilters])
 
-  // ─── Auto-search when address is confirmed ────────────────────────────
+  // ─── Track confirmed address changes (no auto-search — user clicks "search") ──
   const prevConfirmedRef = useRef('')
   useEffect(() => {
     if (confirmedAddress && confirmedAddress !== prevConfirmedRef.current) {
       prevConfirmedRef.current = confirmedAddress
-      if (compRows.length === 0) {
-        searchComparables(confirmedAddress)
-      } else if (hasSearchedRef.current) {
-        searchComparables(confirmedAddress)
-      }
+      // Reset results when address changes so user starts fresh
+      setCompRows([])
+      setRawComps([])
+      setStatusMessage('')
+      hasSearchedRef.current = false
     }
-  }, [confirmedAddress]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [confirmedAddress])
 
   // ─── Row manipulation ─────────────────────────────────────────────────
   const updateCompRow = (index: number, field: keyof InternalSoldRow, value: string) => {
@@ -655,6 +691,8 @@ export default function SoldPropertiesStep({
                 type="button"
                 onClick={() => {
                   setConfirmedAddress('')
+                  setSubjectLat(null)
+                  setSubjectLng(null)
                   setAddressInput(confirmedAddress)
                   setTimeout(() => addressInputRef.current?.focus(), 100)
                 }}

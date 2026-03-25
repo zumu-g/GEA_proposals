@@ -10,6 +10,44 @@
 
 import { PropertySale, OnMarketListing } from '@/types/proposal'
 import { isApifyAvailable, apifyLookupComparables, apifyLookupOnMarket } from './apify-scraper'
+import type { ScrapedSale } from './firecrawl-scraper'
+
+// ─── Local SQLite sold_properties (primary source) ───────────────────────────
+let localDbAvailable = false
+let getSoldPropertiesBySuburbs: ((suburbs: string[]) => ScrapedSale[]) | null = null
+
+try {
+  const propertyCache = require('./property-cache')
+  getSoldPropertiesBySuburbs = propertyCache.getSoldPropertiesBySuburbs
+  localDbAvailable = typeof getSoldPropertiesBySuburbs === 'function'
+  if (localDbAvailable) {
+    console.log('[comparables] Local SQLite sold_properties module loaded')
+  }
+} catch {
+  console.log('[comparables] Local sold_properties module not available — will use Apify/homely')
+}
+
+/**
+ * Convert a ScrapedSale (from local SQLite) to a PropertySale for the API.
+ * Includes extra fields (lat, lng, cars, propertyType) used by the wizard components.
+ */
+function scrapedSaleToPropertySale(sale: ScrapedSale): PropertySale & { lat?: number; lng?: number; cars?: number; propertyType?: string } {
+  return {
+    address: sale.address,
+    price: sale.price,
+    date: sale.soldDate,
+    bedrooms: sale.bedrooms,
+    bathrooms: sale.bathrooms,
+    sqft: 0,
+    distance: 0,
+    url: sale.url,
+    imageUrl: sale.imageUrl,
+    lat: sale.lat,
+    lng: sale.lng,
+    cars: sale.carSpaces,
+    propertyType: sale.propertyType,
+  }
+}
 
 interface AddressParts {
   streetNumber?: string
@@ -40,28 +78,131 @@ const SUBURB_POSTCODES: Record<string, string> = {
 }
 
 /**
+ * Neighboring suburbs within ~3-5km for the Casey/Cardinia corridor.
+ * Used to widen comparable sales searches to adjacent suburbs.
+ */
+export const NEIGHBORING_SUBURBS: Record<string, string[]> = {
+  'berwick': ['narre warren', 'narre warren south', 'beaconsfield', 'officer', 'hampton park', 'clyde north', 'fountain gate', 'hallam', 'endeavour hills'],
+  'narre warren': ['berwick', 'narre warren north', 'narre warren south', 'fountain gate', 'hallam', 'hampton park', 'endeavour hills', 'doveton', 'eumemmerring'],
+  'narre warren north': ['narre warren', 'berwick', 'endeavour hills', 'hallam', 'fountain gate', 'hampton park'],
+  'narre warren south': ['narre warren', 'berwick', 'hampton park', 'cranbourne north', 'fountain gate', 'clyde north', 'lynbrook'],
+  'pakenham': ['officer', 'beaconsfield', 'pakenham upper', 'nar nar goon', 'cardinia', 'clyde north'],
+  'officer': ['pakenham', 'beaconsfield', 'berwick', 'clyde north', 'cardinia', 'beaconsfield upper'],
+  'beaconsfield': ['berwick', 'officer', 'beaconsfield upper', 'clyde north', 'narre warren south', 'hampton park'],
+  'beaconsfield upper': ['beaconsfield', 'officer', 'upper beaconsfield', 'pakenham upper', 'emerald', 'cockatoo'],
+  'cranbourne': ['cranbourne east', 'cranbourne west', 'cranbourne north', 'cranbourne south', 'hampton park', 'lynbrook', 'lyndhurst', 'clyde'],
+  'cranbourne east': ['cranbourne', 'cranbourne north', 'cranbourne south', 'clyde', 'clyde north'],
+  'cranbourne west': ['cranbourne', 'cranbourne north', 'lynbrook', 'lyndhurst', 'hampton park'],
+  'cranbourne north': ['cranbourne', 'cranbourne east', 'cranbourne west', 'narre warren south', 'hampton park', 'clyde north', 'lynbrook'],
+  'cranbourne south': ['cranbourne', 'cranbourne east', 'clyde', 'lang lang', 'koo wee rup'],
+  'clyde': ['clyde north', 'cranbourne east', 'cranbourne south', 'cardinia'],
+  'clyde north': ['clyde', 'cranbourne east', 'cranbourne north', 'berwick', 'narre warren south', 'officer', 'beaconsfield', 'cardinia'],
+  'hampton park': ['narre warren', 'narre warren south', 'cranbourne', 'cranbourne north', 'cranbourne west', 'lynbrook', 'hallam', 'berwick'],
+  'hallam': ['narre warren', 'narre warren north', 'hampton park', 'endeavour hills', 'doveton', 'eumemmerring', 'lynbrook', 'fountain gate'],
+  'endeavour hills': ['narre warren', 'narre warren north', 'hallam', 'doveton', 'eumemmerring'],
+  'lynbrook': ['lyndhurst', 'cranbourne west', 'cranbourne north', 'hampton park', 'hallam', 'narre warren south'],
+  'lyndhurst': ['lynbrook', 'cranbourne west', 'cranbourne', 'hampton park', 'keysborough', 'dandenong south'],
+  'doveton': ['hallam', 'endeavour hills', 'eumemmerring', 'dandenong', 'noble park'],
+  'fountain gate': ['narre warren', 'narre warren south', 'narre warren north', 'berwick', 'hallam'],
+  'eumemmerring': ['doveton', 'hallam', 'dandenong', 'endeavour hills', 'noble park'],
+  'cardinia': ['clyde', 'clyde north', 'officer', 'pakenham', 'nar nar goon'],
+  'nar nar goon': ['pakenham', 'cardinia', 'tynong', 'officer'],
+  'tynong': ['nar nar goon', 'garfield', 'pakenham', 'bunyip'],
+  'garfield': ['tynong', 'bunyip', 'nar nar goon'],
+  'bunyip': ['garfield', 'tynong', 'drouin', 'lang lang'],
+  'lang lang': ['koo wee rup', 'cranbourne south', 'bunyip'],
+  'koo wee rup': ['lang lang', 'cranbourne south'],
+  'drouin': ['warragul', 'bunyip'],
+  'warragul': ['drouin'],
+  'pakenham upper': ['pakenham', 'beaconsfield upper', 'officer', 'cockatoo', 'gembrook'],
+  'cockatoo': ['emerald', 'gembrook', 'beaconsfield upper', 'pakenham upper', 'upper beaconsfield'],
+  'gembrook': ['cockatoo', 'emerald', 'pakenham upper', 'beaconsfield upper'],
+  'emerald': ['cockatoo', 'gembrook', 'beaconsfield upper', 'upper beaconsfield'],
+  'upper beaconsfield': ['beaconsfield upper', 'beaconsfield', 'officer', 'emerald', 'cockatoo'],
+  'noble park': ['noble park north', 'dandenong', 'keysborough', 'doveton', 'eumemmerring'],
+  'noble park north': ['noble park', 'dandenong', 'endeavour hills', 'doveton'],
+  'keysborough': ['noble park', 'dandenong south', 'lyndhurst', 'dandenong'],
+  'dandenong': ['dandenong south', 'noble park', 'noble park north', 'keysborough', 'doveton', 'eumemmerring'],
+  'dandenong south': ['dandenong', 'keysborough', 'lyndhurst'],
+}
+
+/**
  * Parse an Australian address into parts.
  * E.g. "42 Smith St, Brighton VIC 3186" → { suburb: "brighton", state: "vic", postcode: "3186" }
  * Also handles addresses without state/postcode for known Casey/Cardinia suburbs.
  */
 export function parseAddress(address: string): AddressParts | null {
-  // Full format: "42 Smith St, Brighton VIC 3186"
-  const match = address.match(
-    /^(\d+[A-Za-z]?)\s+(.+?)[\s,]+([A-Za-z\s]+?)\s+(VIC|NSW|QLD|SA|WA|TAS|NT|ACT)\s+(\d{4})\s*$/i
+  // Extract state + postcode from the end first
+  const statePostMatch = address.match(
+    /\s*,?\s*(VIC|NSW|QLD|SA|WA|TAS|NT|ACT)\s+(\d{4})\s*$/i
   )
-  if (match) {
+  if (statePostMatch) {
+    const state = statePostMatch[1].toLowerCase()
+    const postcode = statePostMatch[2]
+    const beforeState = address.substring(0, statePostMatch.index).trim()
+
+    // Split on comma to separate street from suburb
+    // "52 Harkaway Rd, Berwick" → ["52 Harkaway Rd", "Berwick"]
+    // "42 Smith St Brighton" → ["42 Smith St Brighton"] (no comma, use last word as suburb)
+    const commaParts = beforeState.split(',').map(s => s.trim()).filter(Boolean)
+
+    if (commaParts.length >= 2) {
+      // Has comma: street part, suburb part
+      const streetPart = commaParts.slice(0, -1).join(', ').trim()
+      const suburb = commaParts[commaParts.length - 1].trim().toLowerCase()
+      const streetNum = streetPart.match(/^(\d+[A-Za-z]?)/)
+      const streetName = streetPart.replace(/^\d+[A-Za-z]?\s*/, '').trim().toLowerCase()
+
+      return {
+        streetNumber: streetNum?.[1],
+        streetName: streetName || undefined,
+        suburb,
+        state,
+        postcode,
+      }
+    }
+
+    // No comma: try to separate street from suburb by known patterns
+    // "42 Smith St Brighton" — suburb is the last word(s) after the street type
+    const words = beforeState.split(/\s+/)
+    if (words.length >= 3) {
+      // Check if any word is a street type, suburb is everything after it
+      const streetTypes = ['st', 'street', 'rd', 'road', 'ave', 'avenue', 'dr', 'drive',
+        'cres', 'crescent', 'ct', 'court', 'pl', 'place', 'ln', 'lane', 'tce', 'terrace',
+        'pde', 'parade', 'cct', 'circuit', 'cl', 'close', 'bvd', 'boulevard', 'blvd',
+        'hwy', 'highway', 'way', 'gr', 'grove', 'gv', 'pk', 'park', 'rise', 'mews',
+        'esp', 'esplanade']
+
+      for (let i = words.length - 2; i >= 1; i--) {
+        if (streetTypes.includes(words[i].toLowerCase())) {
+          const streetPart = words.slice(0, i + 1).join(' ')
+          const suburb = words.slice(i + 1).join(' ').toLowerCase()
+          const streetNum = streetPart.match(/^(\d+[A-Za-z]?)/)
+          const streetName = streetPart.replace(/^\d+[A-Za-z]?\s*/, '').trim().toLowerCase()
+
+          return {
+            streetNumber: streetNum?.[1],
+            streetName: streetName || undefined,
+            suburb,
+            state,
+            postcode,
+          }
+        }
+      }
+    }
+
+    // Last resort: whole thing before state is the suburb (no street info)
     return {
-      streetNumber: match[1],
-      streetName: match[2].trim().toLowerCase(),
-      suburb: match[3].trim().toLowerCase(),
-      state: match[4].toLowerCase(),
-      postcode: match[5],
+      suburb: beforeState.trim().toLowerCase(),
+      state,
+      postcode,
     }
   }
 
-  // Without street number: "Brighton VIC 3186"
+  // Without state/postcode: "Brighton VIC 3186" already handled above
+  // Try suburb-only match
   const suburbMatch = address.match(
-    /([A-Za-z\s]+?)\s+(VIC|NSW|QLD|SA|WA|TAS|NT|ACT)\s+(\d{4})\s*$/i
+    /([A-Za-z][A-Za-z\s]*?)\s+(VIC|NSW|QLD|SA|WA|TAS|NT|ACT)\s+(\d{4})\s*$/i
   )
   if (suburbMatch) {
     return {
@@ -219,9 +360,9 @@ async function fetchHomelyPage(baseUrl: string, page: number, type: 'sold' | 'bu
  * Fetch listings from homely.com.au for a suburb with pagination.
  * Fetches up to maxPages pages with a 1-second delay between requests.
  * @param type 'sold' for completed sales, 'buy' for current on-market listings
- * @param maxPages Maximum number of pages to fetch (default 3)
+ * @param maxPages Maximum number of pages to fetch (default 10, stops when no new results)
  */
-async function fetchHomelyListings(parts: AddressParts, type: 'sold' | 'buy' = 'sold', maxPages: number = 3): Promise<HomelyListing[]> {
+async function fetchHomelyListings(parts: AddressParts, type: 'sold' | 'buy' = 'sold', maxPages: number = 10): Promise<HomelyListing[]> {
   const suburbSlug = parts.suburb.replace(/\s+/g, '-')
   let baseUrl: string
   if (type === 'sold') {
@@ -393,8 +534,10 @@ export function getLastSource(): string {
 
 /**
  * Main entry point: look up comparable sales for a property address.
- * PRIMARY: Apify (realestate.com.au) — FALLBACK: homely.com.au
- * Returns up to 50 recent sales from the same suburb.
+ * PRIMARY: Local SQLite sold_properties table
+ * FALLBACK 1: Apify (realestate.com.au)
+ * FALLBACK 2: homely.com.au
+ * Returns up to 50 recent sales from the same suburb + neighbors.
  */
 export async function lookupComparables(propertyAddress: string): Promise<PropertySale[]> {
   const parts = parseAddress(propertyAddress)
@@ -404,13 +547,48 @@ export async function lookupComparables(propertyAddress: string): Promise<Proper
     return []
   }
 
-  // Try Apify first (primary source)
+  // ── Step 1: Try local SQLite sold_properties (primary source) ──────────
+  if (localDbAvailable && getSoldPropertiesBySuburbs) {
+    try {
+      const neighbors = NEIGHBORING_SUBURBS[parts.suburb] || []
+      const allSuburbs = [parts.suburb, ...neighbors]
+      console.log(`[comparables] Trying local DB (primary) for: ${parts.suburb} + ${neighbors.length} neighbors`)
+
+      const localSales = getSoldPropertiesBySuburbs(allSuburbs)
+      console.log(`[comparables] Local DB returned ${localSales.length} sold results`)
+
+      if (localSales.length >= 5) {
+        _lastSource = 'local-db'
+        let sales = localSales.map(scrapedSaleToPropertySale)
+
+        // Sort: same street first, then by date (newest first)
+        if (parts.streetName) {
+          const streetLower = parts.streetName.toLowerCase()
+          sales.sort((a, b) => {
+            const aOnStreet = a.address.toLowerCase().includes(streetLower) ? 1 : 0
+            const bOnStreet = b.address.toLowerCase().includes(streetLower) ? 1 : 0
+            if (aOnStreet !== bOnStreet) return bOnStreet - aOnStreet
+            return new Date(b.date).getTime() - new Date(a.date).getTime()
+          })
+        }
+
+        sales = sales.slice(0, 50)
+        console.log(`[comparables] Returning ${sales.length} comparable sales (source: local-db)`)
+        return sales
+      }
+      console.log(`[comparables] Local DB has < 5 results — falling back to Apify/homely`)
+    } catch (err) {
+      console.error('[comparables] Local DB lookup failed, falling back to Apify/homely:', err)
+    }
+  }
+
+  // ── Step 2: Try Apify (first fallback) ─────────────────────────────────
   if (isApifyAvailable()) {
-    console.log(`[comparables] Trying Apify (primary) for: ${propertyAddress}`)
+    console.log(`[comparables] Trying Apify (fallback 1) for: ${propertyAddress}`)
     try {
       const apifySales = await apifyLookupComparables(propertyAddress)
       if (apifySales.length > 0) {
-        console.log(`[comparables] Apify returned ${apifySales.length} sold results — using as primary source`)
+        console.log(`[comparables] Apify returned ${apifySales.length} sold results — using as fallback source`)
         _lastSource = 'apify'
         return apifySales
       }
@@ -420,20 +598,60 @@ export async function lookupComparables(propertyAddress: string): Promise<Proper
     }
   }
 
-  // Fallback: homely.com.au
+  // ── Step 3: Fallback to homely.com.au — search primary suburb + neighbors
   _lastSource = 'homely'
   console.log(`[comparables] Looking up comparables via homely (fallback) for: ${propertyAddress}`)
   console.log(`[comparables] Suburb: ${parts.suburb}, State: ${parts.state}, Postcode: ${parts.postcode}`)
 
+  // Fetch primary suburb
   const listings = await fetchHomelyListings(parts).catch((err) => {
     console.error('[comparables] Homely fetch failed:', err)
     return [] as HomelyListing[]
   })
+  console.log(`[comparables] Homely found ${listings.length} sold listings for ${parts.suburb}`)
 
-  console.log(`[comparables] Homely found ${listings.length} sold listings`)
+  // Also fetch neighboring suburbs (parallel, max 3 neighbors to stay respectful)
+  const neighbors = NEIGHBORING_SUBURBS[parts.suburb] || []
+  const neighborListings: HomelyListing[] = []
+  if (neighbors.length > 0) {
+    const neighborSuburbs = neighbors.slice(0, 3)
+    console.log(`[comparables] Also searching neighbors: ${neighborSuburbs.join(', ')}`)
+
+    const neighborResults = await Promise.all(
+      neighborSuburbs.map(async (neighborSuburb) => {
+        const neighborPostcode = SUBURB_POSTCODES[neighborSuburb]
+        if (!neighborPostcode) return []
+        const neighborParts: AddressParts = {
+          suburb: neighborSuburb,
+          state: parts.state,
+          postcode: neighborPostcode,
+        }
+        try {
+          return await fetchHomelyListings(neighborParts, 'sold', 3)
+        } catch {
+          return []
+        }
+      })
+    )
+    for (const result of neighborResults) {
+      neighborListings.push(...result)
+    }
+    console.log(`[comparables] Neighbors returned ${neighborListings.length} additional listings`)
+  }
+
+  // Combine and deduplicate by listing ID
+  const allListings = [...listings, ...neighborListings]
+  const seenIds = new Set<number>()
+  const uniqueListings = allListings.filter(l => {
+    if (seenIds.has(l.id)) return false
+    seenIds.add(l.id)
+    return true
+  })
+
+  console.log(`[comparables] Total unique listings: ${uniqueListings.length}`)
 
   // Convert to PropertySale[], filtering out undisclosed prices
-  let sales = listings
+  let sales = uniqueListings
     .map(listingToSale)
     .filter((s): s is PropertySale => s !== null)
 
@@ -448,7 +666,7 @@ export async function lookupComparables(propertyAddress: string): Promise<Proper
     })
   }
 
-  sales = sales.slice(0, 30)
+  sales = sales.slice(0, 50)
   console.log(`[comparables] Returning ${sales.length} comparable sales (source: ${_lastSource})`)
 
   return sales
@@ -514,7 +732,7 @@ export async function lookupOnMarket(propertyAddress: string): Promise<OnMarketL
     }
   }
 
-  // Fallback: homely.com.au
+  // Fallback: homely.com.au — search primary suburb + neighbors
   _lastSource = 'homely'
   console.log(`[on-market] Looking up current listings via homely (fallback) for: ${propertyAddress}`)
 
@@ -522,13 +740,50 @@ export async function lookupOnMarket(propertyAddress: string): Promise<OnMarketL
     console.error('[on-market] Fetch failed:', err)
     return [] as HomelyListing[]
   })
+  console.log(`[on-market] Homely found ${listings.length} current listings for ${parts.suburb}`)
 
-  console.log(`[on-market] Homely found ${listings.length} current listings`)
+  // Also fetch neighboring suburbs
+  const neighbors = NEIGHBORING_SUBURBS[parts.suburb] || []
+  const neighborListings: HomelyListing[] = []
+  if (neighbors.length > 0) {
+    const neighborSuburbs = neighbors.slice(0, 3)
+    console.log(`[on-market] Also searching neighbors: ${neighborSuburbs.join(', ')}`)
 
-  const onMarket = listings
+    const neighborResults = await Promise.all(
+      neighborSuburbs.map(async (neighborSuburb) => {
+        const neighborPostcode = SUBURB_POSTCODES[neighborSuburb]
+        if (!neighborPostcode) return []
+        const neighborParts: AddressParts = {
+          suburb: neighborSuburb,
+          state: parts.state,
+          postcode: neighborPostcode,
+        }
+        try {
+          return await fetchHomelyListings(neighborParts, 'buy', 3)
+        } catch {
+          return []
+        }
+      })
+    )
+    for (const result of neighborResults) {
+      neighborListings.push(...result)
+    }
+    console.log(`[on-market] Neighbors returned ${neighborListings.length} additional listings`)
+  }
+
+  // Combine and deduplicate
+  const allListings = [...listings, ...neighborListings]
+  const seenIds = new Set<number>()
+  const uniqueListings = allListings.filter(l => {
+    if (seenIds.has(l.id)) return false
+    seenIds.add(l.id)
+    return true
+  })
+
+  const onMarket = uniqueListings
     .map(listingToOnMarket)
     .filter((l): l is (OnMarketListing & { lat?: number; lng?: number }) => l !== null)
-    .slice(0, 30)
+    .slice(0, 50)
 
   console.log(`[on-market] Returning ${onMarket.length} on-market listings (source: ${_lastSource})`)
   return onMarket
@@ -624,9 +879,47 @@ export async function searchComparables(
   let results: ComparableResult[] = []
   let source = 'homely'
 
-  // Try Apify first (primary source)
-  if (isApifyAvailable()) {
-    console.log(`[searchComparables] Trying Apify (primary)`)
+  // Try local SQLite first (primary source) — only for sold type
+  if (type === 'sold' && localDbAvailable && getSoldPropertiesBySuburbs) {
+    try {
+      const neighbors = NEIGHBORING_SUBURBS[parts.suburb] || []
+      const allSuburbs = [parts.suburb, ...neighbors]
+      console.log(`[searchComparables] Trying local DB (primary) for: ${parts.suburb} + ${neighbors.length} neighbors`)
+
+      const localSales = getSoldPropertiesBySuburbs(allSuburbs)
+      if (localSales.length >= 5) {
+        results = localSales.map((sale) => ({
+          address: sale.address,
+          price: sale.price,
+          bedrooms: sale.bedrooms,
+          bathrooms: sale.bathrooms,
+          carSpaces: sale.carSpaces,
+          propertyType: sale.propertyType,
+          landSize: sale.landSize || null,
+          soldDate: sale.soldDate,
+          link: sale.url,
+          imageUrl: sale.imageUrl,
+          lat: sale.lat,
+          lng: sale.lng,
+          date: sale.soldDate,
+          sqft: 0,
+          distance: 0,
+          url: sale.url,
+          cars: sale.carSpaces,
+        }))
+        source = 'local-db'
+        console.log(`[searchComparables] Local DB returned ${results.length} sold results`)
+      } else {
+        console.log(`[searchComparables] Local DB has < 5 results — falling back`)
+      }
+    } catch (err) {
+      console.error('[searchComparables] Local DB failed, falling back:', err)
+    }
+  }
+
+  // Try Apify (fallback 1) if no local DB results
+  if (results.length === 0 && isApifyAvailable()) {
+    console.log(`[searchComparables] Trying Apify (fallback 1)`)
     try {
       if (type === 'sold') {
         const apifySales = await apifyLookupComparables(address)
@@ -648,7 +941,7 @@ export async function searchComparables(
     }
   }
 
-  // Fallback: homely.com.au if Apify returned nothing
+  // Fallback 2: homely.com.au if nothing else worked
   if (results.length === 0) {
     console.log(`[searchComparables] Using homely (fallback)`)
     source = 'homely'

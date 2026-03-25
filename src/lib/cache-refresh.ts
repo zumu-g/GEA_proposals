@@ -16,7 +16,7 @@
  *   runWeeklySoldRefresh()         — weekly job: refresh sold for all cached suburbs
  */
 
-import { lookupComparables, lookupOnMarket, parseAddress } from './comparables-lookup'
+import { lookupComparables, lookupOnMarket, parseAddress, NEIGHBORING_SUBURBS } from './comparables-lookup'
 import {
   upsertProperties,
   removeStaleListings,
@@ -25,6 +25,8 @@ import {
   getCachedSuburbs,
   CachedProperty,
 } from './property-cache'
+import { upsertSoldProperties, getLastScrapedDate } from './property-cache'
+import { isFirecrawlAvailable, scrapeSoldListings } from './firecrawl-scraper'
 import { getDb } from './db'
 
 // Re-use the SUBURB_POSTCODES lookup from comparables-lookup via parseAddress
@@ -318,4 +320,117 @@ export async function runWeeklySoldRefresh(): Promise<{ refreshed: string[]; err
   )
 
   return { refreshed, errors }
+}
+
+/**
+ * Refresh sold properties for a suburb using Firecrawl (realestate.com.au).
+ * This provides more recent data than homely.com.au.
+ * Called daily by cron for suburbs with active proposals.
+ */
+export async function refreshSoldViaFirecrawl(suburb: string): Promise<{ count: number; source: string }> {
+  // Check if Firecrawl is available
+  if (!isFirecrawlAvailable()) {
+    console.log(`[cache-refresh] Firecrawl not available, skipping ${suburb}`)
+    return { count: 0, source: 'none' }
+  }
+
+  // Check last scraped date — skip if scraped within last 24 hours
+  const lastScraped = getLastScrapedDate(suburb.toLowerCase())
+  if (lastScraped) {
+    const hoursSince = (Date.now() - new Date(lastScraped).getTime()) / (1000 * 60 * 60)
+    if (hoursSince < 24) {
+      console.log(`[cache-refresh] Firecrawl: skipping ${suburb} — scraped ${hoursSince.toFixed(1)}h ago`)
+      return { count: 0, source: 'skipped' }
+    }
+  }
+
+  // Parse the suburb to get state/postcode
+  const parts = parseAddress(suburb)
+  if (!parts) {
+    console.error(`[cache-refresh] Firecrawl: could not resolve suburb: ${suburb}`)
+    return { count: 0, source: 'none' }
+  }
+
+  try {
+    // Scrape 3 pages (~60 listings) from realestate.com.au via Firecrawl
+    const results = await scrapeSoldListings(parts.suburb, parts.state, parts.postcode, 3)
+
+    if (results.length === 0) {
+      console.log(`[cache-refresh] Firecrawl: no sold results for ${suburb}`)
+      return { count: 0, source: 'firecrawl' }
+    }
+
+    // Store in SQLite
+    const count = upsertSoldProperties(results)
+
+    console.log(`[cache-refresh] Firecrawl scraped ${count} sold properties for ${suburb}`)
+    return { count, source: 'firecrawl' }
+  } catch (err) {
+    console.error(`[cache-refresh] Firecrawl failed for ${suburb}:`, err instanceof Error ? err.message : err)
+    return { count: 0, source: 'error' }
+  }
+}
+
+/**
+ * Run daily Firecrawl refresh for all active proposal suburbs.
+ * Gets suburb list from existing proposals in the database,
+ * plus neighboring suburbs of active proposals.
+ */
+export async function runDailyFirecrawlRefresh(): Promise<void> {
+  console.log(`[${timestamp()}] [cache-refresh] Starting daily Firecrawl sold properties refresh...`)
+
+  const db = getDb()
+  const suburbs = new Set<string>()
+
+  // 1. Get unique suburbs from proposals table
+  const rows = db.prepare(
+    `SELECT DISTINCT property_address FROM proposals WHERE status != 'rejected'`
+  ).all() as Array<{ property_address: string }>
+
+  for (const row of rows) {
+    const parts = parseAddress(row.property_address)
+    if (parts?.suburb) {
+      suburbs.add(parts.suburb.toLowerCase())
+    }
+  }
+
+  // 2. Add neighboring suburbs of active proposal suburbs
+  const activeSuburbs = Array.from(suburbs)
+  for (const sub of activeSuburbs) {
+    const neighbors = NEIGHBORING_SUBURBS[sub] || []
+    for (const neighbor of neighbors) {
+      suburbs.add(neighbor.toLowerCase())
+    }
+  }
+
+  const suburbList = Array.from(suburbs).sort()
+  console.log(`[cache-refresh] Firecrawl refresh: ${suburbList.length} suburbs (${activeSuburbs.length} active + neighbors)`)
+
+  let totalCount = 0
+  let totalErrors = 0
+
+  for (let i = 0; i < suburbList.length; i++) {
+    const suburb = suburbList[i]
+
+    try {
+      const result = await refreshSoldViaFirecrawl(suburb)
+      totalCount += result.count
+      if (result.source === 'error') {
+        totalErrors++
+      }
+    } catch (err) {
+      console.error(`[cache-refresh] Firecrawl error for ${suburb}:`, err instanceof Error ? err.message : err)
+      totalErrors++
+    }
+
+    // Rate limit: 5-second delay between suburb scrapes
+    if (i < suburbList.length - 1) {
+      await delay(5000)
+    }
+  }
+
+  console.log(
+    `[${timestamp()}] [cache-refresh] Daily Firecrawl refresh complete — ` +
+    `${totalCount} total properties across ${suburbList.length} suburbs, ${totalErrors} errors`
+  )
 }

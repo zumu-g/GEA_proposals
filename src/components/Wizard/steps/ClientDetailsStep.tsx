@@ -1,7 +1,7 @@
 'use client'
 
 import { motion, AnimatePresence } from 'framer-motion'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 
 interface ClientDetailsStepProps {
   formData: {
@@ -34,6 +34,147 @@ export function validateClientDetails(
     return 'Please enter the full address including suburb'
   return null
 }
+
+// ─── Address Autocomplete (Australian address database) ───────────────────
+
+interface AddressAutoProps {
+  value: string
+  onChange: (val: string) => void
+}
+
+function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [showDropdown, setShowDropdown] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const debounceRef = useRef<NodeJS.Timeout | null>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const fetchSuggestions = useCallback(async (query: string) => {
+    if (query.length < 3) {
+      setSuggestions([])
+      setShowDropdown(false)
+      return
+    }
+    setIsLoading(true)
+    try {
+      // Use the address suggest API (Australian address database)
+      const res = await fetch(`/api/address-suggest?q=${encodeURIComponent(query)}`)
+      if (!res.ok) { setSuggestions([]); return }
+      const data = await res.json()
+      const results: string[] = (data.suggestions || []).map(
+        (s: { fullAddress?: string; display?: string }) => s.fullAddress || s.display || ''
+      ).filter((s: string) => s.length > 5)
+
+      setSuggestions(results)
+      if (results.length > 0) setShowDropdown(true)
+      else setShowDropdown(false)
+    } catch {
+      setSuggestions([])
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  const handleInputChange = (val: string) => {
+    onChange(val)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => fetchSuggestions(val), 300)
+  }
+
+  const handleSelect = (address: string) => {
+    onChange(address)
+    setShowDropdown(false)
+    setSuggestions([])
+  }
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+        inputRef.current && !inputRef.current.contains(e.target as Node)
+      ) {
+        setShowDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div className="mb-6 relative">
+      <label
+        htmlFor="propertyAddress"
+        className="block text-sm font-sans font-medium text-gray-700 mb-1.5 lowercase"
+      >
+        property address
+      </label>
+      <div className="relative">
+        <svg
+          className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
+          fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+        </svg>
+        <input
+          ref={inputRef}
+          type="text"
+          id="propertyAddress"
+          name="propertyAddress"
+          required
+          value={value}
+          onChange={(e) => handleInputChange(e.target.value)}
+          onFocus={() => { if (suggestions.length > 0) setShowDropdown(true) }}
+          className="w-full rounded-lg border border-gray-300 bg-white pl-10 pr-4 py-3 text-gray-900 font-sans placeholder-gray-400 focus:ring-2 focus:ring-[#C41E2A] focus:border-[#C41E2A] text-base touch-manipulation transition-all"
+          placeholder="Start typing an address..."
+          autoComplete="off"
+        />
+        {isLoading && (
+          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+            <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+          </div>
+        )}
+      </div>
+
+      {/* Suggestions dropdown */}
+      <AnimatePresence>
+        {showDropdown && suggestions.length > 0 && (
+          <motion.div
+            ref={dropdownRef}
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.15 }}
+            className="absolute z-50 w-full mt-1 bg-white shadow-lg rounded-lg border border-gray-200 overflow-hidden"
+          >
+            {suggestions.map((addr, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleSelect(addr)}
+                className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 flex items-center gap-3"
+              >
+                <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+                </svg>
+                <span className="text-gray-900 font-sans text-sm">{addr}</span>
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <p className="text-gray-500 font-sans text-xs mt-1.5">
+        start typing to search Australian addresses
+      </p>
+    </div>
+  )
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ClientDetailsStep({
   formData,
@@ -263,27 +404,10 @@ export default function ClientDetailsStep({
           />
         </div>
 
-        <div className="mb-6">
-          <label
-            htmlFor="propertyAddress"
-            className="block text-sm font-sans font-medium text-gray-700 mb-1.5 lowercase"
-          >
-            property address
-          </label>
-          <input
-            type="text"
-            id="propertyAddress"
-            name="propertyAddress"
-            required
-            value={formData.propertyAddress}
-            onChange={(e) => onChange('propertyAddress', e.target.value)}
-            className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 font-sans placeholder-gray-400 focus:ring-2 focus:ring-[#C41E2A] focus:border-[#C41E2A] text-base touch-manipulation transition-all"
-            placeholder="123 Main Street, Suburb VIC 3000"
-          />
-          <p className="text-gray-500 font-sans text-xs mt-1.5">
-            full address including suburb, state and postcode
-          </p>
-        </div>
+        <AddressAutocomplete
+          value={formData.propertyAddress}
+          onChange={(val) => onChange('propertyAddress', val)}
+        />
       </motion.div>
 
       {/* Recent proposals */}

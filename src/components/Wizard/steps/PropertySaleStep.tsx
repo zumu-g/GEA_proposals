@@ -14,6 +14,7 @@ interface PropertySaleStepProps {
     propertyAddress: string
   }
   autoImages: string[]
+  isFetchingImages?: boolean
   onChange: (field: string, value: any) => void
   onAutoFetchImages: () => void
 }
@@ -56,6 +57,7 @@ export function validatePropertySale(
 export default function PropertySaleStep({
   formData,
   autoImages,
+  isFetchingImages = false,
   onChange,
   onAutoFetchImages,
 }: PropertySaleStepProps) {
@@ -182,7 +184,7 @@ export default function PropertySaleStep({
           <p className="text-gray-500 font-sans text-xs tracking-wider uppercase">
             property images
           </p>
-          {!hasAutoImages && formData.propertyAddress && (
+          {!hasAutoImages && !isFetchingImages && formData.propertyAddress && (
             <button
               type="button"
               onClick={onAutoFetchImages}
@@ -197,6 +199,36 @@ export default function PropertySaleStep({
         </div>
 
         <AnimatePresence mode="wait">
+          {/* Loading skeleton while fetching images */}
+          {isFetchingImages && !hasAutoImages && (
+            <motion.div
+              key="loading-images"
+              initial={prefersReducedMotion ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-4"
+            >
+              {/* Hero skeleton */}
+              <div className="relative w-full h-[220px] rounded-lg bg-gray-200 animate-pulse overflow-hidden">
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                  <div className="w-8 h-8 border-3 border-gray-300 border-t-gray-500 rounded-full animate-spin" />
+                  <p className="text-gray-500 font-sans text-sm">fetching property images...</p>
+                </div>
+              </div>
+              {/* Thumbnail skeletons */}
+              <div className="flex gap-2">
+                {[...Array(5)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="w-16 h-16 flex-shrink-0 rounded-lg bg-gray-200 animate-pulse"
+                    style={{ animationDelay: `${i * 0.1}s` }}
+                  />
+                ))}
+              </div>
+            </motion.div>
+          )}
+
           {hasAutoImages && (
             <motion.div
               key="auto-images"
