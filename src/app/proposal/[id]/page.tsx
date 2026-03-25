@@ -14,7 +14,7 @@ import { TeamShowcase } from '@/components/Proposal/TeamShowcase'
 import { ProcessJourney } from '@/components/Proposal/ProcessJourney'
 import { MarketingShowcase } from '@/components/Proposal/MarketingShowcase'
 import { AdvertisingSchedule } from '@/components/Proposal/AdvertisingSchedule'
-import { PropertyGallery } from '@/components/Proposal/PropertyGallery'
+// PropertyGallery removed — hero image is sufficient, auto-scraped gallery images were unreliable
 import { RecentSales } from '@/components/Proposal/RecentSales'
 import { OnMarketListings } from '@/components/Proposal/OnMarketListings'
 import { FeeStructureVisual } from '@/components/Proposal/FeeStructureVisual'
@@ -121,14 +121,6 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
           schedule={proposal.advertisingSchedule || getDefaultProposalExtras().advertisingSchedule}
           totalCost={proposal.totalAdvertisingCost ?? DEFAULT_TOTAL_ADVERTISING_COST}
         />
-
-        {/* Property gallery - if images provided */}
-        {proposal.propertyImages && proposal.propertyImages.length > 0 && (
-          <PropertyGallery
-            images={proposal.propertyImages}
-            address={proposal.propertyAddress}
-          />
-        )}
 
         {/* Fee structure */}
         <FeeStructureVisual fees={proposal.fees} />

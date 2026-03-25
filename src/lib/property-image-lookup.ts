@@ -257,26 +257,22 @@ function isValidImageUrl(url: string): boolean {
 }
 
 function isPropertyImage(url: string): boolean {
-  // Filter to likely property listing images (not icons, logos, ads, placeholders)
-  return (
-    isValidImageUrl(url) &&
-    !url.includes('logo') &&
-    !url.includes('icon') &&
-    !url.includes('avatar') &&
-    !url.includes('badge') &&
-    !url.includes('sprite') &&
-    !url.includes('placeholder') &&
-    !url.includes('open-graph') &&
-    !url.includes('facebook-open-graph') &&
-    !url.includes('domainstatic.com.au/domain/facebook') &&
-    (url.includes('realestate.com.au') ||
-      url.includes('domain.com.au') ||
-      url.includes('bucket') ||
-      url.includes('property') ||
-      url.includes('listing') ||
-      url.includes('photos') ||
-      url.includes('rimages'))
-  )
+  const lower = url.toLowerCase()
+  // Exclude non-property images: icons, logos, agent photos, placeholders
+  if (!isValidImageUrl(url)) return false
+  const excludePatterns = [
+    'logo', 'icon', 'avatar', 'badge', 'sprite', 'placeholder',
+    'open-graph', 'facebook-open-graph', 'domainstatic.com.au/domain/facebook',
+    'agent', 'profile', 'headshot', 'portrait', 'team', 'staff',
+    '/agentcontact/', '/agents/',
+  ]
+  if (excludePatterns.some(p => lower.includes(p))) return false
+  // Must be from a property listing source
+  const allowedSources = [
+    'reastatic.net', 'realestate.com.au', 'domain.com.au',
+    'bucket', 'listing', 'photos', 'rimages',
+  ]
+  return allowedSources.some(s => lower.includes(s))
 }
 
 /**
@@ -550,14 +546,17 @@ async function fetchFromFirecrawl(address: string): Promise<PropertyImages> {
 
     const html = result.data.html
 
-    // Strategy 1: Find images with the property address in alt text
-    // These are the ACTUAL property photos, not nearby/similar properties
-    // Pattern: <img alt="14 Casey Drive, Berwick, Vic 3806" src="https://i2.au.reastatic.net/...">
-    // or: src="..." ... alt="14 Casey ..."
+    // Strategy 1: Find images with the EXACT property address in alt text
+    // The REA property history page has ONE correct hero (800x600, alt="14 Casey Drive, Berwick, Vic 3806")
+    // plus 20+ nearby property thumbnails (250x250, different addresses) and agent headshots (100x100, alt="Agent")
+    // We ONLY want the image matching our subject property address.
     const addressForAlt = address.replace(/,/g, '').replace(/\s+/g, ' ').trim()
-    const firstWord = addressForAlt.split(' ').slice(0, 3).join('[^"]*') // "14[^"]*Casey[^"]*Drive"
+    const firstWords = addressForAlt.split(' ').slice(0, 3)
+    // Escape regex special chars in address parts
+    const escapedWords = firstWords.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    const altSearchPattern = escapedWords.join('[^"]*') // "14[^"]*Casey[^"]*Drive"
     const altPattern = new RegExp(
-      `<img[^>]*(?:alt="[^"]*${firstWord}[^"]*"[^>]*src="([^"]+)"|src="([^"]+)"[^>]*alt="[^"]*${firstWord}[^"]*")`,
+      `<img[^>]*(?:alt="[^"]*${altSearchPattern}[^"]*"[^>]*src="([^"]+)"|src="([^"]+)"[^>]*alt="[^"]*${altSearchPattern}[^"]*")`,
       'gi'
     )
     const altMatches = [...html.matchAll(altPattern)]
@@ -567,6 +566,10 @@ async function fetchFromFirecrawl(address: string): Promise<PropertyImages> {
     for (const m of altMatches) {
       const url = m[1] || m[2]
       if (!url || !url.includes('reastatic.net')) continue
+      // Skip SVGs and small icons
+      if (url.endsWith('.svg') || url.includes('.svg')) continue
+      // Skip agent headshots (100x100) and nearby property thumbnails (250x250)
+      if (/\/(?:100x100|250x250|120x120|80x80|64x64|48x48|32x32)[,/]/.test(url)) continue
       const hashMatch = url.match(/\/([a-f0-9]{40,})\//)
       const hash = hashMatch ? hashMatch[1] : url
       if (seenHashes.has(hash)) continue
@@ -575,14 +578,30 @@ async function fetchFromFirecrawl(address: string): Promise<PropertyImages> {
       photos.push(fullSize)
     }
 
-    // Strategy 2: Also grab /main.jpg images (property photos, not listing thumbnails)
+    // Strategy 2: If no alt-text match, look for /main.jpg at 800x600 ONLY (the hero photo)
+    // Skip /image.jpg which is used for nearby property thumbnails
     if (photos.length === 0) {
-      const mainPattern = /https:\/\/i\d\.au\.reastatic\.net\/\d+x\d+[^"<>\s]*\/main\.(?:jpg|jpeg|webp|png)/gi
+      const mainPattern = /https:\/\/i\d\.au\.reastatic\.net\/800x600[^"<>\s]*\/main\.(?:jpg|jpeg|webp|png)/gi
       const mainMatches = [...html.matchAll(mainPattern)]
       for (const m of mainMatches) {
         const url = m[0]
-        // Skip logos and branding (small dimensions like 340x64, 212x40)
-        if (/\/(?:340x64|212x40|100x100|32x32)\//.test(url)) continue
+        const hashMatch = url.match(/\/([a-f0-9]{40,})\//)
+        const hash = hashMatch ? hashMatch[1] : url
+        if (seenHashes.has(hash)) continue
+        seenHashes.add(hash)
+        photos.push(url)
+      }
+    }
+
+    // Strategy 3: If still nothing, try ANY large (non-thumbnail, non-agent) reastatic image
+    // But EXCLUDE: 250x250 (nearby properties), 100x100 (agent headshots), SVGs, /image.jpg (thumbnails)
+    if (photos.length === 0) {
+      const largeImgPattern = /https:\/\/i\d\.au\.reastatic\.net\/(\d+)x(\d+)[^"<>\s]*\/(?:main|hero)\.(?:jpg|jpeg|webp|png)/gi
+      const largeMatches = [...html.matchAll(largeImgPattern)]
+      for (const m of largeMatches) {
+        const width = parseInt(m[1])
+        if (width < 400) continue // Skip small images
+        const url = m[0]
         const hashMatch = url.match(/\/([a-f0-9]{40,})\//)
         const hash = hashMatch ? hashMatch[1] : url
         if (seenHashes.has(hash)) continue
@@ -592,15 +611,9 @@ async function fetchFromFirecrawl(address: string): Promise<PropertyImages> {
       }
     }
 
-    // Strategy 3: Fallback to generic extraction
     if (photos.length === 0) {
-      const { hero, gallery } = extractImagesFromHtml(html)
-      if (!hero && gallery.length === 0) {
-        console.log('[property-images] Firecrawl: no images found in scraped HTML')
-        return EMPTY_RESULT
-      }
-      console.log(`[property-images] Firecrawl found ${gallery.length + (hero ? 1 : 0)} images (generic extraction)`)
-      return { heroImage: hero, galleryImages: gallery, source: 'realestate.com.au (via Firecrawl)' }
+      console.log('[property-images] Firecrawl: no property photos found (filtered out agent/nearby images)')
+      return EMPTY_RESULT
     }
 
     const hero = photos[0]

@@ -205,6 +205,8 @@ export default function SoldPropertiesStep({
   const [bathsMin, setBathsMin] = useState('')
   const [propType, setPropType] = useState('')
   const [soldWithin, setSoldWithin] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [sortBy, setSortBy] = useState('distance-asc')
 
   // Image error tracking
@@ -356,6 +358,17 @@ export default function SoldPropertiesStep({
           const cutoff = new Date(now.getFullYear(), now.getMonth() - months, now.getDate())
           if (saleDate < cutoff) return false
         }
+        if (dateFrom && s.date) {
+          const saleDate = new Date(s.date)
+          const from = new Date(dateFrom)
+          if (saleDate < from) return false
+        }
+        if (dateTo && s.date) {
+          const saleDate = new Date(s.date)
+          const to = new Date(dateTo)
+          to.setHours(23, 59, 59, 999)
+          if (saleDate > to) return false
+        }
         return true
       })
 
@@ -428,7 +441,7 @@ export default function SoldPropertiesStep({
         )
       }
     },
-    [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, soldWithin, sortBy, subjectLat, subjectLng]
+    [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, soldWithin, dateFrom, dateTo, sortBy, subjectLat, subjectLng]
   )
 
   // Re-apply filters when filter values change
@@ -436,7 +449,7 @@ export default function SoldPropertiesStep({
     if (rawComps.length > 0) {
       applyFilters(rawComps)
     }
-  }, [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, soldWithin, sortBy, subjectLat, subjectLng, rawComps, applyFilters])
+  }, [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, soldWithin, dateFrom, dateTo, sortBy, subjectLat, subjectLng, rawComps, applyFilters])
 
   // ─── Search function ──────────────────────────────────────────────────
   const searchComparables = useCallback(
@@ -631,7 +644,7 @@ export default function SoldPropertiesStep({
   // ─── Counts ───────────────────────────────────────────────────────────
   const selectedSoldCount = compRows.filter(r => r.included && r.address.trim()).length
 
-  const hasActiveFilters = !!(priceMin || priceMax || bedsMin || bathsMin || propType || soldWithin)
+  const hasActiveFilters = !!(priceMin || priceMax || bedsMin || bathsMin || propType || soldWithin || dateFrom || dateTo)
 
   // ─── Animation ────────────────────────────────────────────────────────
   const fadeUp = prefersReducedMotion
@@ -896,6 +909,8 @@ export default function SoldPropertiesStep({
                         setBathsMin('')
                         setPropType('')
                         setSoldWithin('')
+                        setDateFrom('')
+                        setDateTo('')
                       }}
                       className="text-gray-400 hover:text-gray-600 font-sans text-xs transition-colors"
                     >
@@ -914,7 +929,7 @@ export default function SoldPropertiesStep({
                       transition={{ duration: 0.3, ease: 'easeOut' }}
                       className="overflow-hidden"
                     >
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mt-3">
                         <div>
                           <label className={labelClasses}>min price</label>
                           <div className="relative">
@@ -987,7 +1002,10 @@ export default function SoldPropertiesStep({
                           <label className={labelClasses}>sold within</label>
                           <select
                             value={soldWithin}
-                            onChange={e => setSoldWithin(e.target.value)}
+                            onChange={e => {
+                              setSoldWithin(e.target.value)
+                              if (e.target.value) { setDateFrom(''); setDateTo('') }
+                            }}
                             className={selectClasses}
                           >
                             <option value="">Any time</option>
@@ -996,6 +1014,24 @@ export default function SoldPropertiesStep({
                             <option value="12">Last 12 months</option>
                             <option value="24">Last 24 months</option>
                           </select>
+                        </div>
+                        <div>
+                          <label className={labelClasses}>date from</label>
+                          <input
+                            type="date"
+                            value={dateFrom}
+                            onChange={e => { setDateFrom(e.target.value); if (e.target.value) setSoldWithin('') }}
+                            className={inputClasses}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClasses}>date to</label>
+                          <input
+                            type="date"
+                            value={dateTo}
+                            onChange={e => { setDateTo(e.target.value); if (e.target.value) setSoldWithin('') }}
+                            className={inputClasses}
+                          />
                         </div>
                       </div>
                     </motion.div>
@@ -1189,6 +1225,15 @@ export default function SoldPropertiesStep({
                                 <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-500 font-sans text-[10px] uppercase tracking-wider">
                                   {row.propertyType}
                                 </span>
+                                {row.distance !== undefined && (
+                                  <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-sans text-[10px] font-medium">
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+                                    </svg>
+                                    {formatDistance(row.distance)}
+                                  </span>
+                                )}
                                 {row.date && (
                                   <span className="px-2 py-0.5 rounded bg-[#C41E2A]/10 text-[#C41E2A]/70 font-sans text-[10px]">
                                     sold {row.date}
