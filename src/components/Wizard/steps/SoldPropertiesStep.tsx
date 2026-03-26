@@ -490,6 +490,16 @@ export default function SoldPropertiesStep({
             if (geoData.lat && geoData.lng) {
               setSubjectLat(geoData.lat)
               setSubjectLng(geoData.lng)
+            } else {
+              // Fallback: geocode just the suburb for approximate distances
+              const suburbWithState = `${suburb} VIC`
+              const fallbackRes = await fetch(`/api/geocode?address=${encodeURIComponent(suburbWithState)}`)
+              const fallbackData = await fallbackRes.json()
+              if (fallbackData.lat && fallbackData.lng) {
+                setSubjectLat(fallbackData.lat)
+                setSubjectLng(fallbackData.lng)
+                console.log(`[SoldPropertiesStep] Using suburb centroid for ${suburb}`)
+              }
             }
           } catch {
             console.warn('[SoldPropertiesStep] Geocoding failed for subject property')
@@ -551,6 +561,14 @@ export default function SoldPropertiesStep({
           if (geoData.lat && geoData.lng) {
             setSubjectLat(geoData.lat)
             setSubjectLng(geoData.lng)
+          } else {
+            const suburbWithState = `${suburb} VIC`
+            const fallbackRes = await fetch(`/api/geocode?address=${encodeURIComponent(suburbWithState)}`)
+            const fallbackData = await fallbackRes.json()
+            if (fallbackData.lat && fallbackData.lng) {
+              setSubjectLat(fallbackData.lat)
+              setSubjectLng(fallbackData.lng)
+            }
           }
         } catch {
           console.warn('[SoldPropertiesStep] Geocoding failed on refresh')
