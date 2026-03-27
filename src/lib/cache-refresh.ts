@@ -372,9 +372,9 @@ export async function refreshSoldViaFirecrawl(suburb: string): Promise<{ count: 
 }
 
 /**
- * Run daily Firecrawl refresh for all active proposal suburbs.
- * Gets suburb list from existing proposals in the database,
- * plus neighboring suburbs of active proposals.
+ * Run daily Firecrawl refresh for ALL configured suburbs.
+ * Covers every suburb in NEIGHBORING_SUBURBS map + any suburbs
+ * from active proposals, ensuring comprehensive coverage.
  */
 export async function runDailyFirecrawlRefresh(): Promise<void> {
   console.log(`[${timestamp()}] [cache-refresh] Starting daily Firecrawl sold properties refresh...`)
@@ -382,7 +382,15 @@ export async function runDailyFirecrawlRefresh(): Promise<void> {
   const db = getDb()
   const suburbs = new Set<string>()
 
-  // 1. Get unique suburbs from proposals table
+  // 1. Add ALL suburbs from the NEIGHBORING_SUBURBS map (comprehensive coverage)
+  for (const [suburb, neighbors] of Object.entries(NEIGHBORING_SUBURBS)) {
+    suburbs.add(suburb.toLowerCase())
+    for (const neighbor of neighbors) {
+      suburbs.add(neighbor.toLowerCase())
+    }
+  }
+
+  // 2. Also add suburbs from active proposals (in case they're not in the map)
   const rows = db.prepare(
     `SELECT DISTINCT property_address FROM proposals WHERE status != 'rejected'`
   ).all() as Array<{ property_address: string }>
@@ -394,17 +402,8 @@ export async function runDailyFirecrawlRefresh(): Promise<void> {
     }
   }
 
-  // 2. Add neighboring suburbs of active proposal suburbs
-  const activeSuburbs = Array.from(suburbs)
-  for (const sub of activeSuburbs) {
-    const neighbors = NEIGHBORING_SUBURBS[sub] || []
-    for (const neighbor of neighbors) {
-      suburbs.add(neighbor.toLowerCase())
-    }
-  }
-
   const suburbList = Array.from(suburbs).sort()
-  console.log(`[cache-refresh] Firecrawl refresh: ${suburbList.length} suburbs (${activeSuburbs.length} active + neighbors)`)
+  console.log(`[cache-refresh] Firecrawl refresh: ${suburbList.length} suburbs (all configured + active proposals)`)
 
   let totalCount = 0
   let totalErrors = 0
