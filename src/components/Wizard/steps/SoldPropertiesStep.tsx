@@ -647,18 +647,20 @@ export default function SoldPropertiesStep({
     setIsRefreshing(false)
   }, [confirmedAddress, isRefreshing, isSearching, subjectLat, subjectLng])
 
-  // ─── Track confirmed address changes (no auto-search — user clicks "search") ──
+  // ─── Track confirmed address changes — auto-search on change ──
   const prevConfirmedRef = useRef('')
   useEffect(() => {
     if (confirmedAddress && confirmedAddress !== prevConfirmedRef.current) {
       prevConfirmedRef.current = confirmedAddress
-      // Reset results when address changes so user starts fresh
+      // Reset results and auto-search for the new address
       setCompRows([])
       setRawComps([])
       setStatusMessage('')
       hasSearchedRef.current = false
+      // Auto-search with the new address (pass explicitly to avoid stale closure)
+      setTimeout(() => searchComparables(confirmedAddress), 150)
     }
-  }, [confirmedAddress])
+  }, [confirmedAddress]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Row manipulation ─────────────────────────────────────────────────
   const updateCompRow = (index: number, field: keyof InternalSoldRow, value: string) => {
