@@ -360,18 +360,20 @@ function parseListingsFromHtmlFallback(
       } catch { /* skip */ }
     }
 
-    // Extract beds/baths/cars from feature spans
-    // Pattern: <span ...>3</span> near bed icon, <span>2</span> near bath icon, etc.
-    const bedsMatch = cardHtml.match(/aria-label="(\d+)\s*Bed/)
-      || cardHtml.match(/(\d+)\s*<\/span>[\s\S]{0,100}?(?:bed|Bed)/)
-    const bathsMatch = cardHtml.match(/aria-label="(\d+)\s*Bath/)
-      || cardHtml.match(/(\d+)\s*<\/span>[\s\S]{0,100}?(?:bath|Bath)/)
-    const carsMatch = cardHtml.match(/aria-label="(\d+)\s*(?:Car|Parking)/)
-      || cardHtml.match(/(\d+)\s*<\/span>[\s\S]{0,100}?(?:car|Car|parking|Parking)/)
+    // Extract beds/baths/cars from <li aria-label="4 bedrooms"> or
+    // from the <ul aria-label="House with ... 4 bedrooms 2 bathrooms 2 car spaces">
+    const bedsMatch = cardHtml.match(/aria-label="(\d+)\s*bed/i)
+      || cardHtml.match(/(\d+)\s*bed/i)
+    const bathsMatch = cardHtml.match(/aria-label="(\d+)\s*bath/i)
+      || cardHtml.match(/(\d+)\s*bath/i)
+    const carsMatch = cardHtml.match(/aria-label="(\d+)\s*car/i)
+      || cardHtml.match(/(\d+)\s*car\s*space/i)
+      || cardHtml.match(/aria-label="(\d+)\s*parking/i)
 
-    // Extract property type: "House", "Unit", "Townhouse", etc.
-    const typeMatch = cardHtml.match(/<p[^>]*>(?:House|Unit|Townhouse|Villa|Apartment|Land|Acreage|Rural)<\/p>/i)
-    const propertyType = typeMatch ? typeMatch[0].replace(/<[^>]+>/g, '') : 'House'
+    // Extract property type from <ul aria-label="House with ..."> or <p>House</p>
+    const ulAriaMatch = cardHtml.match(/aria-label="(House|Unit|Townhouse|Villa|Apartment|Land|Acreage|Rural)\b/i)
+    const typeMatch = ulAriaMatch || cardHtml.match(/<p[^>]*>(House|Unit|Townhouse|Villa|Apartment|Land|Acreage|Rural)<\/p>/i)
+    const propertyType = typeMatch ? typeMatch[1] : 'House'
 
     // Extract land size: "471m²"
     const landMatch = cardHtml.match(/([\d,.]+)\s*m²/)
