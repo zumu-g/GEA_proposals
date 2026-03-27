@@ -372,9 +372,10 @@ export async function refreshSoldViaFirecrawl(suburb: string): Promise<{ count: 
 }
 
 /**
- * Run daily Firecrawl refresh for ALL configured suburbs.
- * Covers every suburb in NEIGHBORING_SUBURBS map + any suburbs
- * from active proposals, ensuring comprehensive coverage.
+ * Run daily Firecrawl refresh — scrapes 6 suburbs per day on a rotating basis.
+ * With ~42 suburbs, full coverage completes every 7 days.
+ * Uses day-of-year to determine which batch to scrape today.
+ * Rate limits: 30-second gap between suburbs to avoid Firecrawl throttling.
  */
 export async function runDailyFirecrawlRefresh(): Promise<void> {
   console.log(`[${timestamp()}] [cache-refresh] Starting daily Firecrawl sold properties refresh...`)
@@ -382,7 +383,7 @@ export async function runDailyFirecrawlRefresh(): Promise<void> {
   const db = getDb()
   const suburbs = new Set<string>()
 
-  // 1. Add ALL suburbs from the NEIGHBORING_SUBURBS map (comprehensive coverage)
+  // 1. Add ALL suburbs from the NEIGHBORING_SUBURBS map
   for (const [suburb, neighbors] of Object.entries(NEIGHBORING_SUBURBS)) {
     suburbs.add(suburb.toLowerCase())
     for (const neighbor of neighbors) {
@@ -390,7 +391,7 @@ export async function runDailyFirecrawlRefresh(): Promise<void> {
     }
   }
 
-  // 2. Also add suburbs from active proposals (in case they're not in the map)
+  // 2. Also add suburbs from active proposals
   const rows = db.prepare(
     `SELECT DISTINCT property_address FROM proposals WHERE status != 'rejected'`
   ).all() as Array<{ property_address: string }>
@@ -402,14 +403,26 @@ export async function runDailyFirecrawlRefresh(): Promise<void> {
     }
   }
 
-  const suburbList = Array.from(suburbs).sort()
-  console.log(`[cache-refresh] Firecrawl refresh: ${suburbList.length} suburbs (all configured + active proposals)`)
+  const allSuburbs = Array.from(suburbs).sort()
+  const BATCH_SIZE = 6 // ~6 suburbs per day = full coverage in ~7 days
+
+  // Use day-of-year to rotate through batches
+  const now = new Date()
+  const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000)
+  const batchIndex = dayOfYear % Math.ceil(allSuburbs.length / BATCH_SIZE)
+  const start = batchIndex * BATCH_SIZE
+  const todaysBatch = allSuburbs.slice(start, start + BATCH_SIZE)
+
+  console.log(
+    `[cache-refresh] Day ${dayOfYear}, batch ${batchIndex + 1}/${Math.ceil(allSuburbs.length / BATCH_SIZE)}: ` +
+    `scraping ${todaysBatch.length} of ${allSuburbs.length} suburbs — ${todaysBatch.join(', ')}`
+  )
 
   let totalCount = 0
   let totalErrors = 0
 
-  for (let i = 0; i < suburbList.length; i++) {
-    const suburb = suburbList[i]
+  for (let i = 0; i < todaysBatch.length; i++) {
+    const suburb = todaysBatch[i]
 
     try {
       const result = await refreshSoldViaFirecrawl(suburb)
@@ -422,14 +435,14 @@ export async function runDailyFirecrawlRefresh(): Promise<void> {
       totalErrors++
     }
 
-    // Rate limit: 5-second delay between suburb scrapes
-    if (i < suburbList.length - 1) {
-      await delay(5000)
+    // Rate limit: 30-second delay between suburbs to avoid Firecrawl throttling
+    if (i < todaysBatch.length - 1) {
+      await delay(30000)
     }
   }
 
   console.log(
     `[${timestamp()}] [cache-refresh] Daily Firecrawl refresh complete — ` +
-    `${totalCount} total properties across ${suburbList.length} suburbs, ${totalErrors} errors`
+    `${totalCount} properties across ${todaysBatch.length} suburbs (batch ${batchIndex + 1}), ${totalErrors} errors`
   )
 }
