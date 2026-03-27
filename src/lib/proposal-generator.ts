@@ -7,22 +7,63 @@ import { getDb } from '@/lib/db'
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data')
 const AGENCY_CONFIG_PATH = path.join(DATA_DIR, 'agency-config.json')
 
-// --- Agency config (still file-based — single config, rarely changes) ---
+// Fallback: check non-volume location too (Railway volume overlays data/)
+const AGENCY_CONFIG_FALLBACK = path.join(process.cwd(), 'data', 'agency-config.json')
+
+// Default agency config — used when file is not found (e.g. Railway volume hides it)
+const DEFAULT_AGENCY_CONFIG: AgencyConfig & { defaultInclusions?: string[] } = {
+  name: "Grant's Estate Agents",
+  legalName: "Grant's Estate Agents Pty Ltd",
+  abn: '80 595 235 807',
+  primaryColor: '#C41E2A',
+  accentColor: '#C41E2A',
+  defaultCommissionRate: 1.45,
+  contactEmail: 'info@grantsea.com.au',
+  contactPhone: '03 9767 3200',
+  address: '1/5 Gloucester Avenue, Berwick VIC 3806',
+  website: 'https://grantsea.com.au',
+  agentName: 'Stuart Grant',
+  agentTitle: 'Principal — Berwick & Pakenham',
+  agentPhone: '0438 554 522',
+  agentPhoto: '/images/stuart-grant-seated.jpg',
+  agentBio: "As Principal of Grant's Berwick and Pakenham offices, Stuart leads a high-achieving team of results-focused real estate professionals across two locations in the City of Casey and Cardinia Shire. With over 30 years of family heritage in south-east Melbourne real estate, Stuart is committed to innovation in communication and service delivery. He and his team consistently achieve market-leading results while maintaining the personal, hands-on approach that Grant's is known for. Be assured — Stuart will work harder than any agent you have ever met.",
+  agentYearsExperience: 30,
+  offices: [
+    { name: 'Head Office', address: '1/5 Gloucester Avenue, Berwick VIC 3806', phone: '03 9767 3200' },
+    { name: 'Berwick Sales', address: '3a Gloucester Avenue, Berwick VIC 3806', phone: '03 9707 5555' },
+    { name: 'Narre Warren', address: '9 Webb Street, Narre Warren VIC 3805', phone: '03 9704 8899' },
+    { name: 'Pakenham', address: '3/51 John Street, Pakenham VIC 3810', phone: '03 5940 2555' },
+  ],
+  stats: [
+    { value: '15+', label: 'years experience' },
+    { value: '1,200+', label: 'properties sold' },
+    { value: '4.9★', label: 'rate my agent' },
+    { value: '21', label: 'avg days on market' },
+  ],
+  defaultInclusions: [
+    'Professional photography & floor plans',
+    'Listings on realestate.com.au, Domain & more',
+    'Targeted social media campaigns',
+    'Private inspections & open homes',
+    'Dedicated selling agent',
+    'Sale management through to settlement',
+  ],
+}
+
+// --- Agency config ---
 
 export async function getAgencyConfig(): Promise<AgencyConfig & { defaultInclusions?: string[] }> {
-  try {
-    const fileContents = await fs.readFile(AGENCY_CONFIG_PATH, 'utf-8')
-    return JSON.parse(fileContents)
-  } catch (error) {
-    return {
-      name: "Grant's Estate Agents",
-      primaryColor: '#C41E2A',
-      accentColor: '#C41E2A',
-      defaultCommissionRate: 1.45,
-      contactEmail: 'info@grantsea.com.au',
-      contactPhone: '',
+  // Try primary path (may be on volume)
+  for (const configPath of [AGENCY_CONFIG_PATH, AGENCY_CONFIG_FALLBACK]) {
+    try {
+      const fileContents = await fs.readFile(configPath, 'utf-8')
+      return JSON.parse(fileContents)
+    } catch {
+      // try next path
     }
   }
+  // Use hardcoded default
+  return DEFAULT_AGENCY_CONFIG
 }
 
 // --- Helpers: row <-> Proposal ---
