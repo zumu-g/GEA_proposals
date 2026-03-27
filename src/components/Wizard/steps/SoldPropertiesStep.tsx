@@ -195,7 +195,7 @@ export default function SoldPropertiesStep({
   const hasSearchedRef = useRef(false)
 
   // ─── Distance filter (primary) ─────────────────────────────────────────
-  const [distanceFilter, setDistanceFilter] = useState(2)
+  const [distanceFilter, setDistanceFilter] = useState(Infinity)
 
   // ─── Secondary filters ────────────────────────────────────────────────
   const [showFilters, setShowFilters] = useState(true)
@@ -465,6 +465,7 @@ export default function SoldPropertiesStep({
       removedSoldRef.current.clear()
 
       try {
+        // ── Fetch comparables ──
         const soldRes = await fetch(`/api/comparables?address=${encodeURIComponent(suburb)}`)
         const soldData = await soldRes.json()
 
@@ -475,29 +476,27 @@ export default function SoldPropertiesStep({
         }
 
         const sold = soldData.sales || []
-        setRawComps(sold)
-
         const src = soldData.source || ''
-        setDataSource(src)
-        setIsCached(!!soldData.cached)
-        setCacheAge(soldData.cacheAge || '')
 
-        // Geocode the actual subject property for accurate distances
-        if (!subjectLat || !subjectLng) {
+        // ── Geocode subject property (collect result without setting state yet) ──
+        let geoLat: number | null = subjectLat
+        let geoLng: number | null = subjectLng
+
+        if (!geoLat || !geoLng) {
           try {
             const geoRes = await fetch(`/api/geocode?address=${encodeURIComponent(addr)}`)
             const geoData = await geoRes.json()
             if (geoData.lat && geoData.lng) {
-              setSubjectLat(geoData.lat)
-              setSubjectLng(geoData.lng)
+              geoLat = geoData.lat
+              geoLng = geoData.lng
             } else {
               // Fallback: geocode just the suburb for approximate distances
               const suburbWithState = `${suburb} VIC`
               const fallbackRes = await fetch(`/api/geocode?address=${encodeURIComponent(suburbWithState)}`)
               const fallbackData = await fallbackRes.json()
               if (fallbackData.lat && fallbackData.lng) {
-                setSubjectLat(fallbackData.lat)
-                setSubjectLng(fallbackData.lng)
+                geoLat = fallbackData.lat
+                geoLng = fallbackData.lng
                 console.log(`[SoldPropertiesStep] Using suburb centroid for ${suburb}`)
               }
             }
@@ -506,13 +505,23 @@ export default function SoldPropertiesStep({
           }
         }
 
+        // ── Set ALL state in one batch — no intermediate renders between awaits ──
+        // The useEffect watching rawComps + subjectLat/Lng will apply filters
+        setRawComps(sold)
+        setDataSource(src)
+        setIsCached(!!soldData.cached)
+        setCacheAge(soldData.cacheAge || '')
+        setSubjectLat(geoLat)
+        setSubjectLng(geoLng)
+
         if (sold.length === 0) {
           setStatusMessage(
             `No sold properties found for "${suburb}". Try a different address.`
           )
-        } else {
-          applyFilters(sold)
         }
+        // NOTE: Don't call applyFilters(sold) here — the useEffect on rawComps
+        // handles filtering. Calling it here with a stale closure caused a race
+        // condition where compRows could end up empty.
       } catch (err) {
         setStatusMessage(
           `Search failed: ${err instanceof Error ? err.message : 'network error'}`
@@ -521,7 +530,7 @@ export default function SoldPropertiesStep({
       setIsSearching(false)
       hasSearchedRef.current = true
     },
-    [confirmedAddress, isSearching, applyFilters, subjectLat, subjectLng]
+    [confirmedAddress, isSearching, subjectLat, subjectLng]
   )
 
   // ─── Refresh function ─────────────────────────────────────────────────
@@ -546,28 +555,26 @@ export default function SoldPropertiesStep({
       }
 
       const sold = soldData.sales || []
-      setRawComps(sold)
-
       const src = soldData.source || ''
-      setDataSource(src)
-      setIsCached(false)
-      setCacheAge('just now')
 
       // Geocode the subject property if not already done
-      if (!subjectLat || !subjectLng) {
+      let geoLat: number | null = subjectLat
+      let geoLng: number | null = subjectLng
+
+      if (!geoLat || !geoLng) {
         try {
           const geoRes = await fetch(`/api/geocode?address=${encodeURIComponent(addr)}`)
           const geoData = await geoRes.json()
           if (geoData.lat && geoData.lng) {
-            setSubjectLat(geoData.lat)
-            setSubjectLng(geoData.lng)
+            geoLat = geoData.lat
+            geoLng = geoData.lng
           } else {
             const suburbWithState = `${suburb} VIC`
             const fallbackRes = await fetch(`/api/geocode?address=${encodeURIComponent(suburbWithState)}`)
             const fallbackData = await fallbackRes.json()
             if (fallbackData.lat && fallbackData.lng) {
-              setSubjectLat(fallbackData.lat)
-              setSubjectLng(fallbackData.lng)
+              geoLat = fallbackData.lat
+              geoLng = fallbackData.lng
             }
           }
         } catch {
@@ -575,10 +582,16 @@ export default function SoldPropertiesStep({
         }
       }
 
+      // Set ALL state in one batch — useEffect handles filtering
+      setRawComps(sold)
+      setDataSource(src)
+      setIsCached(false)
+      setCacheAge('just now')
+      setSubjectLat(geoLat)
+      setSubjectLng(geoLng)
+
       if (sold.length === 0) {
         setStatusMessage(`No sold properties found on refresh.`)
-      } else {
-        applyFilters(sold)
       }
     } catch (err) {
       setStatusMessage(
@@ -586,7 +599,7 @@ export default function SoldPropertiesStep({
       )
     }
     setIsRefreshing(false)
-  }, [confirmedAddress, isRefreshing, isSearching, applyFilters])
+  }, [confirmedAddress, isRefreshing, isSearching, subjectLat, subjectLng])
 
   // ─── Track confirmed address changes (no auto-search — user clicks "search") ──
   const prevConfirmedRef = useRef('')
