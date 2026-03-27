@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { lookupComparables, lookupOnMarket, searchComparables, getLastSource, SearchFilters, parseAddress, NEIGHBORING_SUBURBS } from '@/lib/comparables-lookup'
 import { isApifyAvailable, refreshApifyData } from '@/lib/apify-scraper'
+import { isFirecrawlAvailable, scrapeOnMarketListings } from '@/lib/firecrawl-scraper'
 import { getProposal, saveProposal, logActivity } from '@/lib/proposal-generator'
 
 // ─── Cache imports (created by other agent — fallback gracefully if missing) ──
@@ -299,6 +300,46 @@ export async function GET(request: Request) {
         }
       } catch (refreshErr) {
         console.error('[api/comparables] Cache refresh failed, falling through to legacy scraping:', refreshErr)
+      }
+    }
+
+    // ── Step 2b: Firecrawl on-market fallback ─────────────────────────────
+    if (type === 'buy' && isFirecrawlAvailable()) {
+      try {
+        const parts = parseAddress(address) || { suburb, state: 'vic', postcode: '' }
+        // Look up postcode from NEIGHBORING_SUBURBS keys or parsed address
+        const postcode = parts.postcode || ''
+        if (parts.suburb && postcode) {
+          console.log(`[api/comparables] Scraping on-market via Firecrawl for ${parts.suburb}`)
+          const listings = await scrapeOnMarketListings(parts.suburb, parts.state || 'vic', postcode, 3)
+          if (listings.length > 0) {
+            return NextResponse.json({
+              address,
+              type,
+              count: listings.length,
+              sales: listings.map((s: any) => ({
+                address: s.address,
+                price: s.price,
+                askingPrice: s.price ? `$${s.price.toLocaleString()}` : '',
+                date: s.soldDate || '',
+                bedrooms: s.bedrooms || 0,
+                bathrooms: s.bathrooms || 0,
+                cars: s.carSpaces || 0,
+                propertyType: s.propertyType || 'House',
+                url: s.url || '',
+                imageUrl: s.imageUrl || '',
+                lat: s.lat,
+                lng: s.lng,
+                distance: 0,
+                sqft: 0,
+              })),
+              source: 'firecrawl',
+              cached: false,
+            })
+          }
+        }
+      } catch (err) {
+        console.error('[api/comparables] Firecrawl on-market scrape failed:', err)
       }
     }
 
