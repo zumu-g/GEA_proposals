@@ -19,12 +19,14 @@ import cron from 'node-cron'
 import { pollInbox } from './email-intake'
 import { processDueTouchpoints } from './nurture'
 import { runDailyCacheRefresh, runWeeklySoldRefresh, runDailyFirecrawlRefresh } from './cache-refresh'
+import { runAgentScrape } from './agent-scraper'
 
 let inboxTask: cron.ScheduledTask | null = null
 let nurtureTask: cron.ScheduledTask | null = null
 let dailyCacheTask: cron.ScheduledTask | null = null
 let weeklySoldTask: cron.ScheduledTask | null = null
 let firecrawlSoldTask: cron.ScheduledTask | null = null
+let agentScrapeTask: cron.ScheduledTask | null = null
 let running = false
 let lastPollTime: string | null = null
 let lastPollResult: { processed: number; errors: number } | null = null
@@ -36,11 +38,14 @@ let lastWeeklySoldTime: string | null = null
 let lastWeeklySoldResult: { refreshed: number; errors: number } | null = null
 let lastFirecrawlSoldTime: string | null = null
 let lastFirecrawlSoldResult: { status: string } | null = null
+let lastAgentScrapeTime: string | null = null
+let lastAgentScrapeResult: { scraped: number; newStored: number } | null = null
 let pollCount = 0
 let nurtureCount = 0
 let dailyCacheCount = 0
 let weeklySoldCount = 0
 let firecrawlSoldCount = 0
+let agentScrapeCount = 0
 
 function timestamp(): string {
   return new Date().toISOString()
@@ -182,6 +187,33 @@ async function executeFirecrawlSoldRefresh(): Promise<void> {
   }
 }
 
+async function executeAgentScrape(): Promise<void> {
+  const start = Date.now()
+  console.log(`[${timestamp()}] [cron] Running daily agent suburb scrape...`)
+
+  try {
+    const result = await runAgentScrape()
+    const elapsed = Date.now() - start
+    lastAgentScrapeTime = timestamp()
+    lastAgentScrapeResult = { scraped: result.totalScraped, newStored: result.newStored }
+    agentScrapeCount++
+
+    console.log(
+      `[${lastAgentScrapeTime}] [cron] Agent scrape #${agentScrapeCount} complete in ${elapsed}ms — ` +
+        `${result.totalScraped} scraped, ${result.newStored} new, ${result.duplicatesSkipped} dupes`
+    )
+  } catch (err) {
+    lastAgentScrapeTime = timestamp()
+    lastAgentScrapeResult = { scraped: 0, newStored: 0 }
+    agentScrapeCount++
+
+    console.error(
+      `[${lastAgentScrapeTime}] [cron] Agent scrape #${agentScrapeCount} failed:`,
+      err instanceof Error ? err.message : err
+    )
+  }
+}
+
 /**
  * Start the cron scheduler. Idempotent — calling twice is safe.
  */
@@ -216,10 +248,16 @@ export function startCron(): void {
     executeFirecrawlSoldRefresh()
   })
 
+  // Schedule: daily agent suburb scrape — 8:00 AM AEST (22:00 UTC previous day)
+  agentScrapeTask = cron.schedule('0 22 * * *', () => {
+    executeAgentScrape()
+  })
+
   running = true
   console.log(
     `[${timestamp()}] [cron] Started — inbox every 5 min, nurture every 15 min, ` +
-      `on-market cache daily 6am AEST, sold cache weekly Mon 5am AEST, Firecrawl sold daily 7am AEST`
+      `on-market cache daily 6am AEST, sold cache weekly Mon 5am AEST, ` +
+      `Firecrawl sold daily 7am AEST, agent scrape daily 8am AEST`
   )
 }
 
@@ -247,6 +285,10 @@ export function stopCron(): void {
     firecrawlSoldTask.stop()
     firecrawlSoldTask = null
   }
+  if (agentScrapeTask) {
+    agentScrapeTask.stop()
+    agentScrapeTask = null
+  }
   running = false
   console.log(`[${timestamp()}] [cron] Stopped`)
 }
@@ -272,7 +314,10 @@ export function getCronStatus() {
     lastFirecrawlSoldTime,
     lastFirecrawlSoldResult,
     firecrawlSoldCount,
-    schedule: '*/5 * * * * (inbox), */15 * * * * (nurture), 0 20 * * * (daily cache), 0 19 * * 0 (weekly sold), 0 21 * * * (firecrawl sold)',
-    description: 'Inbox every 5 min, nurture every 15 min, on-market cache daily 6am AEST, sold cache weekly Mon 5am AEST, Firecrawl sold daily 7am AEST',
+    lastAgentScrapeTime,
+    lastAgentScrapeResult,
+    agentScrapeCount,
+    schedule: '*/5 * * * * (inbox), */15 * * * * (nurture), 0 20 * * * (daily cache), 0 19 * * 0 (weekly sold), 0 21 * * * (firecrawl sold), 0 22 * * * (agent scrape)',
+    description: 'Inbox every 5 min, nurture every 15 min, on-market cache daily 6am AEST, sold cache weekly Mon 5am AEST, Firecrawl sold daily 7am AEST, agent scrape daily 8am AEST',
   }
 }
