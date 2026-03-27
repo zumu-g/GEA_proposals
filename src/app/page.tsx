@@ -639,6 +639,7 @@ export default function HomePage() {
       formData={wizardFormData}
       onRestoreDraft={handleRestoreDraft}
       onComplete={handleSubmit}
+      onStartOver={resetForm}
     >
       {currentStep === 0 && (
         <ClientDetailsStep

@@ -28,6 +28,8 @@ interface WizardLayoutProps {
   formData?: Record<string, unknown>
   /** Called when draft is restored from localStorage */
   onRestoreDraft?: (data: { step: number; formData: Record<string, unknown> }) => void
+  /** Called when user clicks "start over" — resets the entire form */
+  onStartOver?: () => void
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -266,6 +268,7 @@ export function WizardLayout({
   onComplete,
   formData,
   onRestoreDraft,
+  onStartOver,
 }: WizardLayoutProps) {
   const prefersReducedMotion = useReducedMotion()
   const contentRef = useRef<HTMLDivElement>(null)
@@ -480,6 +483,23 @@ export function WizardLayout({
                 transition={{ duration: 0.4, ease: 'easeInOut' }}
               />
             </div>
+            {onStartOver && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm('Start a new proposal? All unsaved changes will be lost.')) {
+                    clearDraft(storageKey)
+                    onStartOver()
+                  }
+                }}
+                className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5 transition-all text-xs"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                new proposal
+              </button>
+            )}
           </div>
         </aside>
 
