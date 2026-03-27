@@ -88,6 +88,12 @@ function formatDistance(km: number): string {
   return `${km.toFixed(1)}km`
 }
 
+function extractStreetName(address: string): string {
+  // Extract street name without number: "14 Casey Dr, Berwick" → "casey dr"
+  const street = address.split(',')[0]?.trim() || ''
+  return street.replace(/^\d+[a-zA-Z]?\s+/, '').toLowerCase().trim()
+}
+
 function extractSuburb(address: string): string {
   const commaMatch = address.match(/,\s*([A-Za-z\s]+?)(?:\s+[A-Z]{2,3}\s+\d{4})\s*$/)
   if (commaMatch) return commaMatch[1].trim()
@@ -247,10 +253,14 @@ export default function SoldPropertiesStep({
     }
   }, [confirmedAddress, subjectLat, subjectLng])
 
-  // ─── Auto-confirm address on mount ────────────────────────────────────
+  // ─── Auto-confirm address on mount and auto-search ────────────────────
   useEffect(() => {
     if (propertyAddress && isCompleteAddress(propertyAddress) && !confirmedAddress) {
       setConfirmedAddress(propertyAddress)
+      // Auto-search if we have no results yet
+      if (rawComps.length === 0 && !hasSearchedRef.current) {
+        setTimeout(() => searchComparables(propertyAddress), 100)
+      }
     } else if (propertyAddress && !confirmedAddress) {
       setAddressInput(propertyAddress)
     }
@@ -372,7 +382,20 @@ export default function SoldPropertiesStep({
         return true
       })
 
+      // Extract subject street for same-street prioritisation
+      const subjectStreet = confirmedAddress ? extractStreetName(confirmedAddress) : ''
+
       filteredSold.sort((a: any, b: any) => {
+        // Always prioritise same-street properties
+        if (subjectStreet && sortBy === 'distance-asc') {
+          const aStreet = extractStreetName(a.address || '')
+          const bStreet = extractStreetName(b.address || '')
+          const aMatch = aStreet === subjectStreet
+          const bMatch = bStreet === subjectStreet
+          if (aMatch && !bMatch) return -1
+          if (!aMatch && bMatch) return 1
+        }
+
         switch (sortBy) {
           case 'distance-asc':
             if (sLat && sLng) {
@@ -441,7 +464,7 @@ export default function SoldPropertiesStep({
         )
       }
     },
-    [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, soldWithin, dateFrom, dateTo, sortBy, subjectLat, subjectLng]
+    [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, soldWithin, dateFrom, dateTo, sortBy, subjectLat, subjectLng, confirmedAddress]
   )
 
   // Re-apply filters when filter values change
@@ -475,8 +498,31 @@ export default function SoldPropertiesStep({
           return
         }
 
-        const sold = soldData.sales || []
-        const src = soldData.source || ''
+        let sold = soldData.sales || []
+        let src = soldData.source || ''
+
+        // ── If no results, try on-demand scrape for this suburb ──
+        if (sold.length === 0) {
+          setStatusMessage('No local data — scraping realestate.com.au...')
+          try {
+            const scrapeRes = await fetch('/api/scrape-sold', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ suburb, pages: 3 }),
+            })
+            const scrapeData = await scrapeRes.json()
+            if (scrapeData.stored > 0) {
+              // Re-fetch from local DB now that we have data
+              const retryRes = await fetch(`/api/comparables?address=${encodeURIComponent(suburb)}`)
+              const retryData = await retryRes.json()
+              sold = retryData.sales || []
+              src = retryData.source || 'local-db'
+              setStatusMessage(`Scraped ${scrapeData.stored} properties for ${suburb}`)
+            }
+          } catch {
+            console.warn('[SoldPropertiesStep] On-demand scrape failed')
+          }
+        }
 
         // ── Geocode subject property (collect result without setting state yet) ──
         let geoLat: number | null = subjectLat
