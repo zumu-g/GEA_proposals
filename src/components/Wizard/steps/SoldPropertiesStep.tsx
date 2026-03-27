@@ -434,7 +434,7 @@ export default function SoldPropertiesStep({
             propertyType: s.propertyType || 'House',
             url: s.url || '',
             imageUrl: s.imageUrl || '',
-            included: !excludedSoldRef.current.has(addr),
+            included: false,
             distance: dist,
             lat: s.lat,
             lng: s.lng,
