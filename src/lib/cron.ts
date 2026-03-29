@@ -20,6 +20,7 @@ import { pollInbox } from './email-intake'
 import { processDueTouchpoints } from './nurture'
 import { runDailyCacheRefresh, runWeeklySoldRefresh, runDailyFirecrawlRefresh } from './cache-refresh'
 import { runAgentScrape } from './agent-scraper'
+import { runDailyOnMarketScrape } from './onmarket-scraper'
 
 let inboxTask: cron.ScheduledTask | null = null
 let nurtureTask: cron.ScheduledTask | null = null
@@ -27,6 +28,7 @@ let dailyCacheTask: cron.ScheduledTask | null = null
 let weeklySoldTask: cron.ScheduledTask | null = null
 let firecrawlSoldTask: cron.ScheduledTask | null = null
 let agentScrapeTask: cron.ScheduledTask | null = null
+let onMarketScrapeTask: cron.ScheduledTask | null = null
 let running = false
 let lastPollTime: string | null = null
 let lastPollResult: { processed: number; errors: number } | null = null
@@ -40,12 +42,15 @@ let lastFirecrawlSoldTime: string | null = null
 let lastFirecrawlSoldResult: { status: string } | null = null
 let lastAgentScrapeTime: string | null = null
 let lastAgentScrapeResult: { scraped: number; newStored: number } | null = null
+let lastOnMarketScrapeTime: string | null = null
+let lastOnMarketScrapeResult: { scraped: number; stored: number } | null = null
 let pollCount = 0
 let nurtureCount = 0
 let dailyCacheCount = 0
 let weeklySoldCount = 0
 let firecrawlSoldCount = 0
 let agentScrapeCount = 0
+let onMarketScrapeCount = 0
 
 function timestamp(): string {
   return new Date().toISOString()
@@ -214,6 +219,33 @@ async function executeAgentScrape(): Promise<void> {
   }
 }
 
+async function executeOnMarketScrape(): Promise<void> {
+  const start = Date.now()
+  console.log(`[${timestamp()}] [cron] Running daily on-market listings scrape (Apify)...`)
+
+  try {
+    const result = await runDailyOnMarketScrape()
+    const elapsed = Date.now() - start
+    lastOnMarketScrapeTime = timestamp()
+    lastOnMarketScrapeResult = { scraped: result.totalScraped, stored: result.stored }
+    onMarketScrapeCount++
+
+    console.log(
+      `[${lastOnMarketScrapeTime}] [cron] On-market scrape #${onMarketScrapeCount} complete in ${elapsed}ms — ` +
+        `${result.totalScraped} scraped, ${result.stored} stored`
+    )
+  } catch (err) {
+    lastOnMarketScrapeTime = timestamp()
+    lastOnMarketScrapeResult = { scraped: 0, stored: 0 }
+    onMarketScrapeCount++
+
+    console.error(
+      `[${lastOnMarketScrapeTime}] [cron] On-market scrape #${onMarketScrapeCount} failed:`,
+      err instanceof Error ? err.message : err
+    )
+  }
+}
+
 /**
  * Start the cron scheduler. Idempotent — calling twice is safe.
  */
@@ -253,11 +285,17 @@ export function startCron(): void {
     executeAgentScrape()
   })
 
+  // Schedule: daily on-market scrape via Apify — 9:00 AM AEST (23:00 UTC previous day)
+  onMarketScrapeTask = cron.schedule('0 23 * * *', () => {
+    executeOnMarketScrape()
+  })
+
   running = true
   console.log(
     `[${timestamp()}] [cron] Started — inbox every 5 min, nurture every 15 min, ` +
       `on-market cache daily 6am AEST, sold cache weekly Mon 5am AEST, ` +
-      `Firecrawl sold daily 7am AEST, agent scrape daily 8am AEST`
+      `Firecrawl sold daily 7am AEST, agent scrape daily 8am AEST, ` +
+      `on-market Apify daily 9am AEST`
   )
 }
 
@@ -289,6 +327,10 @@ export function stopCron(): void {
     agentScrapeTask.stop()
     agentScrapeTask = null
   }
+  if (onMarketScrapeTask) {
+    onMarketScrapeTask.stop()
+    onMarketScrapeTask = null
+  }
   running = false
   console.log(`[${timestamp()}] [cron] Stopped`)
 }
@@ -317,7 +359,10 @@ export function getCronStatus() {
     lastAgentScrapeTime,
     lastAgentScrapeResult,
     agentScrapeCount,
-    schedule: '*/5 * * * * (inbox), */15 * * * * (nurture), 0 20 * * * (daily cache), 0 19 * * 0 (weekly sold), 0 21 * * * (firecrawl sold), 0 22 * * * (agent scrape)',
-    description: 'Inbox every 5 min, nurture every 15 min, on-market cache daily 6am AEST, sold cache weekly Mon 5am AEST, Firecrawl sold daily 7am AEST, agent scrape daily 8am AEST',
+    lastOnMarketScrapeTime,
+    lastOnMarketScrapeResult,
+    onMarketScrapeCount,
+    schedule: '*/5 (inbox), */15 (nurture), 6am (cache), Mon 5am (sold), 7am (firecrawl), 8am (agents), 9am (on-market)',
+    description: 'Inbox every 5 min, nurture every 15 min, on-market cache daily 6am AEST, sold cache weekly Mon 5am AEST, Firecrawl sold daily 7am AEST, agent scrape daily 8am AEST, on-market Apify daily 9am AEST',
   }
 }
