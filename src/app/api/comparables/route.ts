@@ -190,15 +190,22 @@ export async function GET(request: Request) {
       )
     }
 
-    // ── Step 0: Try local sold_properties DB first (Firecrawl data, freshest) ──
-    if (!refresh && listingType === 'sold' && getSoldPropertiesBySuburbs) {
+    // ── Step 0: Try local sold_properties DB first (Firecrawl/Apify data, freshest) ──
+    if (!refresh && getSoldPropertiesBySuburbs) {
       try {
         const neighbors = NEIGHBORING_SUBURBS[suburb] || []
         const allSuburbs = [suburb, ...neighbors]
-        const localSales = getSoldPropertiesBySuburbs(allSuburbs)
+        let localSales = getSoldPropertiesBySuburbs(allSuburbs)
 
-        if (localSales.length >= 5) {
-          console.log(`[api/comparables] Local DB HIT for ${suburb} — ${localSales.length} sold properties`)
+        // Filter by type: sold (has date) vs buy (no date = on-market)
+        if (type === 'buy') {
+          localSales = localSales.filter((s: any) => !s.soldDate && !s.sold_date)
+        } else {
+          localSales = localSales.filter((s: any) => s.soldDate || s.sold_date)
+        }
+
+        if (localSales.length >= 1) {
+          console.log(`[api/comparables] Local DB HIT for ${suburb} (${type}) — ${localSales.length} properties`)
           return NextResponse.json({
             address,
             type,
@@ -206,6 +213,7 @@ export async function GET(request: Request) {
             sales: localSales.map((s: any) => ({
               address: s.address,
               price: s.price,
+              askingPrice: type === 'buy' && s.price ? `$${Number(s.price).toLocaleString()}` : undefined,
               date: s.soldDate || s.sold_date || '',
               bedrooms: s.bedrooms || 0,
               bathrooms: s.bathrooms || 0,
