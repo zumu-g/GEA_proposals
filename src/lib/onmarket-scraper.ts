@@ -53,21 +53,28 @@ async function scrapeSuburbViaApify(suburb: string, postcode: string): Promise<S
     const data = await res.json()
     if (!Array.isArray(data)) return []
 
-    return data.map((item: any) => ({
-      address: item.address || item.fullAddress || item.streetAddress || '',
-      suburb,
-      state: 'vic',
-      postcode,
-      price: parseInt(String(item.price || '0').replace(/[^0-9]/g, '')) || 0,
-      bedrooms: item.bedrooms || item.beds || 0,
-      bathrooms: item.bathrooms || item.baths || 0,
-      carSpaces: item.carSpaces || item.cars || item.parking || 0,
-      propertyType: item.propertyType || item.type || 'House',
-      soldDate: '', // empty = on-market listing
-      url: item.url || item.link || '',
-      imageUrl: item.mainImage || item.imageUrl || item.headerImage || '',
-      source: 'realestate.com.au' as const,
-    }))
+    return data.map((item: any) => {
+      // Parse price: extract first number from ranges like "$630,000 - $690,000"
+      const priceStr = String(item.price || '0')
+      const firstNum = priceStr.match(/\$?([\d,]+)/)
+      const price = firstNum ? parseInt(firstNum[1].replace(/,/g, '')) || 0 : 0
+
+      return {
+        address: item.address || item.fullAddress || item.streetAddress || '',
+        suburb,
+        state: 'vic',
+        postcode,
+        price,
+        bedrooms: item.bedrooms || item.beds || 0,
+        bathrooms: item.bathrooms || item.baths || 0,
+        carSpaces: item.carSpaces || item.cars || item.parking || 0,
+        propertyType: item.propertyType || item.type || 'House',
+        soldDate: '', // empty = on-market listing
+        url: item.url || item.link || '',
+        imageUrl: item.mainImage || item.imageUrl || item.headerImage || '',
+        source: 'realestate.com.au' as const,
+      }
+    })
   } catch (err) {
     console.error(`[onmarket-scraper] Apify error for ${suburb}:`, err instanceof Error ? err.message : err)
     return []

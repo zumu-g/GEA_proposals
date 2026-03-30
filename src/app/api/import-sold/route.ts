@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
     const db = getDb()
     const insert = db.prepare(`
-      INSERT OR IGNORE INTO sold_properties
+      INSERT OR REPLACE INTO sold_properties
         (address, suburb, state, postcode, price, bedrooms, bathrooms, car_spaces,
          property_type, sold_date, url, image_url, lat, lng, land_size, source, scraped_at)
       VALUES
@@ -50,7 +50,6 @@ export async function POST(request: NextRequest) {
 
     const stored = insertMany(properties)
 
-    // Get total count
     const total = db.prepare('SELECT COUNT(*) as count FROM sold_properties').get() as { count: number }
 
     return NextResponse.json({
@@ -64,5 +63,26 @@ export async function POST(request: NextRequest) {
       { error: err instanceof Error ? err.message : 'Import failed' },
       { status: 500 },
     )
+  }
+}
+
+/**
+ * DELETE /api/import-sold?type=onmarket
+ * Delete on-market listings (empty sold_date) to allow re-import with fixed data.
+ */
+export async function DELETE(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+  const type = searchParams.get('type')
+
+  if (type !== 'onmarket') {
+    return NextResponse.json({ error: 'Only type=onmarket deletion supported' }, { status: 400 })
+  }
+
+  try {
+    const db = getDb()
+    const result = db.prepare("DELETE FROM sold_properties WHERE sold_date = '' OR sold_date IS NULL").run()
+    return NextResponse.json({ deleted: result.changes })
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Delete failed' }, { status: 500 })
   }
 }

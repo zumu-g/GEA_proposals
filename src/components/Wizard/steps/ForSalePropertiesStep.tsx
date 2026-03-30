@@ -50,6 +50,17 @@ export function getForSaleWarning(onMarket: ComparableRow[]): string | null {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function fmtPrice(val: string): string {
+  if (!val) return ''
+  // If it already looks formatted (contains $ and commas), return as-is
+  if (val.includes('$') && val.includes(',')) return val
+  // Handle price ranges like "649000 - 699000" or "649000-699000"
+  const rangeMatch = val.match(/(\d+)\s*[-–]\s*(\d+)/)
+  if (rangeMatch) {
+    const low = parseInt(rangeMatch[1])
+    const high = parseInt(rangeMatch[2])
+    if (low && high) return `$${low.toLocaleString()} - $${high.toLocaleString()}`
+  }
+  // Single number
   const num = parseInt(val.replace(/[^0-9]/g, ''))
   return num ? `$${num.toLocaleString()}` : val
 }
