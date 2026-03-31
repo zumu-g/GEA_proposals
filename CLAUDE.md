@@ -1,121 +1,137 @@
 # GEA Proposals - Project Instructions
 
 ## What This Is
-Estate agency proposal system for Grant Estate Agents. Creates shareable luxury proposal pages for property vendors. Email a brief to `newproposal@agentmail.to` and the system auto-generates a proposal with comparable sales.
+Estate agency proposal system for Grant's Estate Agents. Creates shareable luxury proposal pages for property vendors. Multi-step wizard to build proposals with comparable sales, marketing plans, and fee structures.
 
-**Stack:** Next.js 14 + TypeScript + Tailwind + Framer Motion + SQLite + AgentMail + Firecrawl
+**Live site:** https://proposalto.com (Railway deployment)
+**Stack:** Next.js 14 + TypeScript + Tailwind + Framer Motion + SQLite + AgentMail + Firecrawl + Apify
 
-## Current Priority: Phase 6 - Pipeline & Nurture System
+## Authentication
+- Simple password gate: email + password (`grants` default, configurable via `AUTH_PASSWORD` env var)
+- Cookie-based session (30 days), stored email for identification
+- Protected routes: `/` (wizard), `/dashboard`, `/edit/*`, `/api/dashboard`, `/api/proposals`
+- Public routes: `/proposal/[id]` (client-facing), `/login`, `/api/comparables`, `/api/geocode`
+- CDN cache bypass: middleware sets `Cache-Control: private, no-store` on protected pages
 
-### Done:
-- SQLite database (replaced JSON files) — tables: proposals, activities, nurture_plans, nurture_touchpoints, sold_properties
-- AgentMail email intake — polls `newproposal@agentmail.to`, parses brief, creates proposals
-- **Sold properties DB** — Firecrawl scrapes realestate.com.au sold listings, stores in SQLite with geocoded lat/lng. 14 suburbs, 700+ properties. Daily cron refresh at 7am AEST
-- **Address autocomplete** — VIC-only suggestions from realestate.com.au suggest API with debounced dropdown
-- **Geocoding** — Nominatim (OpenStreetMap) with AU street abbreviation expansion + suburb fallback
-- **Property hero images** — Firecrawl scrapes REA property pages, alt-text matching for correct property photos
-- **Distance from subject** — actual property geocoding (not first comparable's coords), haversine distance calculation
-- **Neighboring suburb search** — comparable sales search includes 3 adjacent suburbs for wider coverage
-- Cron auto-polling every 5 mins (node-cron + Next.js instrumentation)
-- Pipeline dashboard at `/dashboard` — kanban board, stats, activity log
-- API routes for poll-inbox, cron control, comparables lookup, dashboard data, geocoding, scraping
+## Wizard Steps
+1. **Client Details** — name, email, property address (VIC autocomplete)
+2. **Property & Sale** — hero image (auto-fetched from REA), method of sale, price guide, commission
+3. **Marketing** — campaign items with costs
+4. **Sold Properties** — auto-searches comparable sales by suburb + neighbors, distance filtering, same-street priority
+5. **For Sale Properties** — on-market listings from REA via Apify
+6. **Review & Generate** — preview and create proposal
 
-### TODO:
-- AI nurture engine (Claude API for follow-up emails/call reminders)
-- Agent notifications (view alerts, call due reminders)
-- Proposal editing (admin UI to modify before sending)
-- Property images from property.com.au (better coverage for some properties)
-- Batch geocoding for properties without coords
+## Data Pipeline
+### Sold Properties
+1. **Primary: Local SQLite** (`sold_properties` table) — 2,900+ properties, 42 suburbs, all geocoded
+2. **Scraping: Firecrawl** — REA sold listings with bed/bath/car extraction (case-insensitive aria-label matching)
+3. **Scraping: Apify** — REA scraper actor for on-market listings (more reliable than Firecrawl for buy pages)
+4. **On-demand scrape** — if suburb has no data, auto-triggers Firecrawl scrape from step 4
+5. **Distance**: client-side haversine from geocoded subject property (suburb centroid fallback for newer estates)
+6. **Neighboring suburbs**: `NEIGHBORING_SUBURBS` map in comparables-lookup.ts (42 suburbs)
 
-## Email-to-Proposal Workflow
-1. Email `newproposal@agentmail.to` with brief (see format below)
-2. Cron polls every 5 mins (or hit `GET /api/poll-inbox`)
-3. System parses email, looks up comparable sales, creates proposal
-4. Auto-replies with proposal link
-5. Monitor on `/dashboard`
+### On-Market Listings
+1. **Primary: Local SQLite** — stored in `sold_properties` with empty `sold_date` (filtered by `type=buy`)
+2. **Scraping: Apify** — REA buy listings, 30 per suburb, price extracted as first number from ranges
+3. **Fallback: Firecrawl** — REA buy page scrape (rate-limited)
 
-### Email Format:
+### Property Images
+- Firecrawl scrapes REA property history page
+- Strategy 1: alt-text matching for subject property photo (800x600)
+- Strategy 2: `/main.jpg` at 800x600 only
+- Filters out: agent headshots (100x100), nearby property thumbnails (250x250), SVGs
+
+## Cron Jobs (7 jobs)
+- **Inbox poll**: every 5 mins — checks AgentMail for new proposal emails
+- **Nurture**: every 15 mins — processes nurture touchpoints
+- **On-market cache**: daily 6am AEST — refreshes for-sale listings (homely, legacy)
+- **Sold cache**: weekly Mon 5am AEST — refreshes homely sold data
+- **Firecrawl sold**: daily 7am AEST — scrapes REA sold listings (6 suburbs/day, rotating weekly)
+- **Agent scrape**: daily 8am AEST — scrapes agent suburb sold listings
+- **On-market Apify**: daily 9am AEST — scrapes REA buy listings via Apify (6 suburbs/day, rotating)
+
+## Approval Emails
+When a client approves a proposal, two emails are sent:
+1. **Agent email** — comprehensive details: client info, price guide, commission, marketing campaign table, advertising schedule, comparable sales table
+2. **Client confirmation** — thank you with agreed terms summary, marketing items, agent contact details
+
+## Local Agent Registry (15 agencies)
+Tracked in `src/lib/agent-scraper.ts`:
+Ray White (5 offices), Barry Plant (3), OBrien (4), Harcourts (3), First National Neilson Partners (3), Fletchers (2), LJ Hooker (3), YPA, Area Specialist, Stockdale & Leggo (2), KR Peters, Century 21, Uphill, Pioneer, Keen Real Estate
+
+## Environment Variables
 ```
-Subject: New Proposal - 42 Smith St, Brighton VIC 3186
-
-Client: Tom & Lisa Chen
-Email: tom.chen@example.com
-Address: 42 Smith St, Brighton VIC 3186
-Price Guide: $2,200,000 - $2,400,000
-Method: Auction
-Commission: 1.8%
-Marketing Budget: $12,000
-```
-Optionally attach a CSV of comparable sales (overrides auto-lookup).
-
-## Dev Commands
-- `npx next dev -p 4777` — dev server (cron auto-starts)
-- `npx next build` — production build
-- `npm run migrate` — migrate JSON proposals to SQLite
-- `npm run cron` — standalone cron poller (outside Next.js)
-
-## Environment Variables (`.env`)
-```
-AGENTMAIL_API_KEY=am_us_...
+AGENTMAIL_API_KEY=am_us_...         # AgentMail email intake
 AGENTMAIL_INBOX=newproposal@agentmail.to
-NEXT_PUBLIC_BASE_URL=http://localhost:4777
-AGENCY_EMAIL=info@grantestate.com.au
-APIFY_API_TOKEN=apify_api_...          # realestate.com.au scraper (monthly limit, fallback only)
-FIRECRAWL_API_KEY=fc-...               # Firecrawl for scraping REA sold listings + property images
+NEXT_PUBLIC_BASE_URL=https://proposalto.com
+AGENCY_EMAIL=info@grantsea.com.au   # Agent notification emails
+APIFY_API_TOKEN=apify_api_...       # REA scraper (on-market listings, reliable)
+FIRECRAWL_API_KEY=fc-...            # REA sold listings + property images (rate-limited)
+AUTH_PASSWORD=grants                # Login password (default: grants)
+RESEND_API_KEY=re_...               # Resend for approval/nurture emails
+EMAIL_FROM=onboarding@resend.dev    # Email sender address
 ```
+
+## Railway Deployment
+- **URL**: https://proposalto.com (custom domain via Porkbun DNS)
+- **Railway URL**: https://geaproposals-production.up.railway.app
+- **Volume**: `/app/data` mount for SQLite persistence (5GB)
+- **Dockerfile**: Node 20 + Python for better-sqlite3 native build
+- **Note**: Volume mount overlays `data/` directory — agency-config.json has hardcoded fallback in proposal-generator.ts
+- **Note**: `data/gea.db` is gitignored — DB must be seeded via `/api/import-sold` or daily cron
 
 ## API Routes
 - `POST /api/proposals` — create proposal (FormData + CSV/Excel)
-- `GET /api/proposals` — list all | `?id=X` single
+- `GET /api/proposals` — list all | `?id=X` single (auth required)
 - `POST /api/send` — send proposal email to client
 - `POST /api/track` — record proposal view
-- `POST /api/approve` — approve proposal + notify agency
+- `POST /api/approve` — approve proposal + send emails to agent & client
 - `GET/POST /api/poll-inbox` — poll AgentMail for new proposals
-- `GET/POST /api/cron` — cron status / start / stop
-- `GET /api/comparables?address=X` — comparable sales (local-db → cache → homely)
-- `GET /api/comparables?address=X&source=local` — force local DB only
+- `GET/POST /api/cron` — cron status / start / stop (auth required)
+- `GET /api/comparables?address=X` — comparable sales (local-db → cache → scrape)
+- `GET /api/comparables?address=X&type=buy` — on-market listings
 - `GET /api/comparables?address=X&refresh=true` — force re-scrape
-- `POST /api/comparables` — lookup + save to proposal `{ proposalId }`
-- `GET /api/dashboard` — dashboard data with computed fields
-- `GET /api/address-suggest?q=X` — VIC address autocomplete from realestate.com.au
-- `GET /api/geocode?address=X` — geocode address to lat/lng via Nominatim
-- `POST /api/scrape-sold` — trigger Firecrawl scrape `{ suburb, pages }` (geocodes inline)
-- `GET /api/property-images?address=X` — fetch property photos via Firecrawl → Apify → homely
+- `GET /api/dashboard` — dashboard data (auth required)
+- `GET /api/address-suggest?q=X` — VIC address autocomplete
+- `GET /api/geocode?address=X` — geocode via Nominatim
+- `POST /api/scrape-sold` — trigger Firecrawl scrape `{ suburb, pages }`
+- `GET /api/property-images?address=X` — fetch property photos
+- `POST /api/import-sold` — bulk import sold properties (JSON array)
+- `DELETE /api/import-sold?type=onmarket` — clear on-market data for re-import
+- `POST /api/auth` — login `{ email, password }` → sets auth cookie
+- `DELETE /api/auth` — logout
 
 ## Design Palette
-- Charcoal: #1A1A1A | Gold: #C4A962 | Sage: #8B9F82 | Forest: #2D3830
+- Brand Red: #C41E2A | Charcoal: #1A1A1A | Sage: #8B9F82
 - Fonts: Playfair Display (headlines) + Inter (body)
 - Style: lowercase headlines, left-aligned, magazine/editorial feel
 
-## Data Pipeline (Comparable Sales)
-1. **Primary: Local SQLite** (`sold_properties` table) — Firecrawl-scraped REA data, geocoded
-2. **Fallback: Homely.com.au** — scrapes sold listings pages, parses Apollo cache
-3. **Fallback: Apify** — REA scraper actor (monthly limit, often exceeded)
-4. **Distance**: client-side haversine from geocoded subject property
-5. **Neighboring suburbs**: `NEIGHBORING_SUBURBS` map in comparables-lookup.ts (40 suburbs)
-6. **Cron**: daily 7am AEST refresh for active proposal suburbs
-
-## Cron Jobs
-- **Inbox poll**: every 5 mins — checks AgentMail for new proposal emails
-- **Nurture**: every 15 mins — processes nurture touchpoints
-- **On-market cache**: daily 6am AEST — refreshes for-sale listings
-- **Sold cache**: weekly Mon 5am AEST — refreshes homely sold data
-- **Firecrawl sold**: daily 7am AEST — scrapes REA sold listings for active suburbs
-
 ## Key Files
-- `/data/gea.db` — SQLite database (gitignored)
-- `/data/agency-config.json` — agency defaults
-- `/src/lib/db.ts` — database connection + schema (incl. sold_properties table)
-- `/src/lib/proposal-generator.ts` — CRUD (SQLite)
+- `/data/gea.db` — SQLite database (gitignored, seeded via API or cron)
+- `/data/agency-config.json` — agency defaults (hidden by volume mount on Railway)
+- `/middleware.ts` — auth guard + CDN cache bypass
+- `/src/lib/db.ts` — database connection + schema (auto-creates data dir)
+- `/src/lib/proposal-generator.ts` — CRUD + agency config with hardcoded fallback
+- `/src/lib/email.ts` — Resend emails: proposal, nurture, approval (agent + client)
 - `/src/lib/email-intake.ts` — AgentMail polling + proposal creation
-- `/src/lib/comparables-lookup.ts` — sold data lookup, address parser, neighboring suburbs map
-- `/src/lib/firecrawl-scraper.ts` — Firecrawl REA scraper for sold + on-market listings
+- `/src/lib/comparables-lookup.ts` — sold data lookup, address parser, 42 suburb neighbor map
+- `/src/lib/firecrawl-scraper.ts` — Firecrawl REA scraper (sold + on-market, bed/bath extraction)
 - `/src/lib/property-cache.ts` — SQLite cache layer + sold_properties CRUD
-- `/src/lib/property-image-lookup.ts` — hero image fetcher (Firecrawl → Apify → REA → domain → homely)
+- `/src/lib/property-image-lookup.ts` — hero image fetcher (agent/nearby photo filtering)
 - `/src/lib/geocoding.ts` — Nominatim geocoding with AU abbreviation expansion
-- `/src/lib/address-suggest.ts` — realestate.com.au address autocomplete
-- `/src/lib/cache-refresh.ts` — cache refresh logic + daily Firecrawl refresh
-- `/src/lib/cron.ts` — node-cron scheduler (5 jobs)
-- `/src/lib/email.ts` — Resend email integration
+- `/src/lib/address-suggest.ts` — realestate.com.au address autocomplete (VIC only)
+- `/src/lib/cache-refresh.ts` — rotating daily Firecrawl refresh (6 suburbs/day)
+- `/src/lib/agent-scraper.ts` — 15 local Casey/Cardinia agent registry + suburb scraper
+- `/src/lib/onmarket-scraper.ts` — Apify on-market scraper (6 suburbs/day rotating)
+- `/src/lib/cron.ts` — node-cron scheduler (7 jobs)
+- `/src/components/Wizard/` — multi-step proposal wizard
 - `/src/components/Proposal/` — proposal page components
 - `/src/components/Dashboard/` — pipeline dashboard components
+
+## Known Issues / TODO
+- Property images sometimes wrong — REA property history page has limited photos
+- Proposal page components still use gold color scheme in places (should be red #C41E2A)
+- ClosingStatement hardcodes agent photo path instead of using agentPhoto prop
+- Bedrooms/bathrooms all 0 in DB — Firecrawl scraper fix deployed but needs re-scrape to populate
+- On-market listings have no property images (Apify doesn't extract them)
+- Firecrawl rate limits prevent bulk scraping — use Apify for on-market, rotate Firecrawl for sold
