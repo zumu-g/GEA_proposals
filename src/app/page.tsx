@@ -127,6 +127,8 @@ export default function HomePage() {
   const [heroImage, setHeroImage] = useState<File | null>(null)
   const [heroImageUrl, setHeroImageUrl] = useState('')
   const [commission, setCommission] = useState('')
+  const [showPriceRange, setShowPriceRange] = useState(true)
+  const [showCommission, setShowCommission] = useState(true)
   const [propertyImages, setPropertyImages] = useState<PropertyImages | null>(null)
   const [selectedAutoImageUrl, setSelectedAutoImageUrl] = useState('')
   const [isFetchingImages, setIsFetchingImages] = useState(false)
@@ -281,9 +283,11 @@ export default function HomePage() {
     priceGuideMax,
     heroImageUrl,
     commission,
+    showPriceRange,
+    showCommission,
     marketingCosts,
     editingProposalId,
-  }), [clientName, clientEmail, propertyAddress, methodOfSale, priceGuideMin, priceGuideMax, heroImageUrl, commission, marketingCosts, editingProposalId])
+  }), [clientName, clientEmail, propertyAddress, methodOfSale, priceGuideMin, priceGuideMax, heroImageUrl, commission, showPriceRange, showCommission, marketingCosts, editingProposalId])
 
   const handleRestoreDraft = useCallback((data: { step: number; formData: Record<string, unknown> }) => {
     const d = data.formData
@@ -295,6 +299,8 @@ export default function HomePage() {
     if (d.priceGuideMax) setPriceGuideMax(d.priceGuideMax as string)
     if (d.heroImageUrl) setHeroImageUrl(d.heroImageUrl as string)
     if (d.commission) setCommission(d.commission as string)
+    if (d.showPriceRange !== undefined) setShowPriceRange(d.showPriceRange as boolean)
+    if (d.showCommission !== undefined) setShowCommission(d.showCommission as boolean)
     if (d.marketingCosts && Array.isArray(d.marketingCosts)) setMarketingCosts(d.marketingCosts as MarketingCostItem[])
     if (d.editingProposalId) setEditingProposalId(d.editingProposalId as string)
     setCurrentStep(data.step)
@@ -322,6 +328,8 @@ export default function HomePage() {
       setPriceGuideMin(proposal.priceGuide?.min ? String(proposal.priceGuide.min) : '')
       setPriceGuideMax(proposal.priceGuide?.max ? String(proposal.priceGuide.max) : '')
       setCommission(proposal.fees?.commissionRate ? String(proposal.fees.commissionRate) : '')
+      setShowPriceRange(proposal.showPriceRange !== false)
+      setShowCommission(proposal.showCommission !== false)
       if (proposal.heroImage) setHeroImageUrl(proposal.heroImage)
 
       // Pre-fill marketing costs
@@ -391,6 +399,8 @@ export default function HomePage() {
       setPriceGuideMin(proposal.priceGuide?.min ? String(proposal.priceGuide.min) : '')
       setPriceGuideMax(proposal.priceGuide?.max ? String(proposal.priceGuide.max) : '')
       setCommission(proposal.fees?.commissionRate ? String(proposal.fees.commissionRate) : '')
+      setShowPriceRange(proposal.showPriceRange !== false)
+      setShowCommission(proposal.showCommission !== false)
 
       if (proposal.advertisingSchedule) {
         const items: MarketingCostItem[] = []
@@ -451,6 +461,8 @@ export default function HomePage() {
     if (priceGuideMin) formData.append('priceGuideMin', priceGuideMin)
     if (priceGuideMax) formData.append('priceGuideMax', priceGuideMax)
     if (commission) formData.append('commissionRate', commission)
+    formData.append('showPriceRange', showPriceRange ? '1' : '0')
+    formData.append('showCommission', showCommission ? '1' : '0')
     if (heroImageUrl) formData.append('heroImage', heroImageUrl)
     if (heroImage) formData.append('heroImageFile', heroImage)
 
@@ -553,6 +565,8 @@ export default function HomePage() {
     setHeroImage(null)
     setHeroImageUrl('')
     setCommission('')
+    setShowPriceRange(true)
+    setShowCommission(true)
     setPropertyImages(null)
     setSelectedAutoImageUrl('')
     lastFetchedAddressRef.current = ''
@@ -580,7 +594,7 @@ export default function HomePage() {
       case 1:
         return !validatePropertySale({
           methodOfSale, priceGuideMin, priceGuideMax,
-          heroImage, heroImageUrl, commission, propertyAddress,
+          heroImage, heroImageUrl, commission, showPriceRange, showCommission, propertyAddress,
         })
       case 2:
         return !validateMarketing(marketingCosts)
@@ -610,6 +624,8 @@ export default function HomePage() {
       case 'heroImage': setHeroImage(value); break
       case 'heroImageUrl': setHeroImageUrl(value); break
       case 'commission': setCommission(value); break
+      case 'showPriceRange': setShowPriceRange(value); break
+      case 'showCommission': setShowCommission(value); break
       case 'selectedAutoImageUrl': setSelectedAutoImageUrl(value); break
     }
   }, [])
@@ -662,6 +678,8 @@ export default function HomePage() {
             heroImage,
             heroImageUrl,
             commission,
+            showPriceRange,
+            showCommission,
             propertyAddress,
           }}
           autoImages={autoImageUrls}

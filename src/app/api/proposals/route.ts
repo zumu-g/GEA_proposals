@@ -18,6 +18,8 @@ export async function POST(request: NextRequest) {
     const priceGuideMax = formData.get('priceGuideMax') as string | null
     const marketingCostsJson = formData.get('marketingCosts') as string | null
     const marketingTotalStr = formData.get('marketingTotal') as string | null
+    const showPriceRange = formData.get('showPriceRange') as string | null
+    const showCommission = formData.get('showCommission') as string | null
     const selectedCompsJson = formData.get('selectedComps') as string | null
     const selectedOnMarketJson = formData.get('selectedOnMarket') as string | null
     const comparablesHandled = formData.get('comparablesHandled') as string | null
@@ -144,6 +146,10 @@ export async function POST(request: NextRequest) {
     if (Number.isFinite(minPrice) && Number.isFinite(maxPrice) && minPrice > 0 && maxPrice > 0) {
       proposal.priceGuide = { min: minPrice, max: maxPrice }
     }
+
+    // Show/hide toggles (default true for backwards compat)
+    proposal.showPriceRange = showPriceRange !== '0'
+    proposal.showCommission = showCommission !== '0'
 
     // Add on-market listings
     if (onMarketListings && onMarketListings.length > 0) {

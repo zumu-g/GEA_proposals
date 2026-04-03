@@ -11,6 +11,8 @@ interface PropertySaleStepProps {
     heroImage: File | null
     heroImageUrl: string
     commission: string
+    showPriceRange: boolean
+    showCommission: boolean
     propertyAddress: string
   }
   autoImages: string[]
@@ -479,9 +481,26 @@ export default function PropertySaleStep({
 
       {/* ─── Price Guide ─── */}
       <motion.div {...stagger(3)} className="space-y-4">
-        <label className="block text-sm font-sans font-medium text-gray-700 lowercase">
-          price guide
-        </label>
+        <div className="flex items-center justify-between">
+          <label className="block text-sm font-sans font-medium text-gray-700 lowercase">
+            price guide
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer group">
+            <span className="text-gray-500 font-sans text-xs group-hover:text-gray-700 transition-colors">
+              show on proposal
+            </span>
+            <div className="relative">
+              <input
+                type="checkbox"
+                checked={formData.showPriceRange}
+                onChange={(e) => onChange('showPriceRange', e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 bg-gray-300 rounded-full peer-checked:bg-brand transition-colors duration-200" />
+              <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 peer-checked:translate-x-4" />
+            </div>
+          </label>
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
@@ -559,13 +578,30 @@ export default function PropertySaleStep({
         </p>
 
         <div>
-          <label
-            htmlFor="wizard-commission"
-            className="block text-sm font-sans font-medium text-gray-700 mb-2 lowercase"
-          >
-            commission rate
-            <span className="text-gray-400 text-xs ml-2">defaults to agency config</span>
-          </label>
+          <div className="flex items-center justify-between mb-2">
+            <label
+              htmlFor="wizard-commission"
+              className="block text-sm font-sans font-medium text-gray-700 lowercase"
+            >
+              commission rate
+              <span className="text-gray-400 text-xs ml-2">defaults to agency config</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer group">
+              <span className="text-gray-500 font-sans text-xs group-hover:text-gray-700 transition-colors">
+                show on proposal
+              </span>
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={formData.showCommission}
+                  onChange={(e) => onChange('showCommission', e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-gray-300 rounded-full peer-checked:bg-brand transition-colors duration-200" />
+                <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 peer-checked:translate-x-4" />
+              </div>
+            </label>
+          </div>
           <div className="relative max-w-[200px]">
             <input
               type="number"

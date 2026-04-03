@@ -47,7 +47,7 @@ export function BrandStatement({ proposal }: BrandStatementProps) {
 
         {/* Price guide and method of sale */}
         <div className="flex flex-col sm:flex-row gap-8 sm:gap-16">
-          {proposal.priceGuide && (
+          {proposal.priceGuide && proposal.showPriceRange !== false && (
             <motion.div
               initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}

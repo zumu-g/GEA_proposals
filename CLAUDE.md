@@ -15,10 +15,10 @@ Estate agency proposal system for Grant's Estate Agents. Creates shareable luxur
 
 ## Wizard Steps
 1. **Client Details** — name, email, property address (VIC autocomplete)
-2. **Property & Sale** — hero image (auto-fetched from REA), method of sale, price guide, commission
+2. **Property & Sale** — hero image (auto-fetched from REA), method of sale, price guide, commission, visibility toggles (show/hide price range & commission on proposal)
 3. **Marketing** — campaign items with costs
 4. **Sold Properties** — auto-searches comparable sales by suburb + neighbors, distance filtering, same-street priority
-5. **For Sale Properties** — on-market listings from REA via Apify
+5. **For Sale Properties** — on-market listings from REA via Apify, with filters (distance, price, beds, baths, type, suburb, days listed), select all/deselect all, default unselected
 6. **Review & Generate** — preview and create proposal
 
 ## Data Pipeline
@@ -127,6 +127,21 @@ EMAIL_FROM=onboarding@resend.dev    # Email sender address
 - `/src/components/Wizard/` — multi-step proposal wizard
 - `/src/components/Proposal/` — proposal page components
 - `/src/components/Dashboard/` — pipeline dashboard components
+
+## Proposal Visibility Controls
+- `show_price_range` (INTEGER, default 1) — toggle in wizard step 2 to show/hide price guide on client-facing proposal
+- `show_commission` (INTEGER, default 1) — toggle in wizard step 2 to show/hide commission rate on client-facing proposal
+- Both stored as DB columns on `proposals` table, migrated via ALTER TABLE for existing DBs
+- Proposal page: BrandStatement respects `showPriceRange`, FeeStructureVisual accepts `showCommission` prop
+- Commission is always stored internally (for approval emails, dashboard) regardless of visibility toggle
+
+## On-Market Listings Filters
+- **Distance**: primary pill filter (500m, 1km, 2km, 5km, 10km, Any)
+- **Secondary filters** (collapsible): min/max price, bedrooms, bathrooms, property type, suburb text search, listed within (7d–6mo)
+- **Select all / Deselect all** buttons in results header
+- **Default**: listings start unselected — user picks which to include
+- **Days on market**: shown as blue badge on each listing card when available from API
+- Filters stored as component-local state, applied client-side against raw API results
 
 ## Known Issues / TODO
 - Property images sometimes wrong — REA property history page has limited photos

@@ -123,7 +123,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
         />
 
         {/* Fee structure */}
-        <FeeStructureVisual fees={proposal.fees} />
+        <FeeStructureVisual fees={proposal.fees} showCommission={proposal.showCommission !== false} />
 
         {/* Personal closing statement */}
         <ClosingStatement

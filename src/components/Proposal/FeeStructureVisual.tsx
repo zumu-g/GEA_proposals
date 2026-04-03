@@ -15,9 +15,10 @@ const DEFAULT_INCLUSIONS = [
 
 interface FeeStructureVisualProps {
   fees?: FeeInfo
+  showCommission?: boolean
 }
 
-export function FeeStructureVisual({ fees }: FeeStructureVisualProps) {
+export function FeeStructureVisual({ fees, showCommission = true }: FeeStructureVisualProps) {
   const commissionRate = fees?.commissionRate ?? 1.5
   const fixedFees = fees?.fixedFees ?? []
   const inclusions = fees?.inclusions ?? DEFAULT_INCLUSIONS
@@ -42,30 +43,32 @@ export function FeeStructureVisual({ fees }: FeeStructureVisualProps) {
             </h2>
 
             {/* Commission display — gold left border accent */}
-            <div className="bg-charcoal-700 rounded-lg border-l-4 border-gold p-8 sm:p-10 text-center">
-              <p className="text-gold font-sans text-xs tracking-[0.25em] uppercase mb-4">
-                commission
-              </p>
-              <p className="font-display text-6xl sm:text-7xl lg:text-8xl font-normal text-gold leading-none">
-                {commissionRate}%
-              </p>
-              <p className="text-white/70 font-sans text-sm font-light mt-4">
-                of the final sale price + GST
-              </p>
+            {showCommission && (
+              <div className="bg-charcoal-700 rounded-lg border-l-4 border-gold p-8 sm:p-10 text-center">
+                <p className="text-gold font-sans text-xs tracking-[0.25em] uppercase mb-4">
+                  commission
+                </p>
+                <p className="font-display text-6xl sm:text-7xl lg:text-8xl font-normal text-gold leading-none">
+                  {commissionRate}%
+                </p>
+                <p className="text-white/70 font-sans text-sm font-light mt-4">
+                  of the final sale price + GST
+                </p>
 
-              {fixedFees.length > 0 && (
-                <div className="mt-8 pt-6 border-t border-white/10">
-                  <p className="text-white/60 font-sans text-xs tracking-[0.15em] uppercase mb-3">
-                    additional
-                  </p>
-                  {fixedFees.map((fee, index) => (
-                    <p key={index} className="text-white/70 font-sans text-sm font-light">
-                      {fee}
+                {fixedFees.length > 0 && (
+                  <div className="mt-8 pt-6 border-t border-white/10">
+                    <p className="text-white/60 font-sans text-xs tracking-[0.15em] uppercase mb-3">
+                      additional
                     </p>
-                  ))}
-                </div>
-              )}
-            </div>
+                    {fixedFees.map((fee, index) => (
+                      <p key={index} className="text-white/70 font-sans text-sm font-light">
+                        {fee}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
           </motion.div>
 

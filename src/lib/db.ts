@@ -33,6 +33,8 @@ function initSchema(db: Database.Database) {
       property_images TEXT, -- JSON array
       price_guide_min INTEGER,
       price_guide_max INTEGER,
+      show_price_range INTEGER DEFAULT 1,
+      show_commission INTEGER DEFAULT 1,
       method_of_sale TEXT,
       sale_process TEXT NOT NULL, -- JSON array
       marketing_plan TEXT NOT NULL, -- JSON array
@@ -180,6 +182,8 @@ function initSchema(db: Database.Database) {
     'ALTER TABLE proposals ADD COLUMN database_info TEXT',
     'ALTER TABLE proposals ADD COLUMN internet_listings TEXT',      // JSON
     'ALTER TABLE proposals ADD COLUMN on_market_listings TEXT',     // JSON
+    'ALTER TABLE proposals ADD COLUMN show_price_range INTEGER DEFAULT 1',
+    'ALTER TABLE proposals ADD COLUMN show_commission INTEGER DEFAULT 1',
     // Nurture touchpoints — new columns for AI-generated plans
     'ALTER TABLE nurture_touchpoints ADD COLUMN day_number INTEGER NOT NULL DEFAULT 0',
     'ALTER TABLE nurture_touchpoints ADD COLUMN talking_points TEXT',

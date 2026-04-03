@@ -78,6 +78,8 @@ interface ProposalRow {
   property_images: string | null
   price_guide_min: number | null
   price_guide_max: number | null
+  show_price_range: number | null
+  show_commission: number | null
   method_of_sale: string | null
   sale_process: string
   marketing_plan: string
@@ -113,6 +115,8 @@ function rowToProposal(row: ProposalRow): Proposal {
       row.price_guide_min != null && row.price_guide_max != null
         ? { min: row.price_guide_min, max: row.price_guide_max }
         : undefined,
+    showPriceRange: row.show_price_range !== 0,
+    showCommission: row.show_commission !== 0,
     methodOfSale: row.method_of_sale || undefined,
     saleProcess: JSON.parse(row.sale_process),
     marketingPlan: JSON.parse(row.marketing_plan),
@@ -145,6 +149,8 @@ function proposalToParams(proposal: Proposal) {
     property_images: proposal.propertyImages ? JSON.stringify(proposal.propertyImages) : null,
     price_guide_min: proposal.priceGuide?.min ?? null,
     price_guide_max: proposal.priceGuide?.max ?? null,
+    show_price_range: proposal.showPriceRange === false ? 0 : 1,
+    show_commission: proposal.showCommission === false ? 0 : 1,
     method_of_sale: proposal.methodOfSale || null,
     sale_process: JSON.stringify(proposal.saleProcess),
     marketing_plan: JSON.stringify(proposal.marketingPlan),
@@ -174,13 +180,13 @@ export async function saveProposal(proposal: Proposal): Promise<void> {
 
   const stmt = db.prepare(`
     INSERT INTO proposals (id, client_name, client_email, property_address, proposal_date,
-      hero_image, property_images, price_guide_min, price_guide_max, method_of_sale,
+      hero_image, property_images, price_guide_min, price_guide_max, show_price_range, show_commission, method_of_sale,
       sale_process, marketing_plan, recent_sales, fees, agency,
       advertising_schedule, total_advertising_cost, area_analysis, team_members,
       marketing_approach, database_info, internet_listings, on_market_listings,
       status, sent_at, viewed_at, approved_at)
     VALUES (@id, @client_name, @client_email, @property_address, @proposal_date,
-      @hero_image, @property_images, @price_guide_min, @price_guide_max, @method_of_sale,
+      @hero_image, @property_images, @price_guide_min, @price_guide_max, @show_price_range, @show_commission, @method_of_sale,
       @sale_process, @marketing_plan, @recent_sales, @fees, @agency,
       @advertising_schedule, @total_advertising_cost, @area_analysis, @team_members,
       @marketing_approach, @database_info, @internet_listings, @on_market_listings,
@@ -188,7 +194,8 @@ export async function saveProposal(proposal: Proposal): Promise<void> {
     ON CONFLICT(id) DO UPDATE SET
       client_name=@client_name, client_email=@client_email, property_address=@property_address,
       proposal_date=@proposal_date, hero_image=@hero_image, property_images=@property_images,
-      price_guide_min=@price_guide_min, price_guide_max=@price_guide_max, method_of_sale=@method_of_sale,
+      price_guide_min=@price_guide_min, price_guide_max=@price_guide_max,
+      show_price_range=@show_price_range, show_commission=@show_commission, method_of_sale=@method_of_sale,
       sale_process=@sale_process, marketing_plan=@marketing_plan, recent_sales=@recent_sales,
       fees=@fees, agency=@agency,
       advertising_schedule=@advertising_schedule, total_advertising_cost=@total_advertising_cost,

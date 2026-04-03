@@ -48,6 +48,8 @@ export interface Proposal {
   heroImage?: string;
   propertyImages?: string[];
   priceGuide?: { min: number; max: number };
+  showPriceRange?: boolean;
+  showCommission?: boolean;
   methodOfSale?: string;
   saleProcess: SaleStep[];
   marketingPlan: MarketingItem[];

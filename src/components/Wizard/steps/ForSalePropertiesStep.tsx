@@ -30,6 +30,8 @@ interface InternalOnMarketRow {
   distance?: number
   lat?: number
   lng?: number
+  daysOnMarket?: number
+  suburb?: string
 }
 
 // ─── Validation ──────────────────────────────────────────────────────────────
@@ -119,7 +121,7 @@ function externalToOnMarket(row: ComparableRow): InternalOnMarketRow {
     propertyType: row.propertyType || 'House',
     url: row.url || '',
     imageUrl: row.imageUrl || '',
-    included: row.included ?? true,
+    included: row.included ?? false,
   }
 }
 
@@ -178,6 +180,8 @@ export default function ForSalePropertiesStep({
   const [bedsMin, setBedsMin] = useState('')
   const [bathsMin, setBathsMin] = useState('')
   const [propType, setPropType] = useState('')
+  const [suburbFilter, setSuburbFilter] = useState('')
+  const [daysOnMarketMax, setDaysOnMarketMax] = useState('')
   const [sortBy, setSortBy] = useState('distance-asc')
 
   // Image error tracking
@@ -186,8 +190,9 @@ export default function ForSalePropertiesStep({
   // Refresh state
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  // Exclusion tracking
+  // Inclusion/exclusion tracking
   const excludedOnMarketRef = useRef<Set<string>>(new Set())
+  const includedOnMarketRef = useRef<Set<string>>(new Set())
   const removedOnMarketRef = useRef<Set<string>>(new Set())
 
   // Manual add
@@ -233,6 +238,13 @@ export default function ForSalePropertiesStep({
           !s.propertyType.toLowerCase().includes(propType.toLowerCase())
         )
           return false
+        if (suburbFilter) {
+          const addr = (s.address || '').toLowerCase()
+          if (!addr.includes(suburbFilter.toLowerCase())) return false
+        }
+        if (daysOnMarketMax && s.daysOnMarket != null) {
+          if (s.daysOnMarket > Number(daysOnMarketMax)) return false
+        }
         return true
       })
 
@@ -274,10 +286,12 @@ export default function ForSalePropertiesStep({
             propertyType: s.propertyType || 'House',
             url: s.url || '',
             imageUrl: s.imageUrl || '',
-            included: !excludedOnMarketRef.current.has(addr),
+            included: excludedOnMarketRef.current.has(addr) ? false : (includedOnMarketRef.current.has(addr) ? true : false),
             distance: dist,
             lat: s.lat,
             lng: s.lng,
+            daysOnMarket: s.daysOnMarket ?? undefined,
+            suburb: extractSuburb(addr),
           }
         })
       )
@@ -287,7 +301,7 @@ export default function ForSalePropertiesStep({
         `Found ${buyCount} on-market listings${buyCount < onMarket.length ? ` (from ${onMarket.length})` : ''}`
       )
     },
-    [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, sortBy, subjectLat, subjectLng]
+    [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, suburbFilter, daysOnMarketMax, sortBy, subjectLat, subjectLng]
   )
 
   // Re-apply filters when filter values change
@@ -295,7 +309,7 @@ export default function ForSalePropertiesStep({
     if (rawOnMarket.length > 0) {
       applyFilters(rawOnMarket)
     }
-  }, [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, sortBy, subjectLat, subjectLng, rawOnMarket, applyFilters])
+  }, [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, suburbFilter, daysOnMarketMax, sortBy, subjectLat, subjectLng, rawOnMarket, applyFilters])
 
   // ─── Search function ──────────────────────────────────────────────────
   const searchListings = useCallback(
@@ -308,6 +322,7 @@ export default function ForSalePropertiesStep({
       setIsSearching(true)
       setStatusMessage('Searching...')
       excludedOnMarketRef.current.clear()
+      includedOnMarketRef.current.clear()
       removedOnMarketRef.current.clear()
 
       try {
@@ -355,6 +370,7 @@ export default function ForSalePropertiesStep({
     setIsRefreshing(true)
     setStatusMessage('Refreshing from homely...')
     excludedOnMarketRef.current.clear()
+    includedOnMarketRef.current.clear()
     removedOnMarketRef.current.clear()
 
     try {
@@ -406,8 +422,10 @@ export default function ForSalePropertiesStep({
         if (field === 'included') {
           if (!value) {
             excludedOnMarketRef.current.add(r.address)
+            includedOnMarketRef.current.delete(r.address)
           } else {
             excludedOnMarketRef.current.delete(r.address)
+            includedOnMarketRef.current.add(r.address)
           }
         }
         return updated
@@ -456,7 +474,7 @@ export default function ForSalePropertiesStep({
   // ─── Counts ───────────────────────────────────────────────────────────
   const selectedOnMarketCount = onMarketRows.filter(r => r.included && r.address.trim()).length
 
-  const hasActiveFilters = !!(priceMin || priceMax || bedsMin || bathsMin || propType)
+  const hasActiveFilters = !!(priceMin || priceMax || bedsMin || bathsMin || propType || suburbFilter || daysOnMarketMax)
 
   // ─── Animation ────────────────────────────────────────────────────────
   const fadeUp = prefersReducedMotion
@@ -637,6 +655,8 @@ export default function ForSalePropertiesStep({
                       setBedsMin('')
                       setBathsMin('')
                       setPropType('')
+                      setSuburbFilter('')
+                      setDaysOnMarketMax('')
                     }}
                     className="text-gray-400 hover:text-gray-600 font-sans text-xs transition-colors"
                   >
@@ -655,7 +675,7 @@ export default function ForSalePropertiesStep({
                     transition={{ duration: 0.3, ease: 'easeOut' }}
                     className="overflow-hidden"
                   >
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mt-3">
                       <div>
                         <label className={labelClasses}>min price</label>
                         <div className="relative">
@@ -724,6 +744,32 @@ export default function ForSalePropertiesStep({
                           <option value="land">Land</option>
                         </select>
                       </div>
+                      <div>
+                        <label className={labelClasses}>suburb</label>
+                        <input
+                          type="text"
+                          value={suburbFilter}
+                          onChange={e => setSuburbFilter(e.target.value)}
+                          className={inputClasses}
+                          placeholder="Any"
+                        />
+                      </div>
+                      <div>
+                        <label className={labelClasses}>listed within</label>
+                        <select
+                          value={daysOnMarketMax}
+                          onChange={e => setDaysOnMarketMax(e.target.value)}
+                          className={selectClasses}
+                        >
+                          <option value="">Any time</option>
+                          <option value="7">7 days</option>
+                          <option value="14">14 days</option>
+                          <option value="30">30 days</option>
+                          <option value="60">60 days</option>
+                          <option value="90">90 days</option>
+                          <option value="180">6 months</option>
+                        </select>
+                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -773,7 +819,7 @@ export default function ForSalePropertiesStep({
 
           {/* ═══════ ON-MARKET RESULTS ═══════ */}
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <div className="px-5 py-3.5 border-b border-gray-200 bg-gray-50">
+            <div className="px-5 py-3.5 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
               <span className="flex items-center gap-2 font-sans text-sm font-medium text-gray-900">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l1.189-1.19A1.5 1.5 0 0 1 5.378 3h13.243a1.5 1.5 0 0 1 1.06.44l1.19 1.189a3 3 0 0 1-.621 4.72M6.75 18h3.75a.75.75 0 0 0 .75-.75V13.5a.75.75 0 0 0-.75-.75H6.75a.75.75 0 0 0-.75.75v3.75c0 .414.336.75.75.75Z" />
@@ -785,6 +831,36 @@ export default function ForSalePropertiesStep({
                   </span>
                 )}
               </span>
+              {onMarketRows.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOnMarketRows(prev => prev.map(r => {
+                        includedOnMarketRef.current.add(r.address)
+                        excludedOnMarketRef.current.delete(r.address)
+                        return { ...r, included: true }
+                      }))
+                    }}
+                    className="px-2.5 py-1 rounded-md text-emerald-600 hover:bg-emerald-50 font-sans text-[10px] font-medium transition-colors"
+                  >
+                    select all
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOnMarketRows(prev => prev.map(r => {
+                        excludedOnMarketRef.current.add(r.address)
+                        includedOnMarketRef.current.delete(r.address)
+                        return { ...r, included: false }
+                      }))
+                    }}
+                    className="px-2.5 py-1 rounded-md text-gray-500 hover:bg-gray-100 font-sans text-[10px] font-medium transition-colors"
+                  >
+                    deselect all
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="p-5">
@@ -919,6 +995,11 @@ export default function ForSalePropertiesStep({
                               <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600/70 font-sans text-[10px] font-medium">
                                 on market
                               </span>
+                              {row.daysOnMarket != null && row.daysOnMarket > 0 && (
+                                <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-600/70 font-sans text-[10px] font-medium">
+                                  {row.daysOnMarket}d listed
+                                </span>
+                              )}
                             </div>
                         </div>
                       </div>
