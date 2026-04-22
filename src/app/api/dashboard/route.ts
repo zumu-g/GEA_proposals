@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
+import { startCron, getCronStatus } from '@/lib/cron'
 
 interface ProposalRow {
   id: string
@@ -68,6 +69,7 @@ function computeDaysInStage(row: ProposalRow): number {
 }
 
 export async function GET() {
+  if (!getCronStatus().running) startCron()
   try {
     const db = getDb()
 

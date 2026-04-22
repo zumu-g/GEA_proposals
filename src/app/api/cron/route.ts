@@ -3,8 +3,13 @@ import { startCron, stopCron, getCronStatus } from '@/lib/cron'
 
 /**
  * GET /api/cron — returns cron status (running, last poll, poll count)
+ * Auto-starts the cron if it's not running (self-healing after server restarts).
  */
 export async function GET() {
+  const status = getCronStatus()
+  if (!status.running) {
+    startCron()
+  }
   return NextResponse.json(getCronStatus())
 }
 
