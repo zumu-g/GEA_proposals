@@ -159,3 +159,60 @@ export async function runDailyOnMarketScrape(): Promise<{
 
   return { totalScraped, stored: totalStored, suburbs: todaysBatch, errors }
 }
+
+/**
+ * Full reseed — scrapes ALL suburbs. Used for initial seeding or after DB reset.
+ * Processes all suburbs from SUBURB_POSTCODES with 5s gap between each.
+ */
+export async function runFullOnMarketScrape(): Promise<{
+  totalScraped: number
+  stored: number
+  suburbs: string[]
+  errors: number
+}> {
+  if (!APIFY_TOKEN) {
+    console.log('[onmarket-scraper] APIFY_API_TOKEN not set — skipping full reseed')
+    return { totalScraped: 0, stored: 0, suburbs: [], errors: 0 }
+  }
+
+  const suburbList = Object.keys(SUBURB_POSTCODES).sort()
+  console.log(`[onmarket-scraper] Full reseed — scraping all ${suburbList.length} suburbs`)
+
+  let totalScraped = 0
+  let totalStored = 0
+  let errors = 0
+  const done: string[] = []
+
+  for (let i = 0; i < suburbList.length; i++) {
+    const suburb = suburbList[i]
+    const postcode = SUBURB_POSTCODES[suburb]
+
+    try {
+      const listings = await scrapeSuburbViaApify(suburb, postcode)
+      totalScraped += listings.length
+
+      if (listings.length > 0) {
+        const stored = upsertSoldProperties(listings)
+        totalStored += stored
+        console.log(`[onmarket-scraper] ${suburb}: ${listings.length} listings, ${stored} stored`)
+      } else {
+        console.log(`[onmarket-scraper] ${suburb}: 0 listings`)
+      }
+      done.push(suburb)
+    } catch (err) {
+      console.error(`[onmarket-scraper] Error for ${suburb}:`, err instanceof Error ? err.message : err)
+      errors++
+    }
+
+    if (i < suburbList.length - 1) {
+      await new Promise(r => setTimeout(r, 5000))
+    }
+  }
+
+  console.log(
+    `[onmarket-scraper] Full reseed complete — ${totalScraped} scraped, ${totalStored} stored ` +
+    `across ${done.length} suburbs, ${errors} errors`
+  )
+
+  return { totalScraped, stored: totalStored, suburbs: done, errors }
+}

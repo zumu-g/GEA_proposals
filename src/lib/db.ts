@@ -170,6 +170,12 @@ function initSchema(db: Database.Database) {
     );
 
     CREATE INDEX IF NOT EXISTS idx_sold_suburb ON sold_properties(suburb);
+
+    CREATE TABLE IF NOT EXISTS cron_runs (
+      job TEXT PRIMARY KEY,
+      last_run_at TEXT NOT NULL,
+      last_result TEXT
+    );
   `)
 
   // Add new columns for expanded proposal sections (safe to re-run)

@@ -21,6 +21,7 @@ import { processDueTouchpoints } from './nurture'
 import { runDailyCacheRefresh, runWeeklySoldRefresh, runDailyFirecrawlRefresh } from './cache-refresh'
 import { runAgentScrape } from './agent-scraper'
 import { runDailyOnMarketScrape } from './onmarket-scraper'
+import { getDb } from './db'
 
 let inboxTask: cron.ScheduledTask | null = null
 let nurtureTask: cron.ScheduledTask | null = null
@@ -56,6 +57,36 @@ function timestamp(): string {
   return new Date().toISOString()
 }
 
+function saveCronRun(job: string, result: unknown): void {
+  try {
+    getDb().prepare(`
+      INSERT INTO cron_runs (job, last_run_at, last_result)
+      VALUES (?, datetime('now'), ?)
+      ON CONFLICT(job) DO UPDATE SET last_run_at = excluded.last_run_at, last_result = excluded.last_result
+    `).run(job, JSON.stringify(result))
+  } catch (err) {
+    console.error(`[cron] Failed to persist run state for ${job}:`, err)
+  }
+}
+
+function loadCronHistory(): Record<string, { lastRunAt: string } | null> {
+  try {
+    const rows = getDb().prepare('SELECT job, last_run_at FROM cron_runs').all() as Array<{
+      job: string; last_run_at: string
+    }>
+    const history: Record<string, { lastRunAt: string }> = {}
+    for (const row of rows) history[row.job] = { lastRunAt: row.last_run_at }
+    return history
+  } catch {
+    return {}
+  }
+}
+
+function hoursAgo(iso: string | null): number {
+  if (!iso) return Infinity
+  return (Date.now() - new Date(iso).getTime()) / 3600000
+}
+
 async function executePoll(): Promise<void> {
   const start = Date.now()
   console.log(`[${timestamp()}] [cron] Polling inbox...`)
@@ -66,6 +97,7 @@ async function executePoll(): Promise<void> {
     lastPollTime = timestamp()
     lastPollResult = { processed: result.processed, errors: result.errors }
     pollCount++
+    saveCronRun('inbox', lastPollResult)
 
     console.log(
       `[${lastPollTime}] [cron] Poll #${pollCount} complete in ${elapsed}ms — ` +
@@ -75,6 +107,7 @@ async function executePoll(): Promise<void> {
     lastPollTime = timestamp()
     lastPollResult = { processed: 0, errors: 1 }
     pollCount++
+    saveCronRun('inbox', lastPollResult)
 
     console.error(
       `[${lastPollTime}] [cron] Poll #${pollCount} failed:`,
@@ -93,6 +126,7 @@ async function executeNurture(): Promise<void> {
     lastNurtureTime = timestamp()
     lastNurtureResult = { processed: result.processed, errors: result.errors }
     nurtureCount++
+    saveCronRun('nurture', lastNurtureResult)
 
     if (result.processed > 0 || result.errors > 0) {
       console.log(
@@ -104,6 +138,7 @@ async function executeNurture(): Promise<void> {
     lastNurtureTime = timestamp()
     lastNurtureResult = { processed: 0, errors: 1 }
     nurtureCount++
+    saveCronRun('nurture', lastNurtureResult)
 
     console.error(
       `[${lastNurtureTime}] [cron] Nurture #${nurtureCount} failed:`,
@@ -122,6 +157,7 @@ async function executeDailyCacheRefresh(): Promise<void> {
     lastDailyCacheTime = timestamp()
     lastDailyCacheResult = { refreshed: result.refreshed.length, errors: result.errors.length }
     dailyCacheCount++
+    saveCronRun('daily-cache', lastDailyCacheResult)
 
     console.log(
       `[${lastDailyCacheTime}] [cron] Daily cache refresh #${dailyCacheCount} complete in ${elapsed}ms — ` +
@@ -131,6 +167,7 @@ async function executeDailyCacheRefresh(): Promise<void> {
     lastDailyCacheTime = timestamp()
     lastDailyCacheResult = { refreshed: 0, errors: 1 }
     dailyCacheCount++
+    saveCronRun('daily-cache', lastDailyCacheResult)
 
     console.error(
       `[${lastDailyCacheTime}] [cron] Daily cache refresh #${dailyCacheCount} failed:`,
@@ -149,6 +186,7 @@ async function executeWeeklySoldRefresh(): Promise<void> {
     lastWeeklySoldTime = timestamp()
     lastWeeklySoldResult = { refreshed: result.refreshed.length, errors: result.errors.length }
     weeklySoldCount++
+    saveCronRun('weekly-sold', lastWeeklySoldResult)
 
     console.log(
       `[${lastWeeklySoldTime}] [cron] Weekly sold refresh #${weeklySoldCount} complete in ${elapsed}ms — ` +
@@ -158,6 +196,7 @@ async function executeWeeklySoldRefresh(): Promise<void> {
     lastWeeklySoldTime = timestamp()
     lastWeeklySoldResult = { refreshed: 0, errors: 1 }
     weeklySoldCount++
+    saveCronRun('weekly-sold', lastWeeklySoldResult)
 
     console.error(
       `[${lastWeeklySoldTime}] [cron] Weekly sold refresh #${weeklySoldCount} failed:`,
@@ -176,6 +215,7 @@ async function executeFirecrawlSoldRefresh(): Promise<void> {
     lastFirecrawlSoldTime = timestamp()
     lastFirecrawlSoldResult = { status: 'ok' }
     firecrawlSoldCount++
+    saveCronRun('firecrawl-sold', lastFirecrawlSoldResult)
 
     console.log(
       `[${lastFirecrawlSoldTime}] [cron] Firecrawl sold refresh #${firecrawlSoldCount} complete in ${elapsed}ms`
@@ -184,6 +224,7 @@ async function executeFirecrawlSoldRefresh(): Promise<void> {
     lastFirecrawlSoldTime = timestamp()
     lastFirecrawlSoldResult = { status: 'error' }
     firecrawlSoldCount++
+    saveCronRun('firecrawl-sold', lastFirecrawlSoldResult)
 
     console.error(
       `[${lastFirecrawlSoldTime}] [cron] Firecrawl sold refresh #${firecrawlSoldCount} failed:`,
@@ -202,6 +243,7 @@ async function executeAgentScrape(): Promise<void> {
     lastAgentScrapeTime = timestamp()
     lastAgentScrapeResult = { scraped: result.totalScraped, newStored: result.newStored }
     agentScrapeCount++
+    saveCronRun('agent-scrape', lastAgentScrapeResult)
 
     console.log(
       `[${lastAgentScrapeTime}] [cron] Agent scrape #${agentScrapeCount} complete in ${elapsed}ms — ` +
@@ -211,6 +253,7 @@ async function executeAgentScrape(): Promise<void> {
     lastAgentScrapeTime = timestamp()
     lastAgentScrapeResult = { scraped: 0, newStored: 0 }
     agentScrapeCount++
+    saveCronRun('agent-scrape', lastAgentScrapeResult)
 
     console.error(
       `[${lastAgentScrapeTime}] [cron] Agent scrape #${agentScrapeCount} failed:`,
@@ -229,6 +272,7 @@ async function executeOnMarketScrape(): Promise<void> {
     lastOnMarketScrapeTime = timestamp()
     lastOnMarketScrapeResult = { scraped: result.totalScraped, stored: result.stored }
     onMarketScrapeCount++
+    saveCronRun('onmarket', lastOnMarketScrapeResult)
 
     console.log(
       `[${lastOnMarketScrapeTime}] [cron] On-market scrape #${onMarketScrapeCount} complete in ${elapsed}ms — ` +
@@ -238,6 +282,7 @@ async function executeOnMarketScrape(): Promise<void> {
     lastOnMarketScrapeTime = timestamp()
     lastOnMarketScrapeResult = { scraped: 0, stored: 0 }
     onMarketScrapeCount++
+    saveCronRun('onmarket', lastOnMarketScrapeResult)
 
     console.error(
       `[${lastOnMarketScrapeTime}] [cron] On-market scrape #${onMarketScrapeCount} failed:`,
@@ -248,11 +293,57 @@ async function executeOnMarketScrape(): Promise<void> {
 
 /**
  * Start the cron scheduler. Idempotent — calling twice is safe.
+ * On startup, restores last-run times from SQLite and fires any overdue jobs
+ * so a server restart never leaves data stale.
  */
 export function startCron(): void {
   if (running && inboxTask) {
     console.log(`[${timestamp()}] [cron] Already running, skipping duplicate start`)
     return
+  }
+
+  // Restore last-run history from DB so we survive server restarts
+  const history = loadCronHistory()
+  if (history['onmarket']) lastOnMarketScrapeTime = history['onmarket'].lastRunAt
+  if (history['firecrawl-sold']) lastFirecrawlSoldTime = history['firecrawl-sold'].lastRunAt
+  if (history['agent-scrape']) lastAgentScrapeTime = history['agent-scrape'].lastRunAt
+  if (history['daily-cache']) lastDailyCacheTime = history['daily-cache'].lastRunAt
+  if (history['weekly-sold']) lastWeeklySoldTime = history['weekly-sold'].lastRunAt
+  if (history['inbox']) lastPollTime = history['inbox'].lastRunAt
+  if (history['nurture']) lastNurtureTime = history['nurture'].lastRunAt
+
+  // Catch-up: fire any daily/weekly jobs that were missed while the server was down.
+  // Stagger them so they don't all hammer APIs simultaneously.
+  const DAILY_THRESHOLD_H = 20  // fire catch-up if job hasn't run in 20h
+  const WEEKLY_THRESHOLD_H = 160 // fire catch-up if job hasn't run in ~6.7 days
+  let catchUpDelay = 30000 // start 30s after boot
+
+  if (hoursAgo(lastOnMarketScrapeTime) > DAILY_THRESHOLD_H) {
+    const d = catchUpDelay
+    catchUpDelay += 30000
+    console.log(`[cron] On-market scrape overdue (${hoursAgo(lastOnMarketScrapeTime).toFixed(0)}h) — catch-up in ${d / 1000}s`)
+    setTimeout(() => executeOnMarketScrape(), d)
+  }
+
+  if (hoursAgo(lastFirecrawlSoldTime) > DAILY_THRESHOLD_H) {
+    const d = catchUpDelay
+    catchUpDelay += 120000 // Firecrawl is slow, give it 2 min before next job
+    console.log(`[cron] Firecrawl sold overdue (${hoursAgo(lastFirecrawlSoldTime).toFixed(0)}h) — catch-up in ${d / 1000}s`)
+    setTimeout(() => executeFirecrawlSoldRefresh(), d)
+  }
+
+  if (hoursAgo(lastAgentScrapeTime) > DAILY_THRESHOLD_H) {
+    const d = catchUpDelay
+    catchUpDelay += 30000
+    console.log(`[cron] Agent scrape overdue (${hoursAgo(lastAgentScrapeTime).toFixed(0)}h) — catch-up in ${d / 1000}s`)
+    setTimeout(() => executeAgentScrape(), d)
+  }
+
+  if (hoursAgo(lastWeeklySoldTime) > WEEKLY_THRESHOLD_H) {
+    const d = catchUpDelay
+    catchUpDelay += 30000
+    console.log(`[cron] Weekly sold refresh overdue (${hoursAgo(lastWeeklySoldTime).toFixed(0)}h) — catch-up in ${d / 1000}s`)
+    setTimeout(() => executeWeeklySoldRefresh(), d)
   }
 
   // Schedule: poll inbox every 5 minutes
@@ -334,6 +425,15 @@ export function stopCron(): void {
   running = false
   console.log(`[${timestamp()}] [cron] Stopped`)
 }
+
+/**
+ * Manual triggers — fire a job immediately regardless of schedule.
+ * Returns immediately; job runs in background.
+ */
+export function triggerOnMarketScrape(): void { executeOnMarketScrape() }
+export function triggerFirecrawlSoldRefresh(): void { executeFirecrawlSoldRefresh() }
+export function triggerAgentScrape(): void { executeAgentScrape() }
+export function triggerWeeklySoldRefresh(): void { executeWeeklySoldRefresh() }
 
 /**
  * Get current cron status.

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { startCron, stopCron, getCronStatus } from '@/lib/cron'
+import { startCron, stopCron, getCronStatus, triggerOnMarketScrape, triggerFirecrawlSoldRefresh, triggerAgentScrape, triggerWeeklySoldRefresh } from '@/lib/cron'
+import { runFullOnMarketScrape } from '@/lib/onmarket-scraper'
 
 /**
  * GET /api/cron — returns cron status (running, last poll, poll count)
@@ -50,8 +51,37 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, message: 'Cron stopped', ...getCronStatus() })
   }
 
+  // Manual triggers — fire jobs immediately, return 202 (runs in background)
+  if (action === 'run-onmarket') {
+    triggerOnMarketScrape()
+    return NextResponse.json({ success: true, message: "Today's on-market Apify batch started" }, { status: 202 })
+  }
+
+  if (action === 'run-onmarket-all') {
+    // Full reseed — runs all suburbs. Long-running, fires in background.
+    runFullOnMarketScrape().catch(err =>
+      console.error('[api/cron] Full on-market reseed failed:', err instanceof Error ? err.message : err)
+    )
+    return NextResponse.json({ success: true, message: 'Full on-market reseed started (all suburbs, runs in background)' }, { status: 202 })
+  }
+
+  if (action === 'run-firecrawl-sold') {
+    triggerFirecrawlSoldRefresh()
+    return NextResponse.json({ success: true, message: "Today's Firecrawl sold batch started" }, { status: 202 })
+  }
+
+  if (action === 'run-agents') {
+    triggerAgentScrape()
+    return NextResponse.json({ success: true, message: 'Agent scrape started' }, { status: 202 })
+  }
+
+  if (action === 'run-weekly-sold') {
+    triggerWeeklySoldRefresh()
+    return NextResponse.json({ success: true, message: 'Weekly sold refresh started' }, { status: 202 })
+  }
+
   return NextResponse.json(
-    { error: `Unknown action "${action}". Use "start" or "stop".` },
+    { error: `Unknown action "${action}". Use "start", "stop", "run-onmarket", "run-onmarket-all", "run-firecrawl-sold", "run-agents", "run-weekly-sold".` },
     { status: 400 }
   )
 }
