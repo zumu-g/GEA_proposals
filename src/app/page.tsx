@@ -687,6 +687,8 @@ export default function HomePage() {
       case 'proposalType':
         setProposalType(value)
         setMarketingCosts(value === 'rental' ? DEFAULT_RENTAL_MARKETING_COSTS : DEFAULT_MARKETING_COSTS)
+        setSoldComparables([])
+        setOnMarketListings([])
         break
       case 'clientName': setClientName(value); break
       case 'clientEmail': setClientEmail(value); break
