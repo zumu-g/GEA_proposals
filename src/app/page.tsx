@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { WizardLayout, clearDraft } from '@/components/Wizard'
 import ClientDetailsStep, { validateClientDetails } from '@/components/Wizard/steps/ClientDetailsStep'
 import PropertySaleStep, { validatePropertySale } from '@/components/Wizard/steps/PropertySaleStep'
+import PropertyRentalStep, { validatePropertyRental } from '@/components/Wizard/steps/PropertyRentalStep'
 import MarketingStep, { validateMarketing } from '@/components/Wizard/steps/MarketingStep'
 import type { MarketingCostItem } from '@/components/Wizard/steps/MarketingStep'
 import SoldPropertiesStep, { validateSoldProperties } from '@/components/Wizard/steps/SoldPropertiesStep'
@@ -58,7 +59,7 @@ function CheckCircleIcon() {
 
 // ─── Step definitions ──────────────────────────────────────────────────────
 
-const STEPS = [
+const SALE_STEPS = [
   { id: 'client', title: 'Client Details', icon: <UserIcon />, description: 'Vendor information' },
   { id: 'property', title: 'Property & Sale', icon: <HomeIcon />, description: 'Sale method & pricing' },
   { id: 'marketing', title: 'Marketing', icon: <MegaphoneIcon />, description: 'Advertising schedule' },
@@ -67,7 +68,24 @@ const STEPS = [
   { id: 'review', title: 'Review & Generate', icon: <CheckCircleIcon />, description: 'Final review' },
 ]
 
+const RENTAL_STEPS = [
+  { id: 'client', title: 'Client Details', icon: <UserIcon />, description: 'Landlord information' },
+  { id: 'property', title: 'Property & Rental', icon: <HomeIcon />, description: 'Rental terms & fees' },
+  { id: 'marketing', title: 'Marketing', icon: <MegaphoneIcon />, description: 'Advertising schedule' },
+  { id: 'leased', title: 'Leased Properties', icon: <SearchIcon />, description: 'Comparable rentals' },
+  { id: 'forrent', title: 'For Rent', icon: <ListingsIcon />, description: 'Available rentals' },
+  { id: 'review', title: 'Review & Generate', icon: <CheckCircleIcon />, description: 'Final review' },
+]
+
 // ─── Default marketing costs ──────────────────────────────────────────────
+
+const DEFAULT_RENTAL_MARKETING_COSTS: MarketingCostItem[] = [
+  { category: 'Internet', description: 'Premiere Rental Listing — realestate.com.au (highlighted rental listing)', cost: 0, included: true },
+  { category: 'Photography', description: 'Professional Photography — high quality property photography', cost: 220, included: false },
+  { category: 'Signboard', description: 'Rental signboard — premium for lease board', cost: 180, included: false },
+  { category: 'Internet', description: 'Social Media Campaign — targeted Facebook and Instagram campaign', cost: 0, included: true },
+  { category: 'Other', description: 'Open Home Inspections — weekly open for inspection sessions', cost: 0, included: true },
+]
 
 const DEFAULT_MARKETING_COSTS: MarketingCostItem[] = [
   { category: 'Internet', description: 'Premiere Listing — realestate.com.au (4 week premiere listing, Value $2,700)', cost: 1600, included: false },
@@ -114,11 +132,19 @@ export default function HomePage() {
   const [currentStep, setCurrentStep] = useState(0)
 
   // ── Step 1: Client Details state ─────────────────────────────────────────
+  const [proposalType, setProposalType] = useState<'sale' | 'rental'>('sale')
   const [clientName, setClientName] = useState('')
   const [clientEmail, setClientEmail] = useState('')
   const [propertyAddress, setPropertyAddress] = useState('')
   const [recentProposals, setRecentProposals] = useState<RecentProposal[]>([])
   const [editingProposalId, setEditingProposalId] = useState<string | null>(null)
+
+  // ── Step 2: Property & Rental state ─────────────────────────────────────
+  const [askingRent, setAskingRent] = useState('')
+  const [leaseType, setLeaseType] = useState('')
+  const [availableDate, setAvailableDate] = useState('')
+  const [managementFee, setManagementFee] = useState('')
+  const [lettingFee, setLettingFee] = useState('')
 
   // ── Step 2: Property & Sale state ────────────────────────────────────────
   const [methodOfSale, setMethodOfSale] = useState('')
@@ -157,6 +183,9 @@ export default function HomePage() {
   } | null>(null)
   const [origin, setOrigin] = useState('')
   const submittingRef = useRef(false)
+
+  // ─── Dynamic step list ────────────────────────────────────────────────────
+  const steps = useMemo(() => proposalType === 'rental' ? RENTAL_STEPS : SALE_STEPS, [proposalType])
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Derived values
@@ -275,6 +304,7 @@ export default function HomePage() {
   // ═══════════════════════════════════════════════════════════════════════════
 
   const wizardFormData = useMemo(() => ({
+    proposalType,
     clientName,
     clientEmail,
     propertyAddress,
@@ -285,12 +315,18 @@ export default function HomePage() {
     commission,
     showPriceRange,
     showCommission,
+    askingRent,
+    leaseType,
+    availableDate,
+    managementFee,
+    lettingFee,
     marketingCosts,
     editingProposalId,
-  }), [clientName, clientEmail, propertyAddress, methodOfSale, priceGuideMin, priceGuideMax, heroImageUrl, commission, showPriceRange, showCommission, marketingCosts, editingProposalId])
+  }), [proposalType, clientName, clientEmail, propertyAddress, methodOfSale, priceGuideMin, priceGuideMax, heroImageUrl, commission, showPriceRange, showCommission, askingRent, leaseType, availableDate, managementFee, lettingFee, marketingCosts, editingProposalId])
 
   const handleRestoreDraft = useCallback((data: { step: number; formData: Record<string, unknown> }) => {
     const d = data.formData
+    if (d.proposalType) setProposalType(d.proposalType as 'sale' | 'rental')
     if (d.clientName) setClientName(d.clientName as string)
     if (d.clientEmail) setClientEmail(d.clientEmail as string)
     if (d.propertyAddress) setPropertyAddress(d.propertyAddress as string)
@@ -301,6 +337,11 @@ export default function HomePage() {
     if (d.commission) setCommission(d.commission as string)
     if (d.showPriceRange !== undefined) setShowPriceRange(d.showPriceRange as boolean)
     if (d.showCommission !== undefined) setShowCommission(d.showCommission as boolean)
+    if (d.askingRent) setAskingRent(d.askingRent as string)
+    if (d.leaseType) setLeaseType(d.leaseType as string)
+    if (d.availableDate) setAvailableDate(d.availableDate as string)
+    if (d.managementFee) setManagementFee(d.managementFee as string)
+    if (d.lettingFee) setLettingFee(d.lettingFee as string)
     if (d.marketingCosts && Array.isArray(d.marketingCosts)) setMarketingCosts(d.marketingCosts as MarketingCostItem[])
     if (d.editingProposalId) setEditingProposalId(d.editingProposalId as string)
     setCurrentStep(data.step)
@@ -321,6 +362,7 @@ export default function HomePage() {
       setCurrentStep(0)
 
       // Pre-fill all state
+      setProposalType((proposal.proposalType as 'sale' | 'rental') || 'sale')
       setClientName(proposal.clientName || '')
       setClientEmail(proposal.clientEmail || '')
       setPropertyAddress(proposal.propertyAddress || '')
@@ -330,6 +372,11 @@ export default function HomePage() {
       setCommission(proposal.fees?.commissionRate ? String(proposal.fees.commissionRate) : '')
       setShowPriceRange(proposal.showPriceRange !== false)
       setShowCommission(proposal.showCommission !== false)
+      if (proposal.askingRent) setAskingRent(String(proposal.askingRent))
+      if (proposal.leaseType) setLeaseType(proposal.leaseType)
+      if (proposal.availableDate) setAvailableDate(proposal.availableDate)
+      if (proposal.managementFee != null) setManagementFee(String(proposal.managementFee))
+      if (proposal.lettingFee) setLettingFee(proposal.lettingFee)
       if (proposal.heroImage) setHeroImageUrl(proposal.heroImage)
 
       // Pre-fill marketing costs
@@ -452,11 +499,19 @@ export default function HomePage() {
     const formData = new FormData()
 
     // Step 1 fields
+    formData.append('proposalType', proposalType)
     formData.append('clientName', clientName)
     formData.append('clientEmail', clientEmail)
     formData.append('propertyAddress', propertyAddress)
 
     // Step 2 fields
+    if (proposalType === 'rental') {
+      if (askingRent) formData.append('askingRent', askingRent)
+      if (leaseType) formData.append('leaseType', leaseType)
+      if (availableDate) formData.append('availableDate', availableDate)
+      if (managementFee) formData.append('managementFee', managementFee)
+      if (lettingFee) formData.append('lettingFee', lettingFee)
+    }
     formData.append('methodOfSale', methodOfSale)
     if (priceGuideMin) formData.append('priceGuideMin', priceGuideMin)
     if (priceGuideMax) formData.append('priceGuideMax', priceGuideMax)
@@ -556,6 +611,7 @@ export default function HomePage() {
   }
 
   const resetForm = useCallback(() => {
+    setProposalType('sale')
     setClientName('')
     setClientEmail('')
     setPropertyAddress('')
@@ -570,6 +626,11 @@ export default function HomePage() {
     setPropertyImages(null)
     setSelectedAutoImageUrl('')
     lastFetchedAddressRef.current = ''
+    setAskingRent('')
+    setLeaseType('')
+    setAvailableDate('')
+    setManagementFee('')
+    setLettingFee('')
     setMarketingCosts(DEFAULT_MARKETING_COSTS)
     setSoldComparables([])
     setOnMarketListings([])
@@ -590,8 +651,14 @@ export default function HomePage() {
   const canProceed = useMemo(() => {
     switch (currentStep) {
       case 0:
-        return !validateClientDetails({ clientName, clientEmail, propertyAddress })
+        return !validateClientDetails({ clientName, clientEmail, propertyAddress, proposalType })
       case 1:
+        if (proposalType === 'rental') {
+          return !validatePropertyRental({
+            askingRent, leaseType, availableDate, managementFee, lettingFee,
+            heroImage, heroImageUrl, propertyAddress,
+          })
+        }
         return !validatePropertySale({
           methodOfSale, priceGuideMin, priceGuideMax,
           heroImage, heroImageUrl, commission, showPriceRange, showCommission, propertyAddress,
@@ -607,7 +674,7 @@ export default function HomePage() {
       default:
         return true
     }
-  }, [currentStep, clientName, clientEmail, propertyAddress, methodOfSale, priceGuideMin, priceGuideMax, heroImage, heroImageUrl, commission, marketingCosts, soldComparables])
+  }, [currentStep, proposalType, clientName, clientEmail, propertyAddress, methodOfSale, priceGuideMin, priceGuideMax, heroImage, heroImageUrl, commission, askingRent, leaseType, availableDate, managementFee, lettingFee, marketingCosts, soldComparables])
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Step field change handler (for ClientDetailsStep and PropertySaleStep)
@@ -615,6 +682,10 @@ export default function HomePage() {
 
   const handleFieldChange = useCallback((field: string, value: any) => {
     switch (field) {
+      case 'proposalType':
+        setProposalType(value)
+        setMarketingCosts(value === 'rental' ? DEFAULT_RENTAL_MARKETING_COSTS : DEFAULT_MARKETING_COSTS)
+        break
       case 'clientName': setClientName(value); break
       case 'clientEmail': setClientEmail(value); break
       case 'propertyAddress': setPropertyAddress(value); break
@@ -627,6 +698,11 @@ export default function HomePage() {
       case 'showPriceRange': setShowPriceRange(value); break
       case 'showCommission': setShowCommission(value); break
       case 'selectedAutoImageUrl': setSelectedAutoImageUrl(value); break
+      case 'askingRent': setAskingRent(value); break
+      case 'leaseType': setLeaseType(value); break
+      case 'availableDate': setAvailableDate(value); break
+      case 'managementFee': setManagementFee(value); break
+      case 'lettingFee': setLettingFee(value); break
     }
   }, [])
 
@@ -646,7 +722,7 @@ export default function HomePage() {
 
   return (
     <WizardLayout
-      steps={STEPS}
+      steps={steps}
       currentStep={currentStep}
       onStepChange={setCurrentStep}
       canProceed={canProceed}
@@ -659,7 +735,7 @@ export default function HomePage() {
     >
       {currentStep === 0 && (
         <ClientDetailsStep
-          formData={{ clientName, clientEmail, propertyAddress }}
+          formData={{ clientName, clientEmail, propertyAddress, proposalType }}
           onChange={handleFieldChange}
           recentProposals={recentProposals}
           editingId={editingProposalId}
@@ -669,7 +745,26 @@ export default function HomePage() {
         />
       )}
 
-      {currentStep === 1 && (
+      {currentStep === 1 && proposalType === 'rental' && (
+        <PropertyRentalStep
+          formData={{
+            askingRent,
+            leaseType,
+            availableDate,
+            managementFee,
+            lettingFee,
+            heroImage,
+            heroImageUrl,
+            propertyAddress,
+          }}
+          autoImages={autoImageUrls}
+          isFetchingImages={isFetchingImages}
+          onChange={handleFieldChange}
+          onAutoFetchImages={handleAutoFetchImages}
+        />
+      )}
+
+      {currentStep === 1 && proposalType !== 'rental' && (
         <PropertySaleStep
           formData={{
             methodOfSale,

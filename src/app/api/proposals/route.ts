@@ -23,6 +23,12 @@ export async function POST(request: NextRequest) {
     const selectedCompsJson = formData.get('selectedComps') as string | null
     const selectedOnMarketJson = formData.get('selectedOnMarket') as string | null
     const comparablesHandled = formData.get('comparablesHandled') as string | null
+    const proposalType = (formData.get('proposalType') as string | null) || 'sale'
+    const askingRentStr = formData.get('askingRent') as string | null
+    const leaseType = formData.get('leaseType') as string | null
+    const availableDate = formData.get('availableDate') as string | null
+    const managementFeeStr = formData.get('managementFee') as string | null
+    const lettingFee = formData.get('lettingFee') as string | null
     const file = formData.get('file') as File | null
 
     // Collect auto-fetched property gallery images
@@ -136,6 +142,25 @@ export async function POST(request: NextRequest) {
       },
       agency: agencyConfig,
     })
+
+    // Rental fields
+    proposal.proposalType = proposalType as 'sale' | 'rental'
+    if (proposalType === 'rental') {
+      if (askingRentStr) proposal.askingRent = parseInt(askingRentStr)
+      if (leaseType) proposal.leaseType = leaseType
+      if (availableDate) proposal.availableDate = availableDate
+      if (managementFeeStr) proposal.managementFee = parseFloat(managementFeeStr)
+      if (lettingFee) proposal.lettingFee = lettingFee
+      // Override sale process with rental-specific process steps
+      proposal.saleProcess = [
+        { step: 1, title: 'Property Appraisal', description: 'A thorough market analysis and rental appraisal to determine the optimal weekly rent, benchmarked against comparable rentals in your area.' },
+        { step: 2, title: 'Property Preparation', description: 'Professional photography and a comprehensive listing across realestate.com.au, Domain, and all major rental platforms to maximise exposure.' },
+        { step: 3, title: 'Tenant Marketing', description: 'Targeted advertising campaign to attract quality, long-term tenants. We conduct open homes, private inspections, and respond promptly to all enquiries.' },
+        { step: 4, title: 'Application Review', description: 'Thorough vetting of all tenant applications — including identity checks, employment and income verification, rental history, and national tenancy database checks.' },
+        { step: 5, title: 'Lease & Bond', description: 'Comprehensive entry condition report with photos, bond lodgement with the RTBA, lease execution, and keys handover. Everything documented from day one.' },
+        { step: 6, title: 'Ongoing Management', description: 'Regular routine inspections, maintenance coordination with trusted tradespeople, rent collection and disbursements, and full VCAT representation if required.' },
+      ]
+    }
 
     // Add method of sale and price guide
     if (methodOfSale) {

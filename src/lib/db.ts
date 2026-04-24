@@ -190,6 +190,12 @@ function initSchema(db: Database.Database) {
     'ALTER TABLE proposals ADD COLUMN on_market_listings TEXT',     // JSON
     'ALTER TABLE proposals ADD COLUMN show_price_range INTEGER DEFAULT 1',
     'ALTER TABLE proposals ADD COLUMN show_commission INTEGER DEFAULT 1',
+    'ALTER TABLE proposals ADD COLUMN proposal_type TEXT DEFAULT \'sale\'',
+    'ALTER TABLE proposals ADD COLUMN asking_rent INTEGER',
+    'ALTER TABLE proposals ADD COLUMN lease_type TEXT',
+    'ALTER TABLE proposals ADD COLUMN available_date TEXT',
+    'ALTER TABLE proposals ADD COLUMN management_fee REAL',
+    'ALTER TABLE proposals ADD COLUMN letting_fee TEXT',
     'ALTER TABLE sold_properties ADD COLUMN price_display TEXT',
     // Nurture touchpoints — new columns for AI-generated plans
     'ALTER TABLE nurture_touchpoints ADD COLUMN day_number INTEGER NOT NULL DEFAULT 0',

@@ -8,6 +8,7 @@ interface ClientDetailsStepProps {
     clientName: string
     clientEmail: string
     propertyAddress: string
+    proposalType: 'sale' | 'rental'
   }
   onChange: (field: string, value: string) => void
   recentProposals: any[]
@@ -359,6 +360,33 @@ export default function ClientDetailsStep({
         <p className="text-gray-500 font-sans text-sm font-light mt-2">
           enter the vendor&apos;s information and property address
         </p>
+      </motion.div>
+
+      {/* Proposal type toggle */}
+      <motion.div
+        {...motionProps}
+        transition={{ duration: 0.4, ease: 'easeOut', delay: 0.05 }}
+        className="mb-8"
+      >
+        <p className="text-gray-500 font-sans text-xs tracking-wider uppercase mb-3">
+          proposal type
+        </p>
+        <div className="inline-flex rounded-xl border border-gray-200 bg-gray-100 p-1 gap-1">
+          {(['sale', 'rental'] as const).map((type) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => onChange('proposalType', type)}
+              className={`px-8 py-2.5 rounded-lg font-sans text-sm font-medium transition-all duration-200 min-h-[40px] ${
+                formData.proposalType === type
+                  ? 'bg-white shadow-sm text-gray-900 border border-gray-200'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {type}
+            </button>
+          ))}
+        </div>
       </motion.div>
 
       {/* Form fields */}
