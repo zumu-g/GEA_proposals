@@ -9,6 +9,7 @@ export interface ScrapedSale {
   state: string
   postcode: string
   price: number
+  priceDisplay?: string // original price string e.g. "$850,000 - $900,000"
   bedrooms: number
   bathrooms: number
   carSpaces: number

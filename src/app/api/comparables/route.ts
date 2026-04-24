@@ -213,7 +213,9 @@ export async function GET(request: Request) {
             sales: localSales.map((s: any) => ({
               address: s.address,
               price: s.price,
-              askingPrice: type === 'buy' && s.price ? `$${Number(s.price).toLocaleString()}` : undefined,
+              askingPrice: type === 'buy'
+                ? (s.priceDisplay || s.price_display || (s.price ? `$${Number(s.price).toLocaleString()}` : 'Contact Agent'))
+                : undefined,
               date: s.soldDate || s.sold_date || '',
               bedrooms: s.bedrooms || 0,
               bathrooms: s.bathrooms || 0,

@@ -54,24 +54,42 @@ async function scrapeSuburbViaApify(suburb: string, postcode: string): Promise<S
     if (!Array.isArray(data)) return []
 
     return data.map((item: any) => {
-      // Parse price: extract first number from ranges like "$630,000 - $690,000"
-      const priceStr = String(item.price || '0')
+      // Store full price string (e.g. "$850,000 - $900,000") and extract first number for sorting
+      const priceStr = String(item.price || '')
       const firstNum = priceStr.match(/\$?([\d,]+)/)
       const price = firstNum ? parseInt(firstNum[1].replace(/,/g, '')) || 0 : 0
+      const priceDisplay = priceStr || undefined
+
+      // Apify returns images as an array under "images"
+      const imageUrl = (Array.isArray(item.images) && item.images[0])
+        || item.mainImage || item.imageUrl || item.headerImage || undefined
+
+      // Apify returns coordinates as latitude/longitude
+      const lat = item.latitude ?? item.lat ?? undefined
+      const lng = item.longitude ?? item.lng ?? undefined
+
+      // Combine street address with suburb for full address
+      const streetAddr = item.address || item.fullAddress || item.streetAddress || ''
+      const fullAddress = streetAddr && item.suburb
+        ? `${streetAddr}, ${item.suburb} VIC ${postcode}`
+        : streetAddr || `${item.suburb || suburb} VIC ${postcode}`
 
       return {
-        address: item.address || item.fullAddress || item.streetAddress || '',
+        address: fullAddress,
         suburb,
         state: 'vic',
         postcode,
         price,
+        priceDisplay,
         bedrooms: item.bedrooms || item.beds || 0,
         bathrooms: item.bathrooms || item.baths || 0,
         carSpaces: item.carSpaces || item.cars || item.parking || 0,
         propertyType: item.propertyType || item.type || 'House',
         soldDate: '', // empty = on-market listing
         url: item.url || item.link || '',
-        imageUrl: item.mainImage || item.imageUrl || item.headerImage || '',
+        imageUrl,
+        lat,
+        lng,
         source: 'realestate.com.au' as const,
       }
     })

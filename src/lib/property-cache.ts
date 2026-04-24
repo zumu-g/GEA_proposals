@@ -361,6 +361,7 @@ function rowToScrapedSale(row: Record<string, unknown>): ScrapedSale {
     state: (row.state as string) || 'vic',
     postcode: row.postcode as string,
     price: (row.price as number) ?? 0,
+    priceDisplay: (row.price_display as string) || undefined,
     bedrooms: (row.bedrooms as number) || 0,
     bathrooms: (row.bathrooms as number) || 0,
     carSpaces: (row.car_spaces as number) || 0,
@@ -384,13 +385,13 @@ export function upsertSoldProperties(properties: ScrapedSale[]): number {
   const stmt = db.prepare(`
     INSERT OR REPLACE INTO sold_properties (
       address, suburb, state, postcode,
-      price, bedrooms, bathrooms, car_spaces,
+      price, price_display, bedrooms, bathrooms, car_spaces,
       property_type, sold_date, land_size,
       url, image_url, lat, lng,
       source, scraped_at
     ) VALUES (
       ?, ?, ?, ?,
-      ?, ?, ?, ?,
+      ?, ?, ?, ?, ?,
       ?, ?, ?,
       ?, ?, ?, ?,
       ?, datetime('now')
@@ -406,6 +407,7 @@ export function upsertSoldProperties(properties: ScrapedSale[]): number {
         p.state || 'vic',
         p.postcode || '',
         p.price ?? null,
+        p.priceDisplay || null,
         p.bedrooms || 0,
         p.bathrooms || 0,
         p.carSpaces || 0,
