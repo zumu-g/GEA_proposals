@@ -239,6 +239,7 @@ export default function HomePage() {
 
   const handleAutoFetchImages = useCallback(() => {
     if (propertyAddress && isAddressComplete(propertyAddress)) {
+      lastFetchedAddressRef.current = '' // force re-fetch when manually triggered
       fetchPropertyImages(propertyAddress)
     }
   }, [propertyAddress, isAddressComplete, fetchPropertyImages])
