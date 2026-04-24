@@ -25,6 +25,7 @@ interface SoldPropertiesStepProps {
   soldComparables: ComparableRow[]
   onChangeSold: (rows: ComparableRow[]) => void
   onConfirmAddress?: (address: string, lat: number | null, lng: number | null) => void
+  proposalType?: 'sale' | 'rental'
 }
 
 // ─── Internal row type ───────────────────────────────────────────────────────
@@ -161,7 +162,9 @@ export default function SoldPropertiesStep({
   soldComparables,
   onChangeSold,
   onConfirmAddress,
+  proposalType = 'sale',
 }: SoldPropertiesStepProps) {
+  const isRental = proposalType === 'rental'
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
 
   useEffect(() => {
@@ -257,8 +260,8 @@ export default function SoldPropertiesStep({
   useEffect(() => {
     if (propertyAddress && isCompleteAddress(propertyAddress) && !confirmedAddress) {
       setConfirmedAddress(propertyAddress)
-      // Auto-search if we have no results yet
-      if (rawComps.length === 0 && !hasSearchedRef.current) {
+      // Auto-search if we have no results yet (skip for rental — no leased data in DB)
+      if (rawComps.length === 0 && !hasSearchedRef.current && !isRental) {
         setTimeout(() => searchComparables(propertyAddress), 100)
       }
     } else if (propertyAddress && !confirmedAddress) {
@@ -460,7 +463,7 @@ export default function SoldPropertiesStep({
         )
       } else {
         setStatusMessage(
-          `Found ${soldCount} sold properties${soldCount < sold.length ? ` (from ${sold.length})` : ''}`
+          `Found ${soldCount} ${isRental ? 'leased' : 'sold'} properties${soldCount < sold.length ? ` (from ${sold.length})` : ''}`
         )
       }
     },
@@ -657,8 +660,8 @@ export default function SoldPropertiesStep({
       setRawComps([])
       setStatusMessage('')
       hasSearchedRef.current = false
-      // Auto-search with the new address (pass explicitly to avoid stale closure)
-      setTimeout(() => searchComparables(confirmedAddress), 150)
+      // Auto-search with the new address (skip for rental — no leased data in DB)
+      if (!isRental) setTimeout(() => searchComparables(confirmedAddress), 150)
     }
   }, [confirmedAddress]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -746,12 +749,26 @@ export default function SoldPropertiesStep({
       {/* Header */}
       <div>
         <h2 className="text-gray-900 font-display text-2xl font-light lowercase tracking-tight">
-          sold properties
+          {isRental ? 'leased properties' : 'sold properties'}
         </h2>
         <p className="text-gray-500 font-sans text-sm mt-1">
-          confirm your property address, then search for comparable sales by distance
+          {isRental
+            ? 'add comparable rental properties to strengthen your proposal'
+            : 'confirm your property address, then search for comparable sales by distance'}
         </p>
       </div>
+
+      {/* Rental note */}
+      {isRental && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex items-start gap-3">
+          <svg className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+          </svg>
+          <p className="text-blue-700 font-sans text-sm">
+            Automatic leased property lookup is coming soon. You can manually add comparable rental properties below, or skip this step.
+          </p>
+        </div>
+      )}
 
       {/* ═══════ STEP A: ADDRESS CONFIRMATION ═══════ */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-visible">

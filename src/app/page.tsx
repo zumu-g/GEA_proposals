@@ -667,6 +667,7 @@ export default function HomePage() {
       case 2:
         return !validateMarketing(marketingCosts)
       case 3:
+        if (proposalType === 'rental') return true // leased comparables are optional
         return !validateSoldProperties(soldComparables)
       case 4:
         return true // on-market is optional
@@ -798,6 +799,7 @@ export default function HomePage() {
           soldComparables={soldComparables}
           onChangeSold={setSoldComparables}
           onConfirmAddress={handleConfirmAddress}
+          proposalType={proposalType}
         />
       )}
 
