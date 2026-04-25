@@ -13,6 +13,8 @@ let getCacheMetadata: ((suburb: string) => any) | null = null
 let refreshSoldCache: ((suburb: string) => Promise<{ count: number; source: string }>) | null = null
 let refreshOnMarketCache: ((suburb: string) => Promise<{ count: number; source: string }>) | null = null
 let getSoldPropertiesBySuburbs: ((suburbs: string[]) => any[]) | null = null
+let getLeasedPropertiesBySuburbs: ((suburbs: string[]) => any[]) | null = null
+let getForRentPropertiesBySuburbs: ((suburbs: string[]) => any[]) | null = null
 
 try {
   const propertyCache = require('@/lib/property-cache')
@@ -22,6 +24,8 @@ try {
   isCacheFresh = propertyCache.isCacheFresh
   getCacheMetadata = propertyCache.getCacheMetadata
   getSoldPropertiesBySuburbs = propertyCache.getSoldPropertiesBySuburbs
+  getLeasedPropertiesBySuburbs = propertyCache.getLeasedPropertiesBySuburbs
+  getForRentPropertiesBySuburbs = propertyCache.getForRentPropertiesBySuburbs
   refreshSoldCache = cacheRefresh.refreshSoldCache
   refreshOnMarketCache = cacheRefresh.refreshOnMarketCache
   cacheAvailable = true
@@ -154,7 +158,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'address parameter required' }, { status: 400 })
   }
 
-  const type = (searchParams.get('type') as 'sold' | 'buy') || 'sold'
+  const type = (searchParams.get('type') as 'sold' | 'buy' | 'leased' | 'rent') || 'sold'
   const refresh = searchParams.get('refresh') === 'true'
   const suburb = extractSuburb(address)
   const listingType = type === 'buy' ? 'on_market' : 'sold'
@@ -188,6 +192,49 @@ export async function GET(request: Request) {
         { error: 'Local database module not available' },
         { status: 503 }
       )
+    }
+
+    // ── Step 0: leased and rent types — served only from dedicated tables ──
+    if (type === 'leased') {
+      const neighbors = NEIGHBORING_SUBURBS[suburb] || []
+      const allSuburbs = [suburb, ...neighbors]
+      const results = getLeasedPropertiesBySuburbs ? getLeasedPropertiesBySuburbs(allSuburbs) : []
+      return NextResponse.json({
+        address, type, count: results.length,
+        sales: results.map((s: any) => ({
+          address: s.address,
+          price: s.price,
+          askingPrice: s.priceDisplay || s.price_display || (s.price ? `$${Number(s.price).toLocaleString()}/wk` : 'Contact Agent'),
+          date: s.soldDate || s.sold_date || '',
+          bedrooms: s.bedrooms || 0, bathrooms: s.bathrooms || 0,
+          cars: s.carSpaces || s.car_spaces || 0,
+          propertyType: s.propertyType || s.property_type || 'House',
+          url: s.url || '', imageUrl: s.imageUrl || s.image_url || '',
+          lat: s.lat, lng: s.lng, distance: 0, sqft: 0,
+        })),
+        source: 'local-db', cached: false,
+      })
+    }
+
+    if (type === 'rent') {
+      const neighbors = NEIGHBORING_SUBURBS[suburb] || []
+      const allSuburbs = [suburb, ...neighbors]
+      const results = getForRentPropertiesBySuburbs ? getForRentPropertiesBySuburbs(allSuburbs) : []
+      return NextResponse.json({
+        address, type, count: results.length,
+        sales: results.map((s: any) => ({
+          address: s.address,
+          price: s.price,
+          askingPrice: s.priceDisplay || s.price_display || (s.price ? `$${Number(s.price).toLocaleString()}/wk` : 'Contact Agent'),
+          date: '',
+          bedrooms: s.bedrooms || 0, bathrooms: s.bathrooms || 0,
+          cars: s.carSpaces || s.car_spaces || 0,
+          propertyType: s.propertyType || s.property_type || 'House',
+          url: s.url || '', imageUrl: s.imageUrl || s.image_url || '',
+          lat: s.lat, lng: s.lng, distance: 0, sqft: 0,
+        })),
+        source: 'local-db', cached: false,
+      })
     }
 
     // ── Step 0: Try local sold_properties DB first (Firecrawl/Apify data, freshest) ──

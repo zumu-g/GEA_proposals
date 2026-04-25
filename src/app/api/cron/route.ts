@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { startCron, stopCron, getCronStatus, triggerOnMarketScrape, triggerFirecrawlSoldRefresh, triggerAgentScrape, triggerWeeklySoldRefresh } from '@/lib/cron'
+import { startCron, stopCron, getCronStatus, triggerOnMarketScrape, triggerFirecrawlSoldRefresh, triggerAgentScrape, triggerWeeklySoldRefresh, triggerLeasedScrape, triggerForRentScrape } from '@/lib/cron'
 import { runFullOnMarketScrape } from '@/lib/onmarket-scraper'
 
 /**
@@ -80,8 +80,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, message: 'Weekly sold refresh started' }, { status: 202 })
   }
 
+  if (action === 'run-leased') {
+    triggerLeasedScrape()
+    return NextResponse.json({ success: true, message: "Today's leased Apify batch started" }, { status: 202 })
+  }
+
+  if (action === 'run-forrent') {
+    triggerForRentScrape()
+    return NextResponse.json({ success: true, message: "Today's for-rent Apify batch started" }, { status: 202 })
+  }
+
   return NextResponse.json(
-    { error: `Unknown action "${action}". Use "start", "stop", "run-onmarket", "run-onmarket-all", "run-firecrawl-sold", "run-agents", "run-weekly-sold".` },
+    { error: `Unknown action "${action}". Use "start", "stop", "run-onmarket", "run-onmarket-all", "run-firecrawl-sold", "run-agents", "run-weekly-sold", "run-leased", "run-forrent".` },
     { status: 400 }
   )
 }

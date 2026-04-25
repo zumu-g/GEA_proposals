@@ -176,6 +176,53 @@ function initSchema(db: Database.Database) {
       last_run_at TEXT NOT NULL,
       last_result TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS leased_properties (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      address TEXT NOT NULL,
+      suburb TEXT NOT NULL,
+      state TEXT NOT NULL DEFAULT 'vic',
+      postcode TEXT NOT NULL,
+      price INTEGER,
+      price_display TEXT,
+      bedrooms INTEGER DEFAULT 0,
+      bathrooms INTEGER DEFAULT 0,
+      car_spaces INTEGER DEFAULT 0,
+      property_type TEXT DEFAULT 'House',
+      leased_date TEXT,
+      land_size TEXT,
+      url TEXT,
+      image_url TEXT,
+      lat REAL,
+      lng REAL,
+      source TEXT DEFAULT 'realestate.com.au',
+      scraped_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(address, leased_date)
+    );
+    CREATE INDEX IF NOT EXISTS idx_leased_suburb ON leased_properties(suburb);
+
+    CREATE TABLE IF NOT EXISTS for_rent_properties (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      address TEXT NOT NULL,
+      suburb TEXT NOT NULL,
+      state TEXT NOT NULL DEFAULT 'vic',
+      postcode TEXT NOT NULL,
+      price INTEGER,
+      price_display TEXT,
+      bedrooms INTEGER DEFAULT 0,
+      bathrooms INTEGER DEFAULT 0,
+      car_spaces INTEGER DEFAULT 0,
+      property_type TEXT DEFAULT 'House',
+      url TEXT,
+      image_url TEXT,
+      lat REAL,
+      lng REAL,
+      days_listed INTEGER,
+      source TEXT DEFAULT 'realestate.com.au',
+      scraped_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(address)
+    );
+    CREATE INDEX IF NOT EXISTS idx_for_rent_suburb ON for_rent_properties(suburb);
   `)
 
   // Add new columns for expanded proposal sections (safe to re-run)

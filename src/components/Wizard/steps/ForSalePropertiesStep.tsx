@@ -13,6 +13,7 @@ interface ForSalePropertiesStepProps {
   subjectLng: number | null
   onMarketListings: ComparableRow[]
   onChangeOnMarket: (rows: ComparableRow[]) => void
+  proposalType?: 'sale' | 'rental'
 }
 
 // ─── Internal row type ───────────────────────────────────────────────────────
@@ -145,7 +146,9 @@ export default function ForSalePropertiesStep({
   subjectLng,
   onMarketListings,
   onChangeOnMarket,
+  proposalType = 'sale',
 }: ForSalePropertiesStepProps) {
+  const isRental = proposalType === 'rental'
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
 
   useEffect(() => {
@@ -326,7 +329,7 @@ export default function ForSalePropertiesStep({
       removedOnMarketRef.current.clear()
 
       try {
-        const buyRes = await fetch(`/api/comparables?address=${encodeURIComponent(suburb)}&type=buy`)
+        const buyRes = await fetch(`/api/comparables?address=${encodeURIComponent(suburb)}&type=${isRental ? 'rent' : 'buy'}`)
         const buyData = await buyRes.json()
 
         if (buyData.error) {
@@ -374,7 +377,7 @@ export default function ForSalePropertiesStep({
     removedOnMarketRef.current.clear()
 
     try {
-      const buyRes = await fetch(`/api/comparables?address=${encodeURIComponent(suburb)}&type=buy&refresh=true`)
+      const buyRes = await fetch(`/api/comparables?address=${encodeURIComponent(suburb)}&type=${isRental ? 'rent' : 'buy'}&refresh=true`)
       const buyData = await buyRes.json()
 
       if (buyData.error) {
@@ -497,10 +500,12 @@ export default function ForSalePropertiesStep({
       {/* Header */}
       <div>
         <h2 className="text-gray-900 font-display text-2xl font-light lowercase tracking-tight">
-          for sale / on market
+          {isRental ? 'for rent / available' : 'for sale / on market'}
         </h2>
         <p className="text-gray-500 font-sans text-sm mt-1">
-          current listings near the subject property — optional but strengthens the proposal
+          {isRental
+            ? 'current rental listings near the subject property — optional but strengthens the proposal'
+            : 'current listings near the subject property — optional but strengthens the proposal'}
         </p>
       </div>
 
@@ -1063,7 +1068,7 @@ export default function ForSalePropertiesStep({
                           />
                         </div>
                         <div>
-                          <label className={labelClasses}>asking price</label>
+                          <label className={labelClasses}>{isRental ? 'weekly rent' : 'asking price'}</label>
                           <div className="relative">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-sans text-xs">$</span>
                             <input

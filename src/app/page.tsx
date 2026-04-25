@@ -813,6 +813,7 @@ export default function HomePage() {
           subjectLng={subjectLng}
           onMarketListings={onMarketListings}
           onChangeOnMarket={setOnMarketListings}
+          proposalType={proposalType}
         />
       )}
 

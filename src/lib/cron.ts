@@ -21,6 +21,7 @@ import { processDueTouchpoints } from './nurture'
 import { runDailyCacheRefresh, runWeeklySoldRefresh, runDailyFirecrawlRefresh } from './cache-refresh'
 import { runAgentScrape } from './agent-scraper'
 import { runDailyOnMarketScrape } from './onmarket-scraper'
+import { runDailyLeasedScrape, runDailyForRentScrape } from './rental-scraper'
 import { getDb } from './db'
 
 let inboxTask: cron.ScheduledTask | null = null
@@ -30,6 +31,8 @@ let weeklySoldTask: cron.ScheduledTask | null = null
 let firecrawlSoldTask: cron.ScheduledTask | null = null
 let agentScrapeTask: cron.ScheduledTask | null = null
 let onMarketScrapeTask: cron.ScheduledTask | null = null
+let leasedScrapeTask: cron.ScheduledTask | null = null
+let forRentScrapeTask: cron.ScheduledTask | null = null
 let running = false
 let lastPollTime: string | null = null
 let lastPollResult: { processed: number; errors: number } | null = null
@@ -45,6 +48,10 @@ let lastAgentScrapeTime: string | null = null
 let lastAgentScrapeResult: { scraped: number; newStored: number } | null = null
 let lastOnMarketScrapeTime: string | null = null
 let lastOnMarketScrapeResult: { scraped: number; stored: number } | null = null
+let lastLeasedScrapeTime: string | null = null
+let lastLeasedScrapeResult: { scraped: number; stored: number } | null = null
+let lastForRentScrapeTime: string | null = null
+let lastForRentScrapeResult: { scraped: number; stored: number } | null = null
 let pollCount = 0
 let nurtureCount = 0
 let dailyCacheCount = 0
@@ -52,6 +59,8 @@ let weeklySoldCount = 0
 let firecrawlSoldCount = 0
 let agentScrapeCount = 0
 let onMarketScrapeCount = 0
+let leasedScrapeCount = 0
+let forRentScrapeCount = 0
 
 function timestamp(): string {
   return new Date().toISOString()
@@ -291,6 +300,64 @@ async function executeOnMarketScrape(): Promise<void> {
   }
 }
 
+async function executeLeasedScrape(): Promise<void> {
+  const start = Date.now()
+  console.log(`[${timestamp()}] [cron] Running daily leased listings scrape (Apify)...`)
+
+  try {
+    const result = await runDailyLeasedScrape()
+    const elapsed = Date.now() - start
+    lastLeasedScrapeTime = timestamp()
+    lastLeasedScrapeResult = { scraped: result.totalScraped, stored: result.stored }
+    leasedScrapeCount++
+    saveCronRun('leased', lastLeasedScrapeResult)
+
+    console.log(
+      `[${lastLeasedScrapeTime}] [cron] Leased scrape #${leasedScrapeCount} complete in ${elapsed}ms — ` +
+        `${result.totalScraped} scraped, ${result.stored} stored`
+    )
+  } catch (err) {
+    lastLeasedScrapeTime = timestamp()
+    lastLeasedScrapeResult = { scraped: 0, stored: 0 }
+    leasedScrapeCount++
+    saveCronRun('leased', lastLeasedScrapeResult)
+
+    console.error(
+      `[${lastLeasedScrapeTime}] [cron] Leased scrape #${leasedScrapeCount} failed:`,
+      err instanceof Error ? err.message : err
+    )
+  }
+}
+
+async function executeForRentScrape(): Promise<void> {
+  const start = Date.now()
+  console.log(`[${timestamp()}] [cron] Running daily for-rent listings scrape (Apify)...`)
+
+  try {
+    const result = await runDailyForRentScrape()
+    const elapsed = Date.now() - start
+    lastForRentScrapeTime = timestamp()
+    lastForRentScrapeResult = { scraped: result.totalScraped, stored: result.stored }
+    forRentScrapeCount++
+    saveCronRun('forrent', lastForRentScrapeResult)
+
+    console.log(
+      `[${lastForRentScrapeTime}] [cron] For-rent scrape #${forRentScrapeCount} complete in ${elapsed}ms — ` +
+        `${result.totalScraped} scraped, ${result.stored} stored`
+    )
+  } catch (err) {
+    lastForRentScrapeTime = timestamp()
+    lastForRentScrapeResult = { scraped: 0, stored: 0 }
+    forRentScrapeCount++
+    saveCronRun('forrent', lastForRentScrapeResult)
+
+    console.error(
+      `[${lastForRentScrapeTime}] [cron] For-rent scrape #${forRentScrapeCount} failed:`,
+      err instanceof Error ? err.message : err
+    )
+  }
+}
+
 /**
  * Start the cron scheduler. Idempotent — calling twice is safe.
  * On startup, restores last-run times from SQLite and fires any overdue jobs
@@ -311,6 +378,8 @@ export function startCron(): void {
   if (history['weekly-sold']) lastWeeklySoldTime = history['weekly-sold'].lastRunAt
   if (history['inbox']) lastPollTime = history['inbox'].lastRunAt
   if (history['nurture']) lastNurtureTime = history['nurture'].lastRunAt
+  if (history['leased']) lastLeasedScrapeTime = history['leased'].lastRunAt
+  if (history['forrent']) lastForRentScrapeTime = history['forrent'].lastRunAt
 
   // Catch-up: fire any daily/weekly jobs that were missed while the server was down.
   // Stagger them so they don't all hammer APIs simultaneously.
@@ -344,6 +413,20 @@ export function startCron(): void {
     catchUpDelay += 30000
     console.log(`[cron] Weekly sold refresh overdue (${hoursAgo(lastWeeklySoldTime).toFixed(0)}h) — catch-up in ${d / 1000}s`)
     setTimeout(() => executeWeeklySoldRefresh(), d)
+  }
+
+  if (hoursAgo(lastLeasedScrapeTime) > DAILY_THRESHOLD_H) {
+    const d = catchUpDelay
+    catchUpDelay += 30000
+    console.log(`[cron] Leased scrape overdue (${hoursAgo(lastLeasedScrapeTime).toFixed(0)}h) — catch-up in ${d / 1000}s`)
+    setTimeout(() => executeLeasedScrape(), d)
+  }
+
+  if (hoursAgo(lastForRentScrapeTime) > DAILY_THRESHOLD_H) {
+    const d = catchUpDelay
+    catchUpDelay += 30000
+    console.log(`[cron] For-rent scrape overdue (${hoursAgo(lastForRentScrapeTime).toFixed(0)}h) — catch-up in ${d / 1000}s`)
+    setTimeout(() => executeForRentScrape(), d)
   }
 
   // Schedule: poll inbox every 5 minutes
@@ -381,12 +464,22 @@ export function startCron(): void {
     executeOnMarketScrape()
   })
 
+  // Schedule: daily leased scrape via Apify — 10:00 AM AEST (0:00 UTC)
+  leasedScrapeTask = cron.schedule('0 0 * * *', () => {
+    executeLeasedScrape()
+  })
+
+  // Schedule: daily for-rent scrape via Apify — 11:00 AM AEST (1:00 UTC)
+  forRentScrapeTask = cron.schedule('0 1 * * *', () => {
+    executeForRentScrape()
+  })
+
   running = true
   console.log(
     `[${timestamp()}] [cron] Started — inbox every 5 min, nurture every 15 min, ` +
       `on-market cache daily 6am AEST, sold cache weekly Mon 5am AEST, ` +
       `Firecrawl sold daily 7am AEST, agent scrape daily 8am AEST, ` +
-      `on-market Apify daily 9am AEST`
+      `on-market Apify daily 9am AEST, leased daily 10am AEST, for-rent daily 11am AEST`
   )
 }
 
@@ -422,6 +515,14 @@ export function stopCron(): void {
     onMarketScrapeTask.stop()
     onMarketScrapeTask = null
   }
+  if (leasedScrapeTask) {
+    leasedScrapeTask.stop()
+    leasedScrapeTask = null
+  }
+  if (forRentScrapeTask) {
+    forRentScrapeTask.stop()
+    forRentScrapeTask = null
+  }
   running = false
   console.log(`[${timestamp()}] [cron] Stopped`)
 }
@@ -434,6 +535,8 @@ export function triggerOnMarketScrape(): void { executeOnMarketScrape() }
 export function triggerFirecrawlSoldRefresh(): void { executeFirecrawlSoldRefresh() }
 export function triggerAgentScrape(): void { executeAgentScrape() }
 export function triggerWeeklySoldRefresh(): void { executeWeeklySoldRefresh() }
+export function triggerLeasedScrape(): void { executeLeasedScrape() }
+export function triggerForRentScrape(): void { executeForRentScrape() }
 
 /**
  * Get current cron status.
@@ -462,7 +565,13 @@ export function getCronStatus() {
     lastOnMarketScrapeTime,
     lastOnMarketScrapeResult,
     onMarketScrapeCount,
-    schedule: '*/5 (inbox), */15 (nurture), 6am (cache), Mon 5am (sold), 7am (firecrawl), 8am (agents), 9am (on-market)',
-    description: 'Inbox every 5 min, nurture every 15 min, on-market cache daily 6am AEST, sold cache weekly Mon 5am AEST, Firecrawl sold daily 7am AEST, agent scrape daily 8am AEST, on-market Apify daily 9am AEST',
+    lastLeasedScrapeTime,
+    lastLeasedScrapeResult,
+    leasedScrapeCount,
+    lastForRentScrapeTime,
+    lastForRentScrapeResult,
+    forRentScrapeCount,
+    schedule: '*/5 (inbox), */15 (nurture), 6am (cache), Mon 5am (sold), 7am (firecrawl), 8am (agents), 9am (on-market), 10am (leased), 11am (for-rent)',
+    description: 'Inbox every 5 min, nurture every 15 min, on-market cache daily 6am AEST, sold cache weekly Mon 5am AEST, Firecrawl sold daily 7am AEST, agent scrape daily 8am AEST, on-market Apify daily 9am AEST, leased daily 10am AEST, for-rent daily 11am AEST',
   }
 }

@@ -260,8 +260,7 @@ export default function SoldPropertiesStep({
   useEffect(() => {
     if (propertyAddress && isCompleteAddress(propertyAddress) && !confirmedAddress) {
       setConfirmedAddress(propertyAddress)
-      // Auto-search if we have no results yet (skip for rental — no leased data in DB)
-      if (rawComps.length === 0 && !hasSearchedRef.current && !isRental) {
+      if (rawComps.length === 0 && !hasSearchedRef.current) {
         setTimeout(() => searchComparables(propertyAddress), 100)
       }
     } else if (propertyAddress && !confirmedAddress) {
@@ -492,7 +491,7 @@ export default function SoldPropertiesStep({
 
       try {
         // ── Fetch comparables ──
-        const soldRes = await fetch(`/api/comparables?address=${encodeURIComponent(suburb)}`)
+        const soldRes = await fetch(`/api/comparables?address=${encodeURIComponent(suburb)}&type=${isRental ? 'leased' : 'sold'}`)
         const soldData = await soldRes.json()
 
         if (soldData.error) {
@@ -516,7 +515,7 @@ export default function SoldPropertiesStep({
             const scrapeData = await scrapeRes.json()
             if (scrapeData.stored > 0) {
               // Re-fetch from local DB now that we have data
-              const retryRes = await fetch(`/api/comparables?address=${encodeURIComponent(suburb)}`)
+              const retryRes = await fetch(`/api/comparables?address=${encodeURIComponent(suburb)}&type=${isRental ? 'leased' : 'sold'}`)
               const retryData = await retryRes.json()
               sold = retryData.sales || []
               src = retryData.source || 'local-db'
@@ -565,7 +564,9 @@ export default function SoldPropertiesStep({
 
         if (sold.length === 0) {
           setStatusMessage(
-            `No sold properties found for "${suburb}". Try a different address.`
+            isRental
+              ? `No leased properties found for "${suburb}". You can add them manually below.`
+              : `No sold properties found for "${suburb}". Try a different address.`
           )
         }
         // NOTE: Don't call applyFilters(sold) here — the useEffect on rawComps
@@ -594,7 +595,7 @@ export default function SoldPropertiesStep({
     removedSoldRef.current.clear()
 
     try {
-      const soldRes = await fetch(`/api/comparables?address=${encodeURIComponent(suburb)}&refresh=true`)
+      const soldRes = await fetch(`/api/comparables?address=${encodeURIComponent(suburb)}&type=${isRental ? 'leased' : 'sold'}&refresh=true`)
       const soldData = await soldRes.json()
 
       if (soldData.error) {
@@ -640,7 +641,7 @@ export default function SoldPropertiesStep({
       setSubjectLng(geoLng)
 
       if (sold.length === 0) {
-        setStatusMessage(`No sold properties found on refresh.`)
+        setStatusMessage(isRental ? `No leased properties found on refresh.` : `No sold properties found on refresh.`)
       }
     } catch (err) {
       setStatusMessage(
@@ -660,8 +661,7 @@ export default function SoldPropertiesStep({
       setRawComps([])
       setStatusMessage('')
       hasSearchedRef.current = false
-      // Auto-search with the new address (skip for rental — no leased data in DB)
-      if (!isRental) setTimeout(() => searchComparables(confirmedAddress), 150)
+      setTimeout(() => searchComparables(confirmedAddress), 150)
     }
   }, [confirmedAddress]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -760,12 +760,12 @@ export default function SoldPropertiesStep({
 
       {/* Rental note */}
       {isRental && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex items-start gap-3">
-          <svg className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+        <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 flex items-start gap-3">
+          <svg className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
           </svg>
-          <p className="text-blue-700 font-sans text-sm">
-            Automatic leased property lookup is coming soon. You can manually add comparable rental properties below, or skip this step.
+          <p className="text-gray-500 font-sans text-sm">
+            Searching leased properties from realestate.com.au. If none are found, you can add them manually below.
           </p>
         </div>
       )}

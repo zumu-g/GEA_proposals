@@ -466,3 +466,163 @@ export function getSoldPropertyCount(suburb: string): number {
   ).get(suburb) as { cnt: number }
   return row.cnt
 }
+
+/** Bulk upsert leased properties */
+export function upsertLeasedProperties(properties: ScrapedSale[]): number {
+  if (properties.length === 0) return 0
+
+  const db = getDb()
+
+  const stmt = db.prepare(`
+    INSERT OR REPLACE INTO leased_properties (
+      address, suburb, state, postcode,
+      price, price_display, bedrooms, bathrooms, car_spaces,
+      property_type, leased_date, land_size,
+      url, image_url, lat, lng,
+      source, scraped_at
+    ) VALUES (
+      ?, ?, ?, ?,
+      ?, ?, ?, ?, ?,
+      ?, ?, ?,
+      ?, ?, ?, ?,
+      ?, datetime('now')
+    )
+  `)
+
+  const upsertMany = db.transaction((props: ScrapedSale[]) => {
+    let count = 0
+    for (const p of props) {
+      stmt.run(
+        p.address,
+        p.suburb,
+        p.state || 'vic',
+        p.postcode || '',
+        p.price ?? null,
+        p.priceDisplay || null,
+        p.bedrooms || 0,
+        p.bathrooms || 0,
+        p.carSpaces || 0,
+        p.propertyType || 'House',
+        p.soldDate || null,
+        p.landSize || null,
+        p.url || null,
+        p.imageUrl || null,
+        p.lat ?? null,
+        p.lng ?? null,
+        p.source || 'realestate.com.au',
+      )
+      count++
+    }
+    return count
+  })
+
+  return upsertMany(properties)
+}
+
+/** Get leased properties for multiple suburbs (case-insensitive) */
+export function getLeasedPropertiesBySuburbs(suburbs: string[]): ScrapedSale[] {
+  if (suburbs.length === 0) return []
+
+  const db = getDb()
+  const placeholders = suburbs.map(() => 'LOWER(?)').join(', ')
+  const rows = db.prepare(
+    `SELECT * FROM leased_properties WHERE LOWER(suburb) IN (${placeholders}) ORDER BY scraped_at DESC`
+  ).all(...suburbs) as Record<string, unknown>[]
+  return rows.map(row => ({
+    address: row.address as string,
+    suburb: row.suburb as string,
+    state: (row.state as string) || 'vic',
+    postcode: row.postcode as string,
+    price: (row.price as number) ?? 0,
+    priceDisplay: (row.price_display as string) || undefined,
+    bedrooms: (row.bedrooms as number) || 0,
+    bathrooms: (row.bathrooms as number) || 0,
+    carSpaces: (row.car_spaces as number) || 0,
+    propertyType: (row.property_type as string) || 'House',
+    soldDate: (row.leased_date as string) || '',
+    landSize: row.land_size as string | undefined,
+    url: (row.url as string) || '',
+    imageUrl: row.image_url as string | undefined,
+    lat: row.lat as number | undefined,
+    lng: row.lng as number | undefined,
+    source: 'realestate.com.au',
+  }))
+}
+
+/** Bulk upsert for-rent properties */
+export function upsertForRentProperties(properties: ScrapedSale[]): number {
+  if (properties.length === 0) return 0
+
+  const db = getDb()
+
+  const stmt = db.prepare(`
+    INSERT OR REPLACE INTO for_rent_properties (
+      address, suburb, state, postcode,
+      price, price_display, bedrooms, bathrooms, car_spaces,
+      property_type, url, image_url, lat, lng,
+      source, scraped_at
+    ) VALUES (
+      ?, ?, ?, ?,
+      ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?,
+      ?, datetime('now')
+    )
+  `)
+
+  const upsertMany = db.transaction((props: ScrapedSale[]) => {
+    let count = 0
+    for (const p of props) {
+      stmt.run(
+        p.address,
+        p.suburb,
+        p.state || 'vic',
+        p.postcode || '',
+        p.price ?? null,
+        p.priceDisplay || null,
+        p.bedrooms || 0,
+        p.bathrooms || 0,
+        p.carSpaces || 0,
+        p.propertyType || 'House',
+        p.url || null,
+        p.imageUrl || null,
+        p.lat ?? null,
+        p.lng ?? null,
+        p.source || 'realestate.com.au',
+      )
+      count++
+    }
+    return count
+  })
+
+  return upsertMany(properties)
+}
+
+/** Get for-rent properties for multiple suburbs (case-insensitive) */
+export function getForRentPropertiesBySuburbs(suburbs: string[]): ScrapedSale[] {
+  if (suburbs.length === 0) return []
+
+  const db = getDb()
+  const placeholders = suburbs.map(() => 'LOWER(?)').join(', ')
+  const rows = db.prepare(
+    `SELECT * FROM for_rent_properties WHERE LOWER(suburb) IN (${placeholders}) ORDER BY scraped_at DESC`
+  ).all(...suburbs) as Record<string, unknown>[]
+  return rows.map(row => ({
+    address: row.address as string,
+    suburb: row.suburb as string,
+    state: (row.state as string) || 'vic',
+    postcode: row.postcode as string,
+    price: (row.price as number) ?? 0,
+    priceDisplay: (row.price_display as string) || undefined,
+    bedrooms: (row.bedrooms as number) || 0,
+    bathrooms: (row.bathrooms as number) || 0,
+    carSpaces: (row.car_spaces as number) || 0,
+    propertyType: (row.property_type as string) || 'House',
+    soldDate: '',
+    landSize: undefined,
+    url: (row.url as string) || '',
+    imageUrl: row.image_url as string | undefined,
+    lat: row.lat as number | undefined,
+    lng: row.lng as number | undefined,
+    source: 'realestate.com.au',
+  }))
+}
