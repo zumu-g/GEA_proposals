@@ -115,8 +115,12 @@ function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
         if (reaRes.ok) {
           const data = await reaRes.json()
           const raw: ReaSuggestion[] = data?._embedded?.suggestions || []
-          results = raw
-            .filter((s) => s.source?.state === 'VIC' && s.display?.text)
+          // Show all Australian addresses — VIC first, then other states.
+          // Strict VIC-only filtering caused empty results for common queries like
+          // "5 curtis st" where REA returns only NSW matches until the suburb is typed.
+          const vic = raw.filter((s) => s.source?.state === 'VIC' && s.display?.text)
+          const other = raw.filter((s) => s.source?.state !== 'VIC' && s.display?.text)
+          results = [...vic, ...other]
             .map(parseReaSuggestion)
             .filter((s) => s.length > 5)
             .slice(0, 8)
