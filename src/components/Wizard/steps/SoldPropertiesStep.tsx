@@ -12,6 +12,7 @@ export interface ComparableRow {
   baths: string
   cars?: string
   sqft?: string
+  landSize?: string
   date?: string
   distance?: string
   url?: string
@@ -38,6 +39,7 @@ interface InternalSoldRow {
   bathrooms: string
   cars: string
   propertyType: string
+  landSize?: string
   url: string
   imageUrl: string
   included: boolean
@@ -119,6 +121,7 @@ function soldToExternal(row: InternalSoldRow): ComparableRow {
     beds: row.bedrooms,
     baths: row.bathrooms,
     cars: row.cars,
+    landSize: row.landSize,
     date: row.date,
     distance: row.distance !== undefined ? String(row.distance) : undefined,
     url: row.url,
@@ -136,6 +139,7 @@ function externalToSold(row: ComparableRow): InternalSoldRow {
     bedrooms: row.beds,
     bathrooms: row.baths,
     cars: row.cars || '0',
+    landSize: row.landSize,
     propertyType: row.propertyType || 'House',
     url: row.url || '',
     imageUrl: row.imageUrl || '',
@@ -434,6 +438,7 @@ export default function SoldPropertiesStep({
             bathrooms: s.bathrooms ? String(s.bathrooms) : '',
             cars: s.cars ? String(s.cars) : '0',
             propertyType: s.propertyType || 'House',
+            landSize: s.landSize || undefined,
             url: s.url || '',
             imageUrl: s.imageUrl || '',
             included: false,
@@ -1321,6 +1326,14 @@ export default function SoldPropertiesStep({
                                 <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-500 font-sans text-[10px] uppercase tracking-wider">
                                   {row.propertyType}
                                 </span>
+                                {row.landSize && (
+                                  <span className="flex items-center gap-1 text-gray-500 font-sans text-xs">
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                                    </svg>
+                                    {row.landSize}
+                                  </span>
+                                )}
                                 {row.distance !== undefined && (
                                   <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-sans text-[10px] font-medium">
                                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
