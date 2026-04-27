@@ -1,7 +1,7 @@
 'use client'
 
 import { motion, AnimatePresence } from 'framer-motion'
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef } from 'react'
 
 interface ClientDetailsStepProps {
   formData: {
@@ -43,76 +43,65 @@ interface AddressAutoProps {
   onChange: (val: string) => void
 }
 
-// Strip trailing ", VIC XXXX" or "VIC XXXX" suffix before querying — postcode
-// doesn't help REA's index and can suppress results; suburb is the key signal.
-function normaliseQueryForApi(raw: string): string {
-  return raw
-    .replace(/,?\s*VIC\s*\d{4}\s*$/i, '')
-    .replace(/,?\s*\d{4}\s*$/i, '')
-    .trim()
-}
-
 function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const debounceRef = useRef<NodeJS.Timeout | null>(null)
-  const abortRef = useRef<AbortController | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  // Track whether dropdown was closed by selection so we don't re-open immediately
+  const suppressRef = useRef(false)
 
-  const fetchSuggestions = useCallback(async (query: string) => {
-    const normalised = normaliseQueryForApi(query)
-    if (normalised.length < 3) {
+  // Debounced fetch — useEffect cleanup handles both timer and abort automatically
+  useEffect(() => {
+    // Strip trailing state/postcode that confuses the REA index
+    const query = value
+      .replace(/,?\s*VIC\s*\d{4}\s*$/i, '')
+      .replace(/,?\s*\d{4}\s*$/i, '')
+      .trim()
+
+    if (query.length < 3 || suppressRef.current) {
       setSuggestions([])
       setShowDropdown(false)
+      suppressRef.current = false
       return
     }
-    // Cancel any in-flight request so stale results don't overwrite newer ones
-    if (abortRef.current) abortRef.current.abort()
-    abortRef.current = new AbortController()
+
+    const controller = new AbortController()
     setIsLoading(true)
-    try {
-      // Call REA suggest API directly from the browser — it's CORS-open (*) so no
-      // server hop needed. This avoids Railway IP rate-limiting and reduces latency.
-      const url = `https://suggest.realestate.com.au/consumer-suggest/suggestions?max=20&type=address&src=homepage&query=${encodeURIComponent(normalised)}`
-      const res = await fetch(url, {
-        signal: abortRef.current.signal,
-        headers: { Accept: 'application/json' },
-      })
-      if (!res.ok) { setSuggestions([]); setShowDropdown(false); return }
-      const data = await res.json()
-      const raw: Array<{ display?: { text?: string }; source?: { suburb?: string; state?: string; postcode?: string; shortAddress?: string } }> =
-        data?._embedded?.suggestions || data?.suggestions || []
 
-      const results: string[] = raw
-        .filter((s) => s.source?.state === 'VIC' && s.display?.text)
-        .map((s) => {
-          const src = s.source!
-          const parts = [src.shortAddress || s.display!.text!, src.suburb, `${src.state} ${src.postcode}`.trim()].filter(Boolean)
-          return parts.join(', ')
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/address-suggest?q=${encodeURIComponent(query)}`, {
+          signal: controller.signal,
         })
-        .filter((s) => s.length > 5)
-        .slice(0, 8)
+        if (!res.ok) throw new Error(`${res.status}`)
+        const data = await res.json()
+        const results: string[] = (data.suggestions || [])
+          .map((s: { fullAddress?: string; display?: string }) => s.fullAddress || s.display || '')
+          .filter((s: string) => s.length > 3)
+          .slice(0, 8)
+        setSuggestions(results)
+        setShowDropdown(results.length > 0)
+      } catch (err) {
+        if (err instanceof Error && err.name !== 'AbortError') {
+          setSuggestions([])
+          setShowDropdown(false)
+        }
+      } finally {
+        setIsLoading(false)
+      }
+    }, 350)
 
-      setSuggestions(results)
-      setShowDropdown(results.length > 0)
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === 'AbortError') return
-      setSuggestions([])
-      setShowDropdown(false)
-    } finally {
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
       setIsLoading(false)
     }
-  }, [])
-
-  const handleInputChange = (val: string) => {
-    onChange(val)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => fetchSuggestions(val), 300)
-  }
+  }, [value])
 
   const handleSelect = (address: string) => {
+    suppressRef.current = true
     onChange(address)
     setShowDropdown(false)
     setSuggestions([])
@@ -155,7 +144,7 @@ function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
           name="propertyAddress"
           required
           value={value}
-          onChange={(e) => handleInputChange(e.target.value)}
+          onChange={(e) => onChange(e.target.value)}
           onFocus={() => { if (suggestions.length > 0) setShowDropdown(true) }}
           className="w-full rounded-lg border border-gray-300 bg-white pl-10 pr-4 py-3 text-gray-900 font-sans placeholder-gray-400 focus:ring-2 focus:ring-[#C41E2A] focus:border-[#C41E2A] text-base touch-manipulation transition-all"
           placeholder="Start typing an address..."
