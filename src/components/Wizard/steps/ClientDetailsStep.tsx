@@ -43,24 +43,39 @@ interface AddressAutoProps {
   onChange: (val: string) => void
 }
 
+// Strip trailing ", VIC XXXX" or "VIC XXXX" suffix before querying — postcode
+// doesn't help REA's index and can suppress results; suburb is the key signal.
+function normaliseQueryForApi(raw: string): string {
+  return raw
+    .replace(/,?\s*VIC\s*\d{4}\s*$/i, '')
+    .replace(/,?\s*\d{4}\s*$/i, '')
+    .trim()
+}
+
 function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const fetchSuggestions = useCallback(async (query: string) => {
-    if (query.length < 3) {
+    const normalised = normaliseQueryForApi(query)
+    if (normalised.length < 3) {
       setSuggestions([])
       setShowDropdown(false)
       return
     }
+    // Cancel any in-flight request so stale results don't overwrite newer ones
+    if (abortRef.current) abortRef.current.abort()
+    abortRef.current = new AbortController()
     setIsLoading(true)
     try {
-      // Use the address suggest API (Australian address database)
-      const res = await fetch(`/api/address-suggest?q=${encodeURIComponent(query)}`)
+      const res = await fetch(`/api/address-suggest?q=${encodeURIComponent(normalised)}`, {
+        signal: abortRef.current.signal,
+      })
       if (!res.ok) { setSuggestions([]); return }
       const data = await res.json()
       const results: string[] = (data.suggestions || []).map(
@@ -68,9 +83,9 @@ function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
       ).filter((s: string) => s.length > 5)
 
       setSuggestions(results)
-      if (results.length > 0) setShowDropdown(true)
-      else setShowDropdown(false)
-    } catch {
+      setShowDropdown(results.length > 0)
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') return
       setSuggestions([])
     } finally {
       setIsLoading(false)
@@ -169,7 +184,7 @@ function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
       </AnimatePresence>
 
       <p className="text-gray-500 font-sans text-xs mt-1.5">
-        start typing to search Australian addresses
+        include suburb for best results — e.g. 5 Curtis St, Officer
       </p>
     </div>
   )
