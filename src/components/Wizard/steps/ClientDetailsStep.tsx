@@ -102,34 +102,43 @@ function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
     }
 
     const controller = new AbortController()
+
+    // Fetch VIC suggestions from REA, retrying with a shorter query if needed.
+    // REA's index returns 0 VIC results for partial street types (e.g. "5 curtis st")
+    // because the NSW results crowd them out. Stripping the last word and retrying
+    // (e.g. → "5 curtis") brings VIC results back without showing interstate noise.
+    async function fetchVic(q: string): Promise<string[]> {
+      const res = await fetch(
+        `https://suggest.realestate.com.au/consumer-suggest/suggestions?max=20&type=address&src=homepage&query=${encodeURIComponent(q)}`,
+        { signal: controller.signal, headers: { Accept: 'application/json' } }
+      )
+      if (!res.ok) return []
+      const data = await res.json()
+      const raw: ReaSuggestion[] = data?._embedded?.suggestions || []
+      return raw
+        .filter((s) => s.source?.state === 'VIC' && s.display?.text)
+        .map(parseReaSuggestion)
+        .filter((s) => s.length > 5)
+        .slice(0, 8)
+    }
+
     const timer = setTimeout(async () => {
       setIsLoading(true)
       let results: string[] = []
       try {
-        // Primary: call REA directly from the browser (CORS open, avoids Railway
-        // server-IP blocks that cause the server-side route to return empty silently)
-        const reaRes = await fetch(
-          `https://suggest.realestate.com.au/consumer-suggest/suggestions?max=20&type=address&src=homepage&query=${encodeURIComponent(query)}`,
-          { signal: controller.signal, headers: { Accept: 'application/json' } }
-        )
-        if (reaRes.ok) {
-          const data = await reaRes.json()
-          const raw: ReaSuggestion[] = data?._embedded?.suggestions || []
-          // Show all Australian addresses — VIC first, then other states.
-          // Strict VIC-only filtering caused empty results for common queries like
-          // "5 curtis st" where REA returns only NSW matches until the suburb is typed.
-          const vic = raw.filter((s) => s.source?.state === 'VIC' && s.display?.text)
-          const other = raw.filter((s) => s.source?.state !== 'VIC' && s.display?.text)
-          results = [...vic, ...other]
-            .map(parseReaSuggestion)
-            .filter((s) => s.length > 5)
-            .slice(0, 8)
+        results = await fetchVic(query)
+
+        // If no VIC results, retry without the last word — street type suffixes
+        // like "st" or "street" confuse REA's index for less-common VIC streets
+        if (results.length === 0 && query.includes(' ')) {
+          const shorter = query.split(' ').slice(0, -1).join(' ')
+          if (shorter.length >= 3) results = await fetchVic(shorter)
         }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') { setIsLoading(false); return }
       }
 
-      // Fallback to server route if browser call returned nothing
+      // Fallback to server route (also VIC-filtered) if both browser attempts failed
       if (results.length === 0) {
         try {
           const res = await fetch(`/api/address-suggest?q=${encodeURIComponent(query)}`, {
