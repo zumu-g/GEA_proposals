@@ -216,7 +216,27 @@ export default function HomePage() {
     setIsFetchingImages(true)
 
     try {
-      const response = await fetch(`/api/property-images?address=${encodeURIComponent(address)}`)
+      // Resolve the correct REA property slug browser-side (server IP is blocked by REA)
+      let slug = ''
+      try {
+        const suggestRes = await fetch(
+          `https://suggest.realestate.com.au/consumer-suggest/suggestions?max=5&type=address&src=homepage&query=${encodeURIComponent(address)}`,
+          { headers: { Accept: 'application/json' } }
+        )
+        if (suggestRes.ok) {
+          const suggestData = await suggestRes.json()
+          const sugg = suggestData?._embedded?.suggestions?.[0]
+          const src = typeof sugg?.source === 'object' ? sugg.source : null
+          if (src?.shortAddress && src?.suburb && src?.state && src?.postcode) {
+            slug = `${src.shortAddress} ${src.suburb} ${src.state} ${src.postcode}`
+              .toLowerCase().replace(/,/g, '').replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+          }
+        }
+      } catch { /* ignore — server will fall back to address-based slug */ }
+
+      const qs = new URLSearchParams({ address })
+      if (slug) qs.set('slug', slug)
+      const response = await fetch(`/api/property-images?${qs}`)
       if (response.ok) {
         const data = await response.json()
         if (data.heroImage) {

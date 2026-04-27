@@ -278,9 +278,13 @@ function isPropertyImage(url: string): boolean {
 /**
  * Fetch property images from realestate.com.au.
  */
-async function fetchFromRealEstate(address: string): Promise<PropertyImages> {
-  // Step 1: Search for the property
-  let slug = await searchRealEstate(address)
+async function fetchFromRealEstate(address: string, preResolvedSlug?: string): Promise<PropertyImages> {
+  // Step 1: Use pre-resolved slug (from browser) or search for the property server-side
+  let slug: string | null = preResolvedSlug || null
+
+  if (!slug) {
+    slug = await searchRealEstate(address)
+  }
 
   // Fallback: build slug from parsed address
   if (!slug) {
@@ -497,14 +501,18 @@ async function fetchFromApify(address: string): Promise<PropertyImages> {
  * Fetch property images via Firecrawl (bypasses rate limits and bot detection).
  * Scrapes the realestate.com.au property page using Firecrawl's proxy + JS rendering.
  */
-async function fetchFromFirecrawl(address: string): Promise<PropertyImages> {
+async function fetchFromFirecrawl(address: string, preResolvedSlug?: string): Promise<PropertyImages> {
   if (!FIRECRAWL_KEY) {
     console.log('[property-images] No FIRECRAWL_API_KEY — skipping Firecrawl')
     return EMPTY_RESULT
   }
 
-  // Use suggest API to find the exact property slug (most reliable)
-  let slug = await searchRealEstate(address)
+  // Use pre-resolved slug from browser (most reliable — avoids server-side REA IP block)
+  let slug: string | null = preResolvedSlug || null
+
+  if (!slug) {
+    slug = await searchRealEstate(address)
+  }
 
   // Fallback: build slug from parsed address parts
   if (!slug) {
@@ -636,12 +644,14 @@ async function fetchFromFirecrawl(address: string): Promise<PropertyImages> {
  *
  * Priority: Firecrawl → Apify → direct realestate.com.au → domain.com.au → homely.com.au
  * Returns gracefully with empty result if all lookups fail.
+ *
+ * @param preResolvedSlug - Optional REA property slug resolved browser-side (bypasses server IP block)
  */
-export async function lookupPropertyImages(propertyAddress: string): Promise<PropertyImages> {
-  console.log(`[property-images] Looking up images for: ${propertyAddress}`)
+export async function lookupPropertyImages(propertyAddress: string, preResolvedSlug?: string): Promise<PropertyImages> {
+  console.log(`[property-images] Looking up images for: ${propertyAddress}${preResolvedSlug ? ` (slug: ${preResolvedSlug})` : ''}`)
 
   // Try Firecrawl first (bypasses rate limits via proxy + JS rendering)
-  const firecrawlResult = await fetchFromFirecrawl(propertyAddress).catch((err) => {
+  const firecrawlResult = await fetchFromFirecrawl(propertyAddress, preResolvedSlug).catch((err) => {
     console.error('[property-images] Firecrawl lookup failed:', err)
     return EMPTY_RESULT
   })
@@ -662,7 +672,7 @@ export async function lookupPropertyImages(propertyAddress: string): Promise<Pro
 
   // Try direct realestate.com.au scraping
   console.log('[property-images] No images from Apify, trying direct realestate.com.au')
-  const reaResult = await fetchFromRealEstate(propertyAddress).catch((err) => {
+  const reaResult = await fetchFromRealEstate(propertyAddress, preResolvedSlug).catch((err) => {
     console.error('[property-images] realestate.com.au lookup failed:', err)
     return EMPTY_RESULT
   })

@@ -6,13 +6,14 @@ import { lookupPropertyImages } from '@/lib/property-image-lookup'
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const address = searchParams.get('address')
+  const slug = searchParams.get('slug') || undefined
 
   if (!address) {
     return NextResponse.json({ error: 'address parameter required' }, { status: 400 })
   }
 
   try {
-    const images = await lookupPropertyImages(address)
+    const images = await lookupPropertyImages(address, slug)
     return NextResponse.json(images)
   } catch (error) {
     return NextResponse.json(
