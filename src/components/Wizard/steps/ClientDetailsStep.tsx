@@ -43,39 +43,83 @@ interface AddressAutoProps {
   onChange: (val: string) => void
 }
 
+// Raw shape returned by REA suggest API
+interface ReaSuggestion {
+  display?: { text?: string }
+  source?: { suburb?: string; state?: string; postcode?: string; shortAddress?: string }
+}
+
+// Parse a REA suggestion into a clean address string
+function parseReaSuggestion(s: ReaSuggestion): string {
+  const src = s.source
+  if (!src) return s.display?.text || ''
+  return [src.shortAddress || s.display?.text, src.suburb, `${src.state ?? ''} ${src.postcode ?? ''}`.trim()]
+    .filter(Boolean)
+    .join(', ')
+}
+
 function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  // Track whether dropdown was closed by selection so we don't re-open immediately
   const suppressRef = useRef(false)
 
-  // Debounced fetch — useEffect cleanup handles both timer and abort automatically
   useEffect(() => {
-    // Strip trailing state/postcode that confuses the REA index
+    // Strip trailing state/postcode — REA index doesn't need them and they suppress results
     const query = value
       .replace(/,?\s*VIC\s*\d{4}\s*$/i, '')
       .replace(/,?\s*\d{4}\s*$/i, '')
       .trim()
 
-    if (query.length < 3 || suppressRef.current) {
+    if (query.length < 3) {
       setSuggestions([])
       setShowDropdown(false)
+      return
+    }
+
+    // Skip fetch immediately after a selection — the value change is from handleSelect,
+    // not user typing
+    if (suppressRef.current) {
       suppressRef.current = false
       return
     }
 
     const controller = new AbortController()
-    setIsLoading(true)
 
     const timer = setTimeout(async () => {
+      setIsLoading(true)
+      try {
+        // ── Primary: call REA directly from the browser (CORS-open, avoids Railway
+        // server-IP blocks that silently return empty results from the API route)
+        const reaUrl = `https://suggest.realestate.com.au/consumer-suggest/suggestions?max=20&type=address&src=homepage&query=${encodeURIComponent(query)}`
+        const reaRes = await fetch(reaUrl, {
+          signal: controller.signal,
+          headers: { Accept: 'application/json' },
+        })
+        if (reaRes.ok) {
+          const data = await reaRes.json()
+          const raw: ReaSuggestion[] = data?._embedded?.suggestions || []
+          const results = raw
+            .filter((s) => s.source?.state === 'VIC' && s.display?.text)
+            .map(parseReaSuggestion)
+            .filter((s) => s.length > 5)
+            .slice(0, 8)
+          setSuggestions(results)
+          setShowDropdown(results.length > 0)
+          return
+        }
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return
+        // Fall through to server-side route
+      }
+
+      // ── Fallback: server-side proxy route
       try {
         const res = await fetch(`/api/address-suggest?q=${encodeURIComponent(query)}`, {
           signal: controller.signal,
         })
-        if (!res.ok) throw new Error(`${res.status}`)
         const data = await res.json()
         const results: string[] = (data.suggestions || [])
           .map((s: { fullAddress?: string; display?: string }) => s.fullAddress || s.display || '')
@@ -96,7 +140,6 @@ function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
     return () => {
       clearTimeout(timer)
       controller.abort()
-      setIsLoading(false)
     }
   }, [value])
 
@@ -122,7 +165,7 @@ function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
   }, [])
 
   return (
-    <div className="mb-6 relative">
+    <div className="mb-6 relative" style={{ zIndex: 100 }}>
       <label
         htmlFor="propertyAddress"
         className="block text-sm font-sans font-medium text-gray-700 mb-1.5 lowercase"
