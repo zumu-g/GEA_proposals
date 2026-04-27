@@ -1,7 +1,8 @@
 'use client'
 
 import { motion, AnimatePresence } from 'framer-motion'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
 
 interface ClientDetailsStepProps {
   formData: {
@@ -43,31 +44,48 @@ interface AddressAutoProps {
   onChange: (val: string) => void
 }
 
-// Raw shape returned by REA suggest API
 interface ReaSuggestion {
   display?: { text?: string }
   source?: { suburb?: string; state?: string; postcode?: string; shortAddress?: string }
 }
 
-// Parse a REA suggestion into a clean address string
 function parseReaSuggestion(s: ReaSuggestion): string {
   const src = s.source
   if (!src) return s.display?.text || ''
   return [src.shortAddress || s.display?.text, src.suburb, `${src.state ?? ''} ${src.postcode ?? ''}`.trim()]
-    .filter(Boolean)
-    .join(', ')
+    .filter(Boolean).join(', ')
 }
 
 function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 })
   const inputRef = useRef<HTMLInputElement>(null)
   const suppressRef = useRef(false)
+  const [mounted, setMounted] = useState(false)
 
+  useEffect(() => { setMounted(true) }, [])
+
+  // Keep dropdown aligned with input on scroll/resize
+  useLayoutEffect(() => {
+    if (!showDropdown || !inputRef.current) return
+    const update = () => {
+      if (!inputRef.current) return
+      const r = inputRef.current.getBoundingClientRect()
+      setDropdownPos({ top: r.bottom + 4, left: r.left, width: r.width })
+    }
+    update()
+    window.addEventListener('scroll', update, true)
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
+    }
+  }, [showDropdown])
+
+  // Debounced fetch — cleanup cancels both timer and in-flight request
   useEffect(() => {
-    // Strip trailing state/postcode — REA index doesn't need them and they suppress results
     const query = value
       .replace(/,?\s*VIC\s*\d{4}\s*$/i, '')
       .replace(/,?\s*\d{4}\s*$/i, '')
@@ -78,69 +96,57 @@ function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
       setShowDropdown(false)
       return
     }
-
-    // Skip fetch immediately after a selection — the value change is from handleSelect,
-    // not user typing
     if (suppressRef.current) {
       suppressRef.current = false
       return
     }
 
     const controller = new AbortController()
-
     const timer = setTimeout(async () => {
       setIsLoading(true)
+      let results: string[] = []
       try {
-        // ── Primary: call REA directly from the browser (CORS-open, avoids Railway
-        // server-IP blocks that silently return empty results from the API route)
-        const reaUrl = `https://suggest.realestate.com.au/consumer-suggest/suggestions?max=20&type=address&src=homepage&query=${encodeURIComponent(query)}`
-        const reaRes = await fetch(reaUrl, {
-          signal: controller.signal,
-          headers: { Accept: 'application/json' },
-        })
+        // Primary: call REA directly from the browser (CORS open, avoids Railway
+        // server-IP blocks that cause the server-side route to return empty silently)
+        const reaRes = await fetch(
+          `https://suggest.realestate.com.au/consumer-suggest/suggestions?max=20&type=address&src=homepage&query=${encodeURIComponent(query)}`,
+          { signal: controller.signal, headers: { Accept: 'application/json' } }
+        )
         if (reaRes.ok) {
           const data = await reaRes.json()
           const raw: ReaSuggestion[] = data?._embedded?.suggestions || []
-          const results = raw
+          results = raw
             .filter((s) => s.source?.state === 'VIC' && s.display?.text)
             .map(parseReaSuggestion)
             .filter((s) => s.length > 5)
             .slice(0, 8)
-          setSuggestions(results)
-          setShowDropdown(results.length > 0)
-          return
         }
       } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') return
-        // Fall through to server-side route
+        if (err instanceof Error && err.name === 'AbortError') { setIsLoading(false); return }
       }
 
-      // ── Fallback: server-side proxy route
-      try {
-        const res = await fetch(`/api/address-suggest?q=${encodeURIComponent(query)}`, {
-          signal: controller.signal,
-        })
-        const data = await res.json()
-        const results: string[] = (data.suggestions || [])
-          .map((s: { fullAddress?: string; display?: string }) => s.fullAddress || s.display || '')
-          .filter((s: string) => s.length > 3)
-          .slice(0, 8)
-        setSuggestions(results)
-        setShowDropdown(results.length > 0)
-      } catch (err) {
-        if (err instanceof Error && err.name !== 'AbortError') {
-          setSuggestions([])
-          setShowDropdown(false)
+      // Fallback to server route if browser call returned nothing
+      if (results.length === 0) {
+        try {
+          const res = await fetch(`/api/address-suggest?q=${encodeURIComponent(query)}`, {
+            signal: controller.signal,
+          })
+          const data = await res.json()
+          results = (data.suggestions || [])
+            .map((s: { fullAddress?: string; display?: string }) => s.fullAddress || s.display || '')
+            .filter((s: string) => s.length > 3)
+            .slice(0, 8)
+        } catch (err) {
+          if (err instanceof Error && err.name === 'AbortError') { setIsLoading(false); return }
         }
-      } finally {
-        setIsLoading(false)
       }
+
+      setSuggestions(results)
+      setShowDropdown(results.length > 0)
+      setIsLoading(false)
     }, 350)
 
-    return () => {
-      clearTimeout(timer)
-      controller.abort()
-    }
+    return () => { clearTimeout(timer); controller.abort() }
   }, [value])
 
   const handleSelect = (address: string) => {
@@ -150,22 +156,66 @@ function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
     setSuggestions([])
   }
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (
-        dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
-        inputRef.current && !inputRef.current.contains(e.target as Node)
-      ) {
-        setShowDropdown(false)
-      }
+      const target = e.target as Node
+      const portal = document.getElementById('addr-autocomplete-portal')
+      if (inputRef.current?.contains(target) || portal?.contains(target)) return
+      setShowDropdown(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  // Render dropdown via portal directly on document.body — escapes all
+  // stacking contexts created by Framer Motion animation wrappers
+  const dropdown = mounted && showDropdown && suggestions.length > 0
+    ? createPortal(
+        <div
+          id="addr-autocomplete-portal"
+          style={{
+            position: 'fixed',
+            top: dropdownPos.top,
+            left: dropdownPos.left,
+            width: dropdownPos.width,
+            zIndex: 99999,
+            background: '#fff',
+            border: '1px solid #e5e7eb',
+            borderRadius: '8px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+            overflow: 'hidden',
+          }}
+        >
+          {suggestions.map((addr, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); handleSelect(addr) }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                width: '100%', textAlign: 'left',
+                padding: '11px 16px',
+                borderBottom: idx < suggestions.length - 1 ? '1px solid #f3f4f6' : 'none',
+                background: 'transparent', cursor: 'pointer',
+                fontSize: 14, color: '#111827', fontFamily: 'sans-serif',
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#f9fafb' }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+            >
+              <svg style={{ width: 14, height: 14, color: '#9ca3af', flexShrink: 0 }} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+              </svg>
+              {addr}
+            </button>
+          ))}
+        </div>,
+        document.body
+      )
+    : null
+
   return (
-    <div className="mb-6 relative" style={{ zIndex: 100 }}>
+    <div className="mb-6">
       <label
         htmlFor="propertyAddress"
         className="block text-sm font-sans font-medium text-gray-700 mb-1.5 lowercase"
@@ -199,35 +249,7 @@ function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
           </div>
         )}
       </div>
-
-      {/* Suggestions dropdown */}
-      <AnimatePresence>
-        {showDropdown && suggestions.length > 0 && (
-          <motion.div
-            ref={dropdownRef}
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.15 }}
-            className="absolute z-50 w-full mt-1 bg-white shadow-lg rounded-lg border border-gray-200 overflow-hidden"
-          >
-            {suggestions.map((addr, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => handleSelect(addr)}
-                className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 flex items-center gap-3"
-              >
-                <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
-                </svg>
-                <span className="text-gray-900 font-sans text-sm">{addr}</span>
-              </button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {dropdown}
 
       <p className="text-gray-500 font-sans text-xs mt-1.5">
         include suburb for best results — e.g. 5 Curtis St, Officer
