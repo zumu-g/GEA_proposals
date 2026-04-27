@@ -73,20 +73,34 @@ function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
     abortRef.current = new AbortController()
     setIsLoading(true)
     try {
-      const res = await fetch(`/api/address-suggest?q=${encodeURIComponent(normalised)}`, {
+      // Call REA suggest API directly from the browser — it's CORS-open (*) so no
+      // server hop needed. This avoids Railway IP rate-limiting and reduces latency.
+      const url = `https://suggest.realestate.com.au/consumer-suggest/suggestions?max=20&type=address&src=homepage&query=${encodeURIComponent(normalised)}`
+      const res = await fetch(url, {
         signal: abortRef.current.signal,
+        headers: { Accept: 'application/json' },
       })
-      if (!res.ok) { setSuggestions([]); return }
+      if (!res.ok) { setSuggestions([]); setShowDropdown(false); return }
       const data = await res.json()
-      const results: string[] = (data.suggestions || []).map(
-        (s: { fullAddress?: string; display?: string }) => s.fullAddress || s.display || ''
-      ).filter((s: string) => s.length > 5)
+      const raw: Array<{ display?: { text?: string }; source?: { suburb?: string; state?: string; postcode?: string; shortAddress?: string } }> =
+        data?._embedded?.suggestions || data?.suggestions || []
+
+      const results: string[] = raw
+        .filter((s) => s.source?.state === 'VIC' && s.display?.text)
+        .map((s) => {
+          const src = s.source!
+          const parts = [src.shortAddress || s.display!.text!, src.suburb, `${src.state} ${src.postcode}`.trim()].filter(Boolean)
+          return parts.join(', ')
+        })
+        .filter((s) => s.length > 5)
+        .slice(0, 8)
 
       setSuggestions(results)
       setShowDropdown(results.length > 0)
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return
       setSuggestions([])
+      setShowDropdown(false)
     } finally {
       setIsLoading(false)
     }
