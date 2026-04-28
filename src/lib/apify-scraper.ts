@@ -65,7 +65,7 @@ interface ApifyPropertyResult {
 function buildSearchUrl(suburb: string, state: string, postcode: string, type: 'sold' | 'buy'): string {
   const suburbSlug = suburb.toLowerCase().replace(/\s+/g, '-')
   const stateSlug = state.toLowerCase()
-  const propertyTypes = 'property-unit+apartment+villa+house'
+  const propertyTypes = 'property-unit+apartment+villa+house+acreage+rural'
   return `https://www.realestate.com.au/${type}/${propertyTypes}-in-${suburbSlug},+${stateSlug}+${postcode}/list-1`
 }
 

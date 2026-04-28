@@ -557,7 +557,7 @@ export async function lookupComparables(propertyAddress: string): Promise<Proper
       const localSales = getSoldPropertiesBySuburbs(allSuburbs)
       console.log(`[comparables] Local DB returned ${localSales.length} sold results`)
 
-      if (localSales.length >= 5) {
+      if (localSales.length > 0) {
         _lastSource = 'local-db'
         let sales = localSales.map(scrapedSaleToPropertySale)
 
@@ -887,7 +887,7 @@ export async function searchComparables(
       console.log(`[searchComparables] Trying local DB (primary) for: ${parts.suburb} + ${neighbors.length} neighbors`)
 
       const localSales = getSoldPropertiesBySuburbs(allSuburbs)
-      if (localSales.length >= 5) {
+      if (localSales.length > 0) {
         results = localSales.map((sale) => ({
           address: sale.address,
           price: sale.price,

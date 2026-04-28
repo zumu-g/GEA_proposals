@@ -534,8 +534,8 @@ async function fetchFromFirecrawl(address: string, preResolvedSlug?: string): Pr
       body: JSON.stringify({
         url: propertyUrl,
         formats: ['html'],
-        waitFor: 2000,
-        timeout: 30000,
+        waitFor: 4000,
+        timeout: 35000,
       }),
       signal: AbortSignal.timeout(45000),
     })
@@ -553,6 +553,30 @@ async function fetchFromFirecrawl(address: string, preResolvedSlug?: string): Pr
     }
 
     const html = result.data.html
+
+    // Strategy 0: og:image meta tag — set server-side by REA, always reliable
+    const ogMatch = html.match(/<meta\s+property="og:image"\s+content="([^"]+)"/i)
+      || html.match(/<meta\s+content="([^"]+)"\s+property="og:image"/i)
+    if (ogMatch?.[1]) {
+      const ogUrl = ogMatch[1]
+      const isGeneric = ogUrl.includes('facebook-open-graph') || ogUrl.includes('/domain/facebook') || ogUrl.includes('/generic')
+      if (!isGeneric && isValidImageUrl(ogUrl)) {
+        console.log(`[property-images] Firecrawl found og:image: ${ogUrl}`)
+        // Collect any additional gallery images from reastatic.net patterns
+        const galleryPattern = /https:\/\/i\d\.au\.reastatic\.net\/800x600[^"<>\s]*\/(?:image|main)\.(?:jpg|jpeg|webp|png)/gi
+        const galleryMatches = [...html.matchAll(galleryPattern)]
+        const gallery = galleryMatches
+          .map(m => m[0])
+          .filter(url => url !== ogUrl)
+          .filter((url, i, arr) => arr.indexOf(url) === i)
+          .slice(0, 10)
+        return {
+          heroImage: ogUrl,
+          galleryImages: gallery,
+          source: 'realestate.com.au (via Firecrawl)',
+        }
+      }
+    }
 
     // Strategy 1: Find images with the EXACT property address in alt text
     // The REA property history page has ONE correct hero (800x600, alt="14 Casey Drive, Berwick, Vic 3806")
