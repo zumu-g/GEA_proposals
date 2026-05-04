@@ -111,7 +111,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
         <TeamShowcase agency={proposal.agency} />
 
         {/* Visual process journey */}
-        <ProcessJourney steps={proposal.saleProcess} />
+        <ProcessJourney steps={proposal.saleProcess} methodOfSale={proposal.methodOfSale} />
 
         {/* Marketing showcase - channels */}
         <MarketingShowcase items={proposal.marketingPlan} />
@@ -120,10 +120,11 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
         <AdvertisingSchedule
           schedule={proposal.advertisingSchedule || getDefaultProposalExtras().advertisingSchedule}
           totalCost={proposal.totalAdvertisingCost ?? DEFAULT_TOTAL_ADVERTISING_COST}
+          methodOfSale={proposal.methodOfSale}
         />
 
         {/* Fee structure */}
-        <FeeStructureVisual fees={proposal.fees} showCommission={proposal.showCommission !== false} />
+        <FeeStructureVisual fees={proposal.fees} showCommission={proposal.showCommission !== false} methodOfSale={proposal.methodOfSale} />
 
         {/* Personal closing statement */}
         <ClosingStatement

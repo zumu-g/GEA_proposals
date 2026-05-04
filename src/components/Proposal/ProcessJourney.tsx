@@ -6,11 +6,13 @@ import type { SaleStep } from '@/types/proposal'
 
 interface ProcessJourneyProps {
   steps: SaleStep[]
+  methodOfSale?: string
 }
 
-export function ProcessJourney({ steps }: ProcessJourneyProps) {
+export function ProcessJourney({ steps, methodOfSale }: ProcessJourneyProps) {
   const prefersReducedMotion = useReducedMotion()
   const [imageErrors, setImageErrors] = useState<Set<number>>(new Set())
+  const isAuction = methodOfSale?.toLowerCase() === 'auction'
 
   const fadeUp = prefersReducedMotion
     ? {}
@@ -52,11 +54,13 @@ export function ProcessJourney({ steps }: ProcessJourneyProps) {
             selling process
           </p>
           <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-normal text-charcoal lowercase mb-5">
-            your journey to settlement
+            {isAuction ? 'your journey to auction' : 'your journey to settlement'}
           </h2>
           <div className="w-12 h-px bg-sage mx-auto mb-5" />
           <p className="text-charcoal-400 font-sans text-lg font-light max-w-xl mx-auto">
-            a proven process, refined over decades, to achieve the best outcome for you
+            {isAuction
+              ? 'a structured 4-week campaign, building competitive tension toward auction day'
+              : 'a proven process, refined over decades, to achieve the best outcome for you'}
           </p>
         </motion.div>
 

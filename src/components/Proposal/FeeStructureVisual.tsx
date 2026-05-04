@@ -16,13 +16,19 @@ const DEFAULT_INCLUSIONS = [
 interface FeeStructureVisualProps {
   fees?: FeeInfo
   showCommission?: boolean
+  methodOfSale?: string
 }
 
-export function FeeStructureVisual({ fees, showCommission = true }: FeeStructureVisualProps) {
+export function FeeStructureVisual({ fees, showCommission = true, methodOfSale }: FeeStructureVisualProps) {
   const commissionRate = fees?.commissionRate ?? 1.5
   const fixedFees = fees?.fixedFees ?? []
-  const inclusions = fees?.inclusions ?? DEFAULT_INCLUSIONS
   const prefersReducedMotion = useReducedMotion()
+  const isAuction = methodOfSale?.toLowerCase() === 'auction'
+
+  const baseInclusions = fees?.inclusions ?? DEFAULT_INCLUSIONS
+  const inclusions = isAuction && !baseInclusions.some(i => /auction/i.test(i))
+    ? [...baseInclusions, 'Licensed auctioneer on auction day']
+    : baseInclusions
 
   return (
     <section className="bg-charcoal py-20 sm:py-28 lg:py-36">

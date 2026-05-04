@@ -166,6 +166,54 @@ export async function POST(request: NextRequest) {
     if (methodOfSale) {
       proposal.methodOfSale = methodOfSale
     }
+
+    // Override sale process with auction-specific steps
+    if (methodOfSale?.toLowerCase() === 'auction') {
+      proposal.saleProcess = [
+        {
+          step: 1,
+          title: 'Auction Strategy Meeting',
+          description: 'We meet to discuss your auction strategy, reserve price, and 4-week campaign plan. Together we align on expectations and set a clear path to auction day.',
+          duration: '1–2 hours',
+          imageUrl: '/images/stocksy/consultation.jpg',
+        },
+        {
+          step: 2,
+          title: 'Property Preparation',
+          description: 'Professional photography, floor plans, and all marketing materials are produced and signed off before the campaign goes live.',
+          duration: '5–7 days',
+          imageUrl: '/images/stocksy/marketing-prep.jpg',
+        },
+        {
+          step: 3,
+          title: 'Campaign Launch',
+          description: 'Your property goes live with a Premiere listing across realestate.com.au, Domain, and all major platforms. Maximum exposure from day one.',
+          duration: 'Week 1',
+          imageUrl: '/images/stocksy/launch.jpg',
+        },
+        {
+          step: 4,
+          title: 'Open Homes & Buyer Management',
+          description: 'Weekly open homes throughout the campaign. We identify and qualify serious buyers, gather market feedback, and build competitive tension heading into auction day.',
+          duration: 'Weeks 1–3',
+          imageUrl: '/images/stocksy/viewings.jpg',
+        },
+        {
+          step: 5,
+          title: 'Auction Day',
+          description: 'Competitive bidding in a transparent, public forum. Buyers compete openly — the highest bid above reserve secures the property and contracts are exchanged on the day.',
+          duration: 'Week 4',
+          imageUrl: '/images/stocksy/completion.jpg',
+        },
+        {
+          step: 6,
+          title: 'Post-Auction & Settlement',
+          description: 'If sold under the hammer, contracts are exchanged immediately. If passed in, we negotiate directly with the highest bidder. We manage the full process through to settlement.',
+          duration: '30–60 days',
+          imageUrl: '/images/stocksy/valuation.jpg',
+        },
+      ]
+    }
     const minPrice = priceGuideMin ? parseInt(priceGuideMin) : NaN
     const maxPrice = priceGuideMax ? parseInt(priceGuideMax) : NaN
     if (Number.isFinite(minPrice) && Number.isFinite(maxPrice) && minPrice > 0 && maxPrice > 0) {

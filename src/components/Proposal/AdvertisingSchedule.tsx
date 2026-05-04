@@ -8,24 +8,33 @@ import { formatCurrency } from '@/lib/utils'
 interface AdvertisingScheduleProps {
   schedule?: AdvertisingWeek[]
   totalCost?: number
+  methodOfSale?: string
 }
 
-export function AdvertisingSchedule({ schedule, totalCost }: AdvertisingScheduleProps) {
+export function AdvertisingSchedule({ schedule, totalCost, methodOfSale }: AdvertisingScheduleProps) {
   const prefersReducedMotion = useReducedMotion()
 
   if (!schedule || schedule.length === 0) return null
 
+  const isAuction = methodOfSale?.toLowerCase() === 'auction'
+
   // Sort so week 0 (extras/campaign prep) comes first, then weeks 1, 2, 3...
   const sorted = [...schedule].sort((a, b) => a.week - b.week)
+  const maxWeek = Math.max(...sorted.map(w => w.week))
 
   const weekTotal = (week: AdvertisingWeek) =>
     week.activities.reduce((sum, a) => sum + (a.included ? 0 : (a.cost ?? 0)), 0)
 
-  const weekLabel = (week: AdvertisingWeek) =>
-    week.week === 0 ? 'campaign preparation' : `week ${week.week}`
+  const weekLabel = (week: AdvertisingWeek) => {
+    if (week.week === 0) return 'campaign preparation'
+    if (isAuction && week.week === maxWeek) return 'auction week'
+    return `week ${week.week}`
+  }
 
   const weekBadge = (week: AdvertisingWeek) =>
     week.week === 0 ? 'prep' : String(week.week)
+
+  const isAuctionWeek = (week: AdvertisingWeek) => isAuction && week.week === maxWeek
 
   return (
     <section className="py-16 sm:py-20 lg:py-24 bg-white">
@@ -42,10 +51,12 @@ export function AdvertisingSchedule({ schedule, totalCost }: AdvertisingSchedule
             advertising schedule
           </p>
           <h2 className="font-display text-3xl sm:text-4xl font-normal text-charcoal lowercase mb-3">
-            your campaign
+            {isAuction ? 'your auction campaign' : 'your campaign'}
           </h2>
           <p className="text-charcoal-400 font-sans text-lg font-light max-w-2xl">
-            a structured {schedule.length}-week marketing campaign to maximise exposure
+            {isAuction
+              ? `a structured ${schedule.length}-week campaign building competitive tension toward auction day`
+              : `a structured ${schedule.length}-week marketing campaign to maximise exposure`}
           </p>
         </motion.div>
 
@@ -61,17 +72,22 @@ export function AdvertisingSchedule({ schedule, totalCost }: AdvertisingSchedule
                 duration: 0.4,
                 delay: prefersReducedMotion ? 0 : index * 0.1,
               }}
-              className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 border border-charcoal-50/60 overflow-hidden"
+              className={`rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 border overflow-hidden ${isAuctionWeek(week) ? 'bg-brand/[0.03] border-brand/20' : 'bg-white border-charcoal-50/60'}`}
             >
               {/* Week header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-charcoal-50/60">
+              <div className={`flex items-center justify-between px-6 py-4 border-b ${isAuctionWeek(week) ? 'border-brand/15 bg-brand/5' : 'border-charcoal-50/60'}`}>
                 <div className="flex items-center gap-3">
                   <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-brand text-white font-sans text-sm font-semibold">
                     {weekBadge(week)}
                   </span>
-                  <h3 className="font-display text-xl font-normal text-charcoal lowercase">
-                    {weekLabel(week)}
-                  </h3>
+                  <div>
+                    <h3 className="font-display text-xl font-normal text-charcoal lowercase">
+                      {weekLabel(week)}
+                    </h3>
+                    {isAuctionWeek(week) && (
+                      <p className="font-sans text-xs font-medium text-brand uppercase tracking-wider mt-0.5">auction day</p>
+                    )}
+                  </div>
                 </div>
                 {weekTotal(week) > 0 && (
                   <span className="font-sans text-sm font-semibold text-charcoal">
