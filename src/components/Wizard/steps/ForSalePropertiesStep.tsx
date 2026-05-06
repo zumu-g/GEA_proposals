@@ -615,6 +615,45 @@ export default function ForSalePropertiesStep({
                 ))}
               </div>
 
+              {/* Price filter — always visible */}
+              <div className="mt-4 pt-3 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-gray-500 font-sans text-[10px] uppercase tracking-wider">price range</label>
+                  {(priceMin || priceMax) && (
+                    <button
+                      type="button"
+                      onClick={() => { setPriceMin(''); setPriceMax('') }}
+                      className="text-gray-400 hover:text-gray-600 font-sans text-[10px] transition-colors"
+                    >
+                      clear
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-sans text-xs pointer-events-none">$</span>
+                    <input
+                      type="text"
+                      value={priceMin ? Number(priceMin).toLocaleString('en-AU') : ''}
+                      onChange={e => setPriceMin(e.target.value.replace(/[^0-9]/g, ''))}
+                      className="w-full pl-6 pr-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 font-sans text-sm placeholder-gray-400 focus:ring-2 focus:ring-[#C41E2A]/50 focus:border-[#C41E2A]/50 transition-all"
+                      placeholder="Min"
+                    />
+                  </div>
+                  <span className="text-gray-300 font-sans text-sm flex-shrink-0">—</span>
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-sans text-xs pointer-events-none">$</span>
+                    <input
+                      type="text"
+                      value={priceMax ? Number(priceMax).toLocaleString('en-AU') : ''}
+                      onChange={e => setPriceMax(e.target.value.replace(/[^0-9]/g, ''))}
+                      className="w-full pl-6 pr-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 font-sans text-sm placeholder-gray-400 focus:ring-2 focus:ring-[#C41E2A]/50 focus:border-[#C41E2A]/50 transition-all"
+                      placeholder="Max"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Secondary filters toggle + sort */}
               <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
                 <div className="flex items-center gap-3">
@@ -665,12 +704,12 @@ export default function ForSalePropertiesStep({
                     }}
                     className="text-gray-400 hover:text-gray-600 font-sans text-xs transition-colors"
                   >
-                    clear filters
+                    clear all filters
                   </button>
                 )}
               </div>
 
-              {/* Collapsible secondary filters — NO "sold within" for on-market */}
+              {/* Collapsible secondary filters */}
               <AnimatePresence>
                 {showFilters && (
                   <motion.div
@@ -681,32 +720,6 @@ export default function ForSalePropertiesStep({
                     className="overflow-hidden"
                   >
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mt-3">
-                      <div>
-                        <label className={labelClasses}>min price</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-sans text-xs">$</span>
-                          <input
-                            type="text"
-                            value={priceMin}
-                            onChange={e => setPriceMin(e.target.value.replace(/[^0-9]/g, ''))}
-                            className="w-full pl-7 pr-3 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 font-sans text-sm placeholder-gray-400 focus:ring-2 focus:ring-[#C41E2A]/50 focus:border-[#C41E2A]/50 transition-all"
-                            placeholder="Any"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className={labelClasses}>max price</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-sans text-xs">$</span>
-                          <input
-                            type="text"
-                            value={priceMax}
-                            onChange={e => setPriceMax(e.target.value.replace(/[^0-9]/g, ''))}
-                            className="w-full pl-7 pr-3 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 font-sans text-sm placeholder-gray-400 focus:ring-2 focus:ring-[#C41E2A]/50 focus:border-[#C41E2A]/50 transition-all"
-                            placeholder="Any"
-                          />
-                        </div>
-                      </div>
                       <div>
                         <label className={labelClasses}>bedrooms</label>
                         <select
