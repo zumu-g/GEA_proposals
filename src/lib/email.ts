@@ -22,7 +22,15 @@ function getProposalUrl(proposalId: string): string {
   return `${BASE_URL}/proposal/${proposalId}`
 }
 
-export async function sendProposalEmail(proposal: Proposal): Promise<{ success: boolean; error?: string }> {
+interface EmailAttachment {
+  filename: string
+  content: Buffer
+}
+
+export async function sendProposalEmail(
+  proposal: Proposal,
+  attachments?: EmailAttachment[]
+): Promise<{ success: boolean; error?: string }> {
   const agencyName = proposal.agency?.name || "Grant's Estate Agents"
   const proposalUrl = getProposalUrl(proposal.id)
 
@@ -39,6 +47,7 @@ export async function sendProposalEmail(proposal: Proposal): Promise<{ success: 
         contactEmail: proposal.agency?.contactEmail,
         contactPhone: proposal.agency?.contactPhone,
       }),
+      ...(attachments && attachments.length > 0 ? { attachments } : {}),
     })
 
     if (error) {
@@ -82,7 +91,7 @@ export async function sendNurtureEmail(
 }
 
 export async function sendApprovalNotification(proposal: Proposal): Promise<{ success: boolean; error?: string }> {
-  const agencyEmail = proposal.agency?.contactEmail || process.env.AGENCY_EMAIL
+  const agencyEmail = process.env.AGENCY_EMAIL || proposal.agency?.contactEmail
   const agencyName = proposal.agency?.name || "Grant's Estate Agents"
   const proposalUrl = getProposalUrl(proposal.id)
   const results: { type: string; success: boolean; error?: string }[] = []
