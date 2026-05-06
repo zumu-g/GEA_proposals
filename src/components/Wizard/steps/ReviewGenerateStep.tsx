@@ -112,6 +112,8 @@ export default function ReviewGenerateStep({
   const [sendingEmail, setSendingEmail] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
   const [heroPreview, setHeroPreview] = useState<string | null>(null)
+  const [attachments, setAttachments] = useState<File[]>([])
+  const [sendError, setSendError] = useState<string | null>(null)
 
   useEffect(() => {
     setPrefersReducedMotion(
@@ -176,21 +178,53 @@ export default function ReviewGenerateStep({
   const handleSendEmail = async () => {
     if (!result) return
     setSendingEmail(true)
+    setSendError(null)
+
     try {
-      const origin =
-        typeof window !== 'undefined' ? window.location.origin : ''
-      const street =
-        formData.propertyAddress.split(',')[0]?.trim() ||
-        formData.propertyAddress
-      const subject = `Your Property Proposal — ${street}`
-      const mailtoUrl = `mailto:${encodeURIComponent(formData.clientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailText)}`
-      window.open(mailtoUrl, '_blank')
-      setEmailSent(true)
-    } catch {
-      // Fallback: just open mailto
+      if (attachments.length > 0) {
+        // Send via API (supports attachments)
+        const formDataPayload = new FormData()
+        formDataPayload.append('proposalId', result.id)
+        attachments.forEach((file, i) => {
+          formDataPayload.append(`attachment_${i}`, file, file.name)
+        })
+        const res = await fetch('/api/send', {
+          method: 'POST',
+          body: formDataPayload,
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error(data.error || 'Failed to send email')
+        }
+        setEmailSent(true)
+      } else {
+        // No attachments — open local email client
+        const street =
+          formData.propertyAddress.split(',')[0]?.trim() ||
+          formData.propertyAddress
+        const subject = `Your Property Proposal — ${street}`
+        const mailtoUrl = `mailto:${encodeURIComponent(formData.clientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailText)}`
+        window.open(mailtoUrl, '_blank')
+        setEmailSent(true)
+      }
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Failed to send email')
     } finally {
       setSendingEmail(false)
     }
+  }
+
+  const handleAddAttachments = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    setAttachments(prev => {
+      const existing = new Set(prev.map(f => f.name))
+      return [...prev, ...files.filter(f => !existing.has(f.name))]
+    })
+    e.target.value = ''
+  }
+
+  const handleRemoveAttachment = (name: string) => {
+    setAttachments(prev => prev.filter(f => f.name !== name))
   }
 
   const motionProps = prefersReducedMotion
@@ -457,6 +491,66 @@ export default function ReviewGenerateStep({
             rows={14}
             className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 font-sans text-sm placeholder-gray-400 focus:ring-2 focus:ring-[#C41E2A] focus:border-transparent resize-y transition-all"
           />
+
+          {/* Attachments */}
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-gray-500 font-sans text-xs tracking-wider uppercase">
+                attachments
+              </p>
+              <label className="cursor-pointer px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 font-sans text-xs transition-colors flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                add file
+                <input
+                  type="file"
+                  multiple
+                  accept=".pdf,.doc,.docx,.xlsx,.xls,.png,.jpg,.jpeg"
+                  onChange={handleAddAttachments}
+                  className="sr-only"
+                />
+              </label>
+            </div>
+            {attachments.length > 0 ? (
+              <ul className="space-y-1.5">
+                {attachments.map((file) => (
+                  <li key={file.name} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
+                      </svg>
+                      <span className="text-gray-700 font-sans text-xs truncate">{file.name}</span>
+                      <span className="text-gray-400 font-sans text-xs shrink-0">
+                        {(file.size / 1024 / 1024).toFixed(1)} MB
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveAttachment(file.name)}
+                      className="ml-2 text-gray-400 hover:text-red-500 transition-colors shrink-0"
+                      aria-label="Remove attachment"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-gray-400 font-sans text-xs font-light">
+                no attachments — optional. pdfs, docs, images accepted.
+              </p>
+            )}
+          </div>
+
+          {sendError && (
+            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-600 font-sans text-xs">{sendError}</p>
+            </div>
+          )}
+
           <div className="mt-4 flex items-center gap-3">
             <button
               type="button"
@@ -488,14 +582,16 @@ export default function ReviewGenerateStep({
                   sending...
                 </>
               ) : emailSent ? (
-                'open email client'
+                attachments.length > 0 ? 'sent!' : 'open email client'
+              ) : attachments.length > 0 ? (
+                'send with attachments'
               ) : (
                 'send email'
               )}
             </button>
             {emailSent && (
               <span className="text-emerald-600 font-sans text-xs">
-                email client opened
+                {attachments.length > 0 ? `sent with ${attachments.length} attachment${attachments.length !== 1 ? 's' : ''}` : 'email client opened'}
               </span>
             )}
           </div>

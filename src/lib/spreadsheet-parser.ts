@@ -68,7 +68,7 @@ const DEFAULT_SALE_PROCESS: SaleStep[] = [
 const DEFAULT_MARKETING_PLAN: MarketingItem[] = [
   {
     channel: 'Online Listings',
-    description: 'Listings on Rightmove, Zoopla, OnTheMarket, and our website',
+    description: 'Listings on realestate.com.au, Domain, View, and our website',
   },
   {
     channel: 'Social Media',

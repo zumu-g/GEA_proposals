@@ -5,8 +5,25 @@ import { createNurturePlan } from '@/lib/nurture'
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { proposalId } = body
+    let proposalId: string | null = null
+    let attachments: Array<{ filename: string; content: Buffer }> = []
+
+    const contentType = request.headers.get('content-type') || ''
+
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await request.formData()
+      proposalId = formData.get('proposalId') as string | null
+
+      for (const [key, value] of formData.entries()) {
+        if (key.startsWith('attachment_') && value instanceof File) {
+          const buffer = Buffer.from(await value.arrayBuffer())
+          attachments.push({ filename: value.name, content: buffer })
+        }
+      }
+    } else {
+      const body = await request.json()
+      proposalId = body.proposalId
+    }
 
     if (!proposalId) {
       return NextResponse.json(
@@ -30,8 +47,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Send the email
-    const result = await sendProposalEmail(proposal)
+    const result = await sendProposalEmail(proposal, attachments.length > 0 ? attachments : undefined)
 
     if (!result.success) {
       return NextResponse.json(
@@ -40,18 +56,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Update proposal status
     await updateProposal(proposalId, {
       status: proposal.status === 'draft' ? 'sent' : proposal.status,
       sentAt: proposal.sentAt || new Date().toISOString(),
     })
 
-    // Auto-create nurture plan for follow-up touchpoints
     try {
       createNurturePlan(proposalId)
     } catch (nurtureErr) {
       console.error('Failed to create nurture plan:', nurtureErr instanceof Error ? nurtureErr.message : nurtureErr)
-      // Non-blocking — proposal was still sent successfully
     }
 
     return NextResponse.json({
