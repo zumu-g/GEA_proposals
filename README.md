@@ -125,6 +125,40 @@ Create a `.env.local` file (optional):
 AGENCY_EMAIL=your-email@example.com
 ```
 
+## PropertyIQ data (everypropertyAI)
+
+Step 1 of the proposal wizard has a **"look up property from everyproperty"** panel that pulls
+presentation-ready property data from PropertyIQ via the `everypropertyai` CLI and seeds the
+proposal with it.
+
+**Prerequisites**
+- The `everypropertyai` CLI must be callable (`everypropertyai --version`). It's installed via
+  `npm link` from the everypropertyAI repo. If it isn't on `PATH`, set `EVERYPROPERTY_CLI_BIN` to
+  its built `dist/cli.js`.
+- PropertyIQ must be reachable at `EVERYPROPERTY_API_URL`.
+
+**Environment**
+
+```
+EVERYPROPERTY_API_URL=http://localhost:3007   # dev; set to the deployed PropertyIQ URL in prod
+EVERYPROPERTY_API_TOKEN=                       # optional bearer if data routes get auth
+# EVERYPROPERTY_CLI_BIN=                        # optional: absolute path to dist/cli.js
+```
+
+**Data access** — `src/lib/everyproperty.ts` shells out to the CLI (no PropertyIQ logic is
+reimplemented) and exposes two functions, surfaced via `GET /api/everyproperty`:
+- `getProposalData(address)` → presentation-ready property data (`?address=...`)
+- `suggestAddresses(query)` → address suggestions for the search box (`?q=...`)
+
+**Lookup flow** — search an address → pick a suggestion → fetch proposal data → preview
+(estimate, beds/baths/land, hero photos, agency, description, confidence) → **use this data**,
+which seeds the address, price guide, and hero image. Existing user-entered values are never
+overwritten.
+
+> **Latency:** `getProposalData` runs the full PropertyIQ pipeline. An **uncached address can take
+> up to ~120s** (it triggers a live crawl); cached addresses return in <2s. The API route allows up
+> to ~160s and the UI shows a loading state.
+
 ## License
 
 Private - For GEA use only

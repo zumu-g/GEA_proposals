@@ -10,6 +10,9 @@ interface ClientDetailsStepProps {
     clientEmail: string
     propertyAddress: string
     proposalType: 'sale' | 'rental'
+    priceGuideMin?: string
+    priceGuideMax?: string
+    hasHeroImage?: boolean
   }
   onChange: (field: string, value: string) => void
   recentProposals: any[]
@@ -267,6 +270,287 @@ function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
       <p className="text-gray-500 font-sans text-xs mt-1.5">
         include suburb for best results — e.g. 5 Curtis St, Officer
       </p>
+    </div>
+  )
+}
+
+// ─── everyproperty lookup (PropertyIQ data via the everypropertyai CLI) ────────
+// Search an address → pick a suggestion → fetch presentation-ready data → preview
+// → seed the proposal. Never silently overwrites a value the user already entered.
+
+interface EpSuggestion {
+  fullAddress?: string
+  streetAddress?: string
+  suburb?: string
+  state?: string
+  postcode?: string
+}
+
+interface EpPriceEstimate { low?: number; mid?: number; high?: number; source?: string }
+
+interface EpProposalData {
+  address: string
+  bedrooms?: number
+  bathrooms?: number
+  carSpaces?: number
+  landAreaSqm?: number
+  propertyType?: string
+  priceEstimate?: EpPriceEstimate | null
+  formattedEstimate?: string
+  agency?: string
+  agentName?: string
+  heroPhotos?: string[]
+  suburb?: string
+  description?: string
+  confidence?: number
+}
+
+interface EpLookupProps {
+  currentPriceMin: string
+  currentPriceMax: string
+  hasHeroImage: boolean
+  onChange: (field: string, value: string) => void
+}
+
+function suggestionLabel(s: EpSuggestion): string {
+  if (s.fullAddress) return s.fullAddress
+  return [s.streetAddress, s.suburb, `${s.state ?? ''} ${s.postcode ?? ''}`.trim()]
+    .filter(Boolean).join(', ')
+}
+
+function EveryPropertyLookup({ currentPriceMin, currentPriceMax, hasHeroImage, onChange }: EpLookupProps) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [suggestions, setSuggestions] = useState<EpSuggestion[]>([])
+  const [searching, setSearching] = useState(false)
+  const [fetching, setFetching] = useState(false)
+  const [data, setData] = useState<EpProposalData | null>(null)
+  const [error, setError] = useState('')
+  const [seeded, setSeeded] = useState<string[]>([])
+  const [skipped, setSkipped] = useState<string[]>([])
+  const debounceRef = useRef<NodeJS.Timeout | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
+
+  // Debounced address search
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    const q = query.trim()
+    if (q.length < 3) { setSuggestions([]); return }
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true)
+      try {
+        const res = await fetch(`/api/everyproperty?q=${encodeURIComponent(q)}`)
+        const json = await res.json()
+        setSuggestions(Array.isArray(json.suggestions) ? json.suggestions.slice(0, 8) : [])
+      } catch {
+        setSuggestions([])
+      } finally {
+        setSearching(false)
+      }
+    }, 350)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [query])
+
+  const handleSelect = async (s: EpSuggestion) => {
+    const address = suggestionLabel(s)
+    setQuery(address)
+    setSuggestions([])
+    setData(null)
+    setError('')
+    setSeeded([])
+    setSkipped([])
+    setFetching(true)
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+    try {
+      const res = await fetch(`/api/everyproperty?address=${encodeURIComponent(address)}`, {
+        signal: controller.signal,
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'lookup failed')
+      setData(json as EpProposalData)
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        setError(err?.message || 'lookup failed')
+      }
+    } finally {
+      setFetching(false)
+    }
+  }
+
+  const handleUse = () => {
+    if (!data) return
+    const didSeed: string[] = []
+    const didSkip: string[] = []
+
+    // Address — the whole point of the lookup; always resolve it.
+    if (data.address) {
+      onChange('propertyAddress', data.address)
+      didSeed.push('address')
+    }
+
+    // Price guide — only if the user hasn't entered one (no silent overwrite).
+    const priceEmpty = !currentPriceMin.trim() && !currentPriceMax.trim()
+    let lo = data.priceEstimate?.low
+    let hi = data.priceEstimate?.high
+    if (lo == null && hi == null && data.formattedEstimate) {
+      const n = Number(data.formattedEstimate.replace(/[^0-9]/g, ''))
+      if (n > 0) { lo = n; hi = n }
+    }
+    if (lo != null || hi != null) {
+      if (priceEmpty) {
+        if (lo != null) onChange('priceGuideMin', String(Math.round(lo)))
+        if (hi != null) onChange('priceGuideMax', String(Math.round(hi)))
+        didSeed.push('price guide')
+      } else {
+        didSkip.push('price guide')
+      }
+    }
+
+    // Hero image — only if the user hasn't chosen/uploaded one.
+    const photo = data.heroPhotos?.[0]
+    if (photo) {
+      if (!hasHeroImage) {
+        onChange('heroImageUrl', photo)
+        onChange('selectedAutoImageUrl', photo)
+        didSeed.push('hero image')
+      } else {
+        didSkip.push('hero image')
+      }
+    }
+
+    setSeeded(didSeed)
+    setSkipped(didSkip)
+  }
+
+  const confidencePct = data?.confidence != null ? Math.round(data.confidence * 100) : null
+  const specs = data
+    ? [
+        data.bedrooms != null && `${data.bedrooms} bed`,
+        data.bathrooms != null && `${data.bathrooms} bath`,
+        data.carSpaces != null && `${data.carSpaces} car`,
+        data.landAreaSqm != null && `${data.landAreaSqm} m² land`,
+        data.propertyType,
+      ].filter(Boolean) as string[]
+    : []
+
+  return (
+    <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50/60">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left"
+      >
+        <span className="text-sm font-sans font-medium text-gray-700 lowercase">
+          look up property from everyproperty
+        </span>
+        <svg className={`w-4 h-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4">
+          <div className="relative">
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="search an address — e.g. 9 Gloucester Ave Berwick"
+              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 font-sans placeholder-gray-400 focus:ring-2 focus:ring-[#C41E2A] focus:border-[#C41E2A] text-base transition-all"
+            />
+            {searching && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+              </div>
+            )}
+          </div>
+
+          {suggestions.length > 0 && (
+            <ul className="mt-1.5 rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+              {suggestions.map((s, i) => (
+                <li key={i}>
+                  <button
+                    type="button"
+                    onClick={() => handleSelect(s)}
+                    className="w-full text-left px-4 py-2.5 text-sm font-sans text-gray-700 hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                  >
+                    {suggestionLabel(s)}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {fetching && (
+            <div className="mt-3 flex items-center gap-3 text-sm font-sans text-gray-500">
+              <div className="w-4 h-4 border-2 border-gray-300 border-t-[#C41E2A] rounded-full animate-spin" />
+              fetching from PropertyIQ — can take up to ~2 min for a new address…
+            </div>
+          )}
+
+          {error && (
+            <p className="mt-3 text-sm font-sans text-[#C41E2A]">{error}</p>
+          )}
+
+          {data && !fetching && (
+            <div className="mt-3 rounded-lg border border-gray-200 bg-white p-4">
+              <div className="flex items-start justify-between gap-3">
+                <p className="font-display text-base text-gray-900 lowercase">{data.address?.toLowerCase()}</p>
+                {confidencePct != null && (
+                  <span className="shrink-0 px-2 py-0.5 rounded bg-gray-100 text-gray-600 font-sans text-xs">
+                    {confidencePct}% confidence
+                  </span>
+                )}
+              </div>
+
+              {data.formattedEstimate && (
+                <p className="mt-2 font-display text-2xl text-[#C41E2A]">{data.formattedEstimate}</p>
+              )}
+
+              {specs.length > 0 && (
+                <p className="mt-1 text-sm font-sans text-gray-600">{specs.join(' · ')}</p>
+              )}
+
+              {(data.agency || data.agentName) && (
+                <p className="mt-1 text-xs font-sans text-gray-500">
+                  {[data.agentName, data.agency].filter(Boolean).join(' · ')}
+                </p>
+              )}
+
+              {data.heroPhotos && data.heroPhotos.length > 0 && (
+                <div className="mt-3 flex gap-2 overflow-x-auto">
+                  {data.heroPhotos.slice(0, 6).map((url, i) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img key={i} src={url} alt="" className="h-16 w-24 object-cover rounded border border-gray-200 shrink-0" />
+                  ))}
+                </div>
+              )}
+
+              {data.description && (
+                <p className="mt-3 text-sm font-sans text-gray-600 line-clamp-4">{data.description}</p>
+              )}
+
+              <button
+                type="button"
+                onClick={handleUse}
+                className="mt-4 px-4 py-2 bg-[#C41E2A] rounded-lg text-white font-sans text-sm font-medium hover:bg-[#a81823] transition-colors"
+              >
+                use this data
+              </button>
+
+              {seeded.length > 0 && (
+                <p className="mt-2 text-xs font-sans text-[#8B9F82]">seeded: {seeded.join(', ')}</p>
+              )}
+              {skipped.length > 0 && (
+                <p className="mt-1 text-xs font-sans text-gray-400">kept your existing value: {skipped.join(', ')}</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -531,6 +815,13 @@ export default function ClientDetailsStep({
         <AddressAutocomplete
           value={formData.propertyAddress}
           onChange={(val) => onChange('propertyAddress', val)}
+        />
+
+        <EveryPropertyLookup
+          currentPriceMin={formData.priceGuideMin ?? ''}
+          currentPriceMax={formData.priceGuideMax ?? ''}
+          hasHeroImage={!!formData.hasHeroImage}
+          onChange={onChange}
         />
       </motion.div>
 

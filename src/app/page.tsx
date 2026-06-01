@@ -759,7 +759,11 @@ export default function HomePage() {
     >
       {currentStep === 0 && (
         <ClientDetailsStep
-          formData={{ clientName, clientEmail, propertyAddress, proposalType }}
+          formData={{
+            clientName, clientEmail, propertyAddress, proposalType,
+            priceGuideMin, priceGuideMax,
+            hasHeroImage: !!(heroImage || heroImageUrl || selectedAutoImageUrl),
+          }}
           onChange={handleFieldChange}
           recentProposals={recentProposals}
           editingId={editingProposalId}
