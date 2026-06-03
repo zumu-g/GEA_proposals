@@ -109,6 +109,16 @@ export function planGrandTotal(items: MarketingCostItem[]): number {
   return items.reduce((sum, i) => sum + (Number(i.cost) || 0), 0)
 }
 
+/**
+ * Document title for the marketing-plan page — drives the default "Save as PDF"
+ * filename, e.g. "GEA Marketing plan - 34 Allunga Parade". Uses the street part
+ * of the address (before the first comma) for a clean filename.
+ */
+export function marketingPlanTitle(address?: string): string {
+  const street = (address || '').split(',')[0].trim()
+  return street ? `GEA Marketing plan - ${street}` : 'GEA Marketing plan'
+}
+
 /** Format a number as AUD, no cents. */
 export function formatAUD(n: number): string {
   return `$${Math.round(n || 0).toLocaleString('en-AU')}`
