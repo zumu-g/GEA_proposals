@@ -58,3 +58,6 @@ next-env.d.ts
 /test-results/
 /e2e/screenshots/
 
+# stale agent worktree checkouts (never commit)
+/.claude/worktrees/
+

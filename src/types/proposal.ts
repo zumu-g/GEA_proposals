@@ -53,6 +53,7 @@ export interface Proposal {
   methodOfSale?: string;
   saleProcess: SaleStep[];
   marketingPlan: MarketingItem[];
+  marketingCosts?: MarketingCostItem[];  // raw wizard items for the marketing-plan PDF
   recentSales: PropertySale[];
   fees?: FeeInfo;
   agency?: AgencyConfig;
@@ -101,6 +102,16 @@ export interface MarketingItem {
   description: string;
   cost?: string;
   icon?: string;
+}
+
+// Raw marketing line item as collected by the wizard Marketing step. Persisted
+// verbatim on the proposal so the single-page marketing plan can be regenerated.
+export interface MarketingCostItem {
+  id?: string;
+  category: string;
+  description: string;
+  cost: number;
+  included: boolean;
 }
 
 export interface PropertySale {

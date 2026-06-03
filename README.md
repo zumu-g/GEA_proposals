@@ -125,6 +125,40 @@ Create a `.env.local` file (optional):
 AGENCY_EMAIL=your-email@example.com
 ```
 
+## Property data (everypropertyAI)
+
+Step 1 of the proposal wizard has a **"look up property from everyproperty"** panel that pulls
+presentation-ready property data from the everypropertyAI HTTP API and seeds the proposal with it.
+
+**Prerequisites**
+- The everypropertyAI API must be reachable at `EVERYPROPERTY_API_URL`.
+- A valid bearer token must be set in `EVERYPROPERTY_API_TOKEN`. The token is server-side only —
+  it is never exposed to the browser (all requests go through `GET /api/everyproperty`).
+
+**Environment**
+
+```
+EVERYPROPERTY_API_URL=https://geaeverypropertyai-production.up.railway.app
+EVERYPROPERTY_API_TOKEN=                       # required bearer token (server-side only)
+```
+
+**Data access** — `src/lib/everyproperty.ts` makes authenticated server-to-server HTTP requests
+(Bearer auth, no pipeline logic reimplemented) and exposes two functions, surfaced via
+`GET /api/everyproperty`:
+- `getProposalData(address, { fast? })` → presentation-ready property data via
+  `GET /api/proposal?address=...` (pass `fast: true` to send `&fast=1` for the faster path)
+- `suggestAddresses(query)` → address suggestions via `GET /api/search?q=...` (empty for q<3 chars)
+
+**Lookup flow** — search an address → pick a suggestion → fetch proposal data → preview
+(estimate, beds/baths/land, hero photos, agency, description, confidence) → **use this data**,
+which seeds the address, price guide, and hero image. Existing user-entered values are never
+overwritten.
+
+> **Latency:** `getProposalData` runs the full everypropertyAI pipeline. An **uncached address can
+> take up to ~120s** (it triggers a live crawl); cached addresses return quickly. Pass `fast: true`
+> for a faster, lower-fidelity result. The client times out at ~150s and the UI shows a loading
+> state.
+
 ## License
 
 Private - For GEA use only

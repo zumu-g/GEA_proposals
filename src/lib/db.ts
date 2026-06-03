@@ -49,6 +49,13 @@ function initSchema(db: Database.Database) {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS activities (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       proposal_id TEXT NOT NULL,
@@ -232,6 +239,7 @@ function initSchema(db: Database.Database) {
     'ALTER TABLE proposals ADD COLUMN area_analysis TEXT',          // JSON
     'ALTER TABLE proposals ADD COLUMN team_members TEXT',           // JSON
     'ALTER TABLE proposals ADD COLUMN marketing_approach TEXT',
+    'ALTER TABLE proposals ADD COLUMN marketing_costs TEXT',         // JSON — raw wizard marketing items
     'ALTER TABLE proposals ADD COLUMN database_info TEXT',
     'ALTER TABLE proposals ADD COLUMN internet_listings TEXT',      // JSON
     'ALTER TABLE proposals ADD COLUMN on_market_listings TEXT',     // JSON
