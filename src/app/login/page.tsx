@@ -5,13 +5,20 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 
 function LoginForm() {
+  const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [skipping, setSkipping] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const from = searchParams.get('from') || '/'
+
+  const go = () => {
+    router.push(from)
+    router.refresh()
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -24,16 +31,15 @@ function LoginForm() {
       const res = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, mode }),
       })
 
       const data = await res.json()
 
       if (res.ok && data.success) {
-        router.push(from)
-        router.refresh()
+        go()
       } else {
-        setError(data.error || 'Incorrect password')
+        setError(data.error || (mode === 'signup' ? 'Could not create account' : 'Incorrect email or password'))
         setPassword('')
       }
     } catch {
@@ -43,8 +49,43 @@ function LoginForm() {
     setIsLoading(false)
   }
 
+  const handleSkip = async () => {
+    setSkipping(true)
+    setError('')
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'skip' }),
+      })
+      if (res.ok) {
+        go()
+        return
+      }
+      setError('Could not skip. Please try again.')
+    } catch {
+      setError('Connection error. Please try again.')
+    }
+    setSkipping(false)
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Login / sign up toggle */}
+      <div className="inline-flex w-full rounded-xl border border-white/10 bg-white/5 p-1 gap-1 mb-2">
+        {(['login', 'signup'] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => { setMode(m); setError('') }}
+            className={`flex-1 py-2.5 rounded-lg font-sans text-sm font-medium transition-all ${
+              mode === m ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/70'
+            }`}
+          >
+            {m === 'login' ? 'sign in' : 'create account'}
+          </button>
+        ))}
+      </div>
       <div>
         <input
           type="email"
@@ -89,8 +130,18 @@ function LoginForm() {
         {isLoading ? (
           <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" />
         ) : (
-          'sign in'
+          mode === 'signup' ? 'create account' : 'sign in'
         )}
+      </button>
+
+      {/* Skip for now — auth is not yet enforced */}
+      <button
+        type="button"
+        onClick={handleSkip}
+        disabled={skipping}
+        className="w-full py-3 text-white/40 hover:text-white/70 font-sans text-sm transition-colors disabled:opacity-30"
+      >
+        {skipping ? 'skipping…' : 'skip for now →'}
       </button>
     </form>
   )
