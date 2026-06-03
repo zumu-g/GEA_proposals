@@ -232,6 +232,7 @@ function initSchema(db: Database.Database) {
     'ALTER TABLE proposals ADD COLUMN area_analysis TEXT',          // JSON
     'ALTER TABLE proposals ADD COLUMN team_members TEXT',           // JSON
     'ALTER TABLE proposals ADD COLUMN marketing_approach TEXT',
+    'ALTER TABLE proposals ADD COLUMN marketing_costs TEXT',         // JSON — raw wizard marketing items
     'ALTER TABLE proposals ADD COLUMN database_info TEXT',
     'ALTER TABLE proposals ADD COLUMN internet_listings TEXT',      // JSON
     'ALTER TABLE proposals ADD COLUMN on_market_listings TEXT',     // JSON

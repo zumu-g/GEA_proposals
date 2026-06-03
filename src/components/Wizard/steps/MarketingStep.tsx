@@ -16,7 +16,14 @@ export interface MarketingCostItem {
 interface MarketingStepProps {
   marketingCosts: MarketingCostItem[];
   onChange: (costs: MarketingCostItem[]) => void;
+  // Optional context used to populate the single-page marketing-plan preview header.
+  propertyAddress?: string;
+  priceGuideMin?: string;
+  priceGuideMax?: string;
 }
+
+// sessionStorage key shared with /marketing-plan/preview
+const MARKETING_PREVIEW_KEY = 'gea:marketing-plan-preview';
 
 // ── Validation ─────────────────────────────────────────────────────────────
 
@@ -61,22 +68,22 @@ const CATEGORIES = [
   'Other',
 ] as const;
 
+// Figures from Grant's REA rate card (effective 1 July 2025). REA premiere
+// listing shown at the Berwick rate ($2760) — adjust per suburb if needed.
 const STANDARD_PACKAGE: MarketingCostItem[] = [
-  { category: 'Photography', description: 'Professional photography package', cost: 500, included: false },
-  { category: 'Internet', description: 'realestate.com.au standard listing', cost: 300, included: false },
-  { category: 'Signboard', description: 'Standard signboard with install', cost: 400, included: false },
-  { category: 'Print', description: 'DL flyers x 200', cost: 200, included: false },
+  { category: 'Photography', description: 'Complete Image — Sales Day Shoot (20 images) & 2D floor plan + site plan', cost: 370, included: false },
+  { category: 'Internet', description: 'Premiere Listing — realestate.com.au (4 week premiere — Berwick)', cost: 2760, included: false },
+  { category: 'Signboard', description: 'Central signboard — 4 x 8 stock board', cost: 100, included: false },
+  { category: 'Print', description: 'Premium property brochures for open homes', cost: 150, included: false },
 ];
 
 const PREMIUM_PACKAGE: MarketingCostItem[] = [
-  { category: 'Photography', description: 'Premium photography + drone + twilight', cost: 1200, included: false },
-  { category: 'Styling', description: 'Full home staging consultation', cost: 2500, included: false },
-  { category: 'Internet', description: 'realestate.com.au premiere listing', cost: 1800, included: false },
-  { category: 'Internet', description: 'Domain social media campaign', cost: 600, included: false },
-  { category: 'Signboard', description: 'Premium illuminated signboard', cost: 650, included: false },
+  { category: 'Photography', description: 'Complete Image — Sales Twilight, 2D floor plan, site plan & drone', cost: 685, included: false },
+  { category: 'Internet', description: 'Premiere Listing — realestate.com.au (4 week premiere — Berwick)', cost: 2760, included: false },
+  { category: 'Internet', description: 'Domain & social media campaign (Facebook + Instagram)', cost: 0, included: true },
+  { category: 'Signboard', description: 'Central photo board — 4 x 8 (Auction)', cost: 380, included: false },
   { category: 'Print', description: 'A4 brochures x 200 + DL flyers x 500', cost: 450, included: false },
-  { category: 'Copywriting', description: 'Professional copywriting', cost: 350, included: true },
-  { category: 'Auctioneer', description: 'Licensed auctioneer', cost: 600, included: false },
+  { category: 'Auctioneer', description: 'Aleisha — professional auctioneer', cost: 700, included: false },
 ];
 
 const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
@@ -128,7 +135,7 @@ function AnimatedTotal({ value }: { value: number }) {
 
 // ── Main Component ─────────────────────────────────────────────────────────
 
-export default function MarketingStep({ marketingCosts, onChange }: MarketingStepProps) {
+export default function MarketingStep({ marketingCosts, onChange, propertyAddress, priceGuideMin, priceGuideMax }: MarketingStepProps) {
   const [openCategoryIndex, setOpenCategoryIndex] = useState<number | null>(null);
   const prefersReducedMotion =
     typeof window !== 'undefined'
@@ -197,6 +204,25 @@ export default function MarketingStep({ marketingCosts, onChange }: MarketingSte
     [onChange]
   );
 
+  const openMarketingPlanPreview = useCallback(() => {
+    const min = priceGuideMin ? parseFloat(priceGuideMin) : undefined;
+    const max = priceGuideMax ? parseFloat(priceGuideMax) : undefined;
+    const payload = {
+      items: marketingCosts,
+      propertyAddress: propertyAddress || undefined,
+      priceGuide: min || max ? { min, max } : undefined,
+    };
+    try {
+      // localStorage (not sessionStorage) so the value is visible to the new tab.
+      localStorage.setItem(MARKETING_PREVIEW_KEY, JSON.stringify(payload));
+      const win = window.open('/marketing-plan/preview', '_blank');
+      // Popup blocked — fall back to same-tab navigation.
+      if (!win) window.location.href = '/marketing-plan/preview';
+    } catch {
+      // storage unavailable — ignore
+    }
+  }, [marketingCosts, propertyAddress, priceGuideMin, priceGuideMax]);
+
   const isEmpty = marketingCosts.length === 0;
 
   // ── Motion config ──────────────────────────────────────────────────────
@@ -246,7 +272,7 @@ export default function MarketingStep({ marketingCosts, onChange }: MarketingSte
                 </div>
                 <div>
                   <p className="text-gray-900 font-sans text-sm font-medium">standard package</p>
-                  <p className="text-gray-400 font-sans text-xs">4 items &middot; ~$1,400</p>
+                  <p className="text-gray-400 font-sans text-xs">4 items &middot; ~$3,380</p>
                 </div>
               </div>
               <p className="text-gray-500 font-sans text-xs leading-relaxed">
@@ -268,7 +294,7 @@ export default function MarketingStep({ marketingCosts, onChange }: MarketingSte
                 </div>
                 <div>
                   <p className="text-gray-900 font-sans text-sm font-medium">premium package</p>
-                  <p className="text-gray-400 font-sans text-xs">8 items &middot; ~$8,150</p>
+                  <p className="text-gray-400 font-sans text-xs">6 items &middot; ~$4,975</p>
                 </div>
               </div>
               <p className="text-gray-500 font-sans text-xs leading-relaxed">
@@ -673,6 +699,20 @@ export default function MarketingStep({ marketingCosts, onChange }: MarketingSte
             </div>
           </div>
         </motion.div>
+      )}
+
+      {/* ── Marketing plan preview / print ─────────────────────────────── */}
+      {!isEmpty && (
+        <button
+          type="button"
+          onClick={openMarketingPlanPreview}
+          className="w-full py-3 rounded-xl border border-[#C41E2A]/30 bg-[#C41E2A]/[0.04] hover:bg-[#C41E2A]/[0.08] transition-colors duration-200 flex items-center justify-center gap-2 text-[#C41E2A] font-sans text-sm font-medium"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5zm-3 0h.008v.008H15V10.5z" />
+          </svg>
+          preview / print marketing plan
+        </button>
       )}
     </div>
   );

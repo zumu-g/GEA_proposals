@@ -95,6 +95,7 @@ interface ProposalRow {
   area_analysis: string | null
   team_members: string | null
   marketing_approach: string | null
+  marketing_costs: string | null
   database_info: string | null
   internet_listings: string | null
   on_market_listings: string | null
@@ -134,6 +135,7 @@ function rowToProposal(row: ProposalRow): Proposal {
     areaAnalysis: row.area_analysis ? JSON.parse(row.area_analysis) : undefined,
     teamMembers: row.team_members ? JSON.parse(row.team_members) : undefined,
     marketingApproach: row.marketing_approach || undefined,
+    marketingCosts: row.marketing_costs ? JSON.parse(row.marketing_costs) : undefined,
     databaseInfo: row.database_info || undefined,
     internetListings: row.internet_listings ? JSON.parse(row.internet_listings) : undefined,
     onMarketListings: row.on_market_listings ? JSON.parse(row.on_market_listings) : undefined,
@@ -174,6 +176,7 @@ function proposalToParams(proposal: Proposal) {
     area_analysis: proposal.areaAnalysis ? JSON.stringify(proposal.areaAnalysis) : null,
     team_members: proposal.teamMembers ? JSON.stringify(proposal.teamMembers) : null,
     marketing_approach: proposal.marketingApproach || null,
+    marketing_costs: proposal.marketingCosts ? JSON.stringify(proposal.marketingCosts) : null,
     database_info: proposal.databaseInfo || null,
     internet_listings: proposal.internetListings ? JSON.stringify(proposal.internetListings) : null,
     on_market_listings: proposal.onMarketListings ? JSON.stringify(proposal.onMarketListings) : null,
@@ -201,14 +204,14 @@ export async function saveProposal(proposal: Proposal): Promise<void> {
       hero_image, property_images, price_guide_min, price_guide_max, show_price_range, show_commission, method_of_sale,
       sale_process, marketing_plan, recent_sales, fees, agency,
       advertising_schedule, total_advertising_cost, area_analysis, team_members,
-      marketing_approach, database_info, internet_listings, on_market_listings,
+      marketing_approach, marketing_costs, database_info, internet_listings, on_market_listings,
       proposal_type, asking_rent, lease_type, available_date, management_fee, letting_fee,
       status, sent_at, viewed_at, approved_at)
     VALUES (@id, @client_name, @client_email, @property_address, @proposal_date,
       @hero_image, @property_images, @price_guide_min, @price_guide_max, @show_price_range, @show_commission, @method_of_sale,
       @sale_process, @marketing_plan, @recent_sales, @fees, @agency,
       @advertising_schedule, @total_advertising_cost, @area_analysis, @team_members,
-      @marketing_approach, @database_info, @internet_listings, @on_market_listings,
+      @marketing_approach, @marketing_costs, @database_info, @internet_listings, @on_market_listings,
       @proposal_type, @asking_rent, @lease_type, @available_date, @management_fee, @letting_fee,
       @status, @sent_at, @viewed_at, @approved_at)
     ON CONFLICT(id) DO UPDATE SET
@@ -220,7 +223,7 @@ export async function saveProposal(proposal: Proposal): Promise<void> {
       fees=@fees, agency=@agency,
       advertising_schedule=@advertising_schedule, total_advertising_cost=@total_advertising_cost,
       area_analysis=@area_analysis, team_members=@team_members,
-      marketing_approach=@marketing_approach, database_info=@database_info,
+      marketing_approach=@marketing_approach, marketing_costs=@marketing_costs, database_info=@database_info,
       internet_listings=@internet_listings, on_market_listings=@on_market_listings,
       proposal_type=@proposal_type, asking_rent=@asking_rent, lease_type=@lease_type,
       available_date=@available_date, management_fee=@management_fee, letting_fee=@letting_fee,

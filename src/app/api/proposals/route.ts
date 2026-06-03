@@ -233,9 +233,12 @@ export async function POST(request: NextRequest) {
     if (marketingCostsJson) {
       try {
         const items = JSON.parse(marketingCostsJson) as Array<{
-          category: string; description: string; cost: number; included: boolean
+          id?: string; category: string; description: string; cost: number; included: boolean
         }>
         if (items.length > 0) {
+          // Persist the raw items verbatim so the single-page marketing plan
+          // can be regenerated exactly (not just reconstructed from the schedule).
+          proposal.marketingCosts = items
           const prepItems = items.filter(i => i.category)
           // Campaign prep (week 0) gets all one-off items, weeks 1-4 get ongoing items
           const campaignPrep = prepItems.filter(i => !['Open Homes', 'Internet Listings'].some(k => i.category.toLowerCase().includes(k.toLowerCase())))

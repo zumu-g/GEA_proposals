@@ -451,6 +451,15 @@ export function ProposalCard({ proposal, index, highlighted, onActivityLogged }:
                   >
                     view proposal
                   </a>
+                  <a
+                    href={`/proposal/${proposal.id}/marketing-plan`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white/60 hover:text-white hover:bg-white/10 font-sans text-xs font-medium transition-colors min-h-[36px] flex items-center active:scale-[0.97]"
+                  >
+                    marketing plan
+                  </a>
                   <button
                     onClick={handleCopyLink}
                     className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white/60 hover:text-white hover:bg-white/10 font-sans text-xs font-medium transition-colors min-h-[36px] flex items-center active:scale-[0.97]"

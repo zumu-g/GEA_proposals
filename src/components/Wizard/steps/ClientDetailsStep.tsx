@@ -59,7 +59,7 @@ function parseReaSuggestion(s: ReaSuggestion): string {
     .filter(Boolean).join(', ')
 }
 
-function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
+export function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -766,6 +766,13 @@ export default function ClientDetailsStep({
               {type}
             </button>
           ))}
+          {/* Marketing-plan-only mode — a standalone one-page plan, no full proposal */}
+          <a
+            href="/marketing-plan/new"
+            className="px-8 py-2.5 rounded-lg font-sans text-sm font-medium text-gray-500 hover:text-gray-700 transition-all duration-200 min-h-[40px] flex items-center"
+          >
+            marketing plan
+          </a>
         </div>
       </motion.div>
 

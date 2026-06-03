@@ -11,6 +11,7 @@ import SoldPropertiesStep, { validateSoldProperties } from '@/components/Wizard/
 import type { ComparableRow } from '@/components/Wizard/steps/SoldPropertiesStep'
 import ForSalePropertiesStep from '@/components/Wizard/steps/ForSalePropertiesStep'
 import ReviewGenerateStep from '@/components/Wizard/steps/ReviewGenerateStep'
+import { reacomPremiereForSuburb, suburbLabelForPremiere, REACOM_PREMIERE_RATE_VALUES } from '@/lib/marketing-plan'
 
 // ─── Step icon SVGs (inline, no library) ───────────────────────────────────
 
@@ -78,24 +79,34 @@ const RENTAL_STEPS = [
 ]
 
 // ─── Default marketing costs ──────────────────────────────────────────────
+// Figures from Grant's REA rate card (Re.Com premiere listings + Central signs
+// + Aleisha auctioneer + Complete Image photography), effective 1 July 2025.
+//
+// REA premiere listing (4-week) varies by suburb:
+//   $2760  Berwick, Beaconsfield, Narre Warren N/Nth/Sth, Hallam, Cranbourne, Cranbourne Nth
+//   $2540  Pakenham / Pakenham Upper, Officer
+//   $1580  Clyde, Clyde North, Cardinia
+//   $1380  Nyora, Tynong, Tynong North, Nar Nar Goon (Nth), Maryknoll, Garfield, Koo Wee Rup
+//   $1310  Drouin (Sth/East/West)
+// Defaults below use the Berwick rate ($2760); the premiere line auto-adjusts to
+// the property's suburb (see reacomPremiereForSuburb) unless the user edits it.
 
 const DEFAULT_RENTAL_MARKETING_COSTS: MarketingCostItem[] = [
   { category: 'Internet', description: 'Premiere Rental Listing — realestate.com.au (highlighted rental listing)', cost: 0, included: true },
-  { category: 'Photography', description: 'Professional Photography — high quality property photography', cost: 220, included: false },
-  { category: 'Signboard', description: 'Rental signboard — premium for lease board', cost: 180, included: false },
+  { category: 'Photography', description: 'Standard Rental Shoot — Complete Image (10 images)', cost: 150, included: false },
+  { category: 'Signboard', description: 'Lease signboard — 3 x 7 Central sign', cost: 60, included: false },
   { category: 'Internet', description: 'Social Media Campaign — targeted Facebook and Instagram campaign', cost: 0, included: true },
   { category: 'Other', description: 'Open Home Inspections — weekly open for inspection sessions', cost: 0, included: true },
 ]
 
 const DEFAULT_MARKETING_COSTS: MarketingCostItem[] = [
-  { category: 'Internet', description: 'Premiere Listing — realestate.com.au (4 week premiere listing, Value $2,700)', cost: 1600, included: false },
-  { category: 'Photography', description: 'Professional Photography — Including site plan and floorplan (Value $400)', cost: 450, included: false },
-  { category: 'Signboard', description: 'Premium corporate board', cost: 375, included: false },
-  { category: 'Internet', description: 'Internet Listings — realestate.com, domain.com and 4 other sites (Value $750)', cost: 0, included: true },
+  { category: 'Internet', description: 'Premiere Listing — realestate.com.au (4 week premiere listing — Berwick)', cost: 2760, included: false },
+  { category: 'Photography', description: 'Complete Image — Sales Day Shoot (20 images), 2D floor plan, site plan & drone', cost: 550, included: false },
+  { category: 'Signboard', description: 'Central signboard — 4 x 8 stock board', cost: 100, included: false },
+  { category: 'Internet', description: 'Internet Listings — domain.com and 4 other portals', cost: 0, included: true },
   { category: 'Internet', description: 'Social Media Campaign — Targeted Facebook and Instagram campaign', cost: 0, included: true },
   { category: 'Print', description: 'Brochures — Premium property brochures for open homes', cost: 150, included: false },
-  { category: 'Photography', description: 'Drone Photography — Aerial drone photography and video', cost: 280, included: false },
-  { category: 'Auctioneer', description: 'Auctioneer Fees — Professional auctioneer services', cost: 700, included: false },
+  { category: 'Auctioneer', description: 'Auctioneer — Aleisha (professional auctioneer services)', cost: 700, included: false },
   { category: 'Other', description: 'Window Cards — Office window card display', cost: 0, included: true },
   { category: 'Other', description: 'Open Homes — Weekly open home inspections', cost: 0, included: true },
 ]
@@ -287,6 +298,30 @@ export default function HomePage() {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
     }
   }, [propertyAddress, isAddressComplete, fetchPropertyImages])
+
+  // ─── Auto-adjust REA premiere listing cost to the property's suburb ─────────
+  // Only touches the premiere line, and only when the user hasn't edited it
+  // (its cost still equals a known rate-card value).
+  useEffect(() => {
+    if (proposalType === 'rental') return
+    const rate = reacomPremiereForSuburb(propertyAddress)
+    const label = suburbLabelForPremiere(propertyAddress) || 'Berwick'
+
+    let changed = false
+    const next = marketingCosts.map((item) => {
+      if (!item.description.startsWith('Premiere Listing — realestate.com.au')) return item
+      // Don't clobber a custom cost the user typed in.
+      if (!REACOM_PREMIERE_RATE_VALUES.includes(Number(item.cost))) return item
+      const newDescription = item.description.replace(
+        /—\s*[^—)]+\)\s*$/,
+        `— ${label})`
+      )
+      if (Number(item.cost) === rate && newDescription === item.description) return item
+      changed = true
+      return { ...item, cost: rate, description: newDescription }
+    })
+    if (changed) setMarketingCosts(next)
+  }, [propertyAddress, proposalType, marketingCosts])
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Init: origin, recent proposals, ?edit= param
@@ -816,6 +851,9 @@ export default function HomePage() {
         <MarketingStep
           marketingCosts={marketingCosts}
           onChange={setMarketingCosts}
+          propertyAddress={propertyAddress}
+          priceGuideMin={priceGuideMin}
+          priceGuideMax={priceGuideMax}
         />
       )}
 
