@@ -16,11 +16,11 @@ const PRINT_CSS = `
 }
 `
 
-export function MarketingPlanPage({ children }: { children: ReactNode }) {
+export function MarketingPlanPage({ children, documentTitle }: { children: ReactNode; documentTitle?: string }) {
   return (
     <div className="min-h-screen bg-gray-100 py-10 px-4 print:min-h-0 print:bg-white print:py-0 print:px-0">
       <style dangerouslySetInnerHTML={{ __html: PRINT_CSS }} />
-      <MarketingPlanPrintButton />
+      <MarketingPlanPrintButton title={documentTitle} />
       <div className="mkt-plan-sheet mx-auto max-w-[820px] rounded-lg bg-white p-10 shadow-sm print:max-w-none print:rounded-none print:p-0 print:shadow-none">
         {children}
       </div>

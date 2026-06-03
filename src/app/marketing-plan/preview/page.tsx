@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { MarketingCostItem } from '@/lib/marketing-plan'
+import { marketingPlanTitle } from '@/lib/marketing-plan'
 import { MarketingPlanSheet } from '@/components/Marketing/MarketingPlanSheet'
 import { MarketingPlanPage } from '@/components/Marketing/MarketingPlanPage'
 
@@ -48,7 +49,7 @@ export default function MarketingPlanPreviewPage() {
   }
 
   return (
-    <MarketingPlanPage>
+    <MarketingPlanPage documentTitle={marketingPlanTitle(payload.propertyAddress)}>
       <MarketingPlanSheet
         items={payload.items}
         propertyAddress={payload.propertyAddress}

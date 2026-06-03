@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { getProposal, getAgencyConfig } from '@/lib/proposal-generator'
-import { resolvePlanItems } from '@/lib/marketing-plan'
+import { resolvePlanItems, marketingPlanTitle } from '@/lib/marketing-plan'
 import { MarketingPlanSheet } from '@/components/Marketing/MarketingPlanSheet'
 import { MarketingPlanPage } from '@/components/Marketing/MarketingPlanPage'
 
@@ -19,7 +19,7 @@ export default async function ProposalMarketingPlanPage({ params }: PageProps) {
   const agency = await getAgencyConfig()
 
   return (
-    <MarketingPlanPage>
+    <MarketingPlanPage documentTitle={marketingPlanTitle(proposal.propertyAddress)}>
       <MarketingPlanSheet
         items={items}
         propertyAddress={proposal.propertyAddress}

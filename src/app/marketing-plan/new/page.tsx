@@ -18,6 +18,8 @@ const DEFAULT_MARKETING_COSTS: MarketingCostItem[] = [
   { category: 'Internet', description: 'Internet Listings — domain.com and 4 other portals', cost: 0, included: true },
   { category: 'Internet', description: 'Social Media Campaign — Targeted Facebook and Instagram campaign', cost: 0, included: true },
   { category: 'Print', description: 'Brochures — Premium property brochures for open homes', cost: 150, included: false },
+  { category: 'Styling', description: 'Digital Staging — virtual furniture', cost: 200, included: false },
+  { category: 'Styling', description: 'Home Staging — full property styling & furniture hire', cost: 4500, included: false },
   { category: 'Auctioneer', description: 'Auctioneer — Aleisha (professional auctioneer services)', cost: 700, included: false },
   { category: 'Other', description: 'Open Homes — Weekly open home inspections', cost: 0, included: true },
 ]
