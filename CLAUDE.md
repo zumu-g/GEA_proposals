@@ -70,7 +70,17 @@ FIRECRAWL_API_KEY=fc-...            # REA sold listings + property images (rate-
 AUTH_PASSWORD=grants                # Login password (default: grants)
 RESEND_API_KEY=re_...               # Resend for approval/nurture emails
 EMAIL_FROM=onboarding@resend.dev    # Email sender address
+EVERYPROPERTY_API_URL=https://geaeverypropertyai-production.up.railway.app  # everypropertyAI HTTP API
+EVERYPROPERTY_API_TOKEN=epai_...    # everypropertyAI bearer token (server-side only)
 ```
+
+## everypropertyAI Integration
+- Property data comes from the everypropertyAI HTTP API (authenticated, server-to-server, Bearer auth)
+- `src/lib/everyproperty.ts` is a thin client — two functions, surfaced via `GET /api/everyproperty`:
+  - `getProposalData(address, { fast? })` → `GET /api/proposal?address=...[&fast=1]` — presentation-ready data
+  - `suggestAddresses(query)` → `GET /api/search?q=...` — address suggestions (empty for q<3 chars)
+- Uncached `/api/proposal` calls can take **~120s** (live crawl); pass `fast: true` for a faster, lower-fidelity path
+- Two env vars: `EVERYPROPERTY_API_URL` and `EVERYPROPERTY_API_TOKEN`. The token is **server-side only** (never exposed to the browser)
 
 ## Railway Deployment
 - **URL**: https://proposalto.com (custom domain via Porkbun DNS)
