@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { lookupComparables, lookupOnMarket, searchComparables, getLastSource, SearchFilters, parseAddress, NEIGHBORING_SUBURBS } from '@/lib/comparables-lookup'
+import { getComparables as getEveryPropertyComparables } from '@/lib/everyproperty'
 import { isApifyAvailable, refreshApifyData } from '@/lib/apify-scraper'
 import { isFirecrawlAvailable, scrapeOnMarketListings } from '@/lib/firecrawl-scraper'
 import { getProposal, saveProposal, logActivity } from '@/lib/proposal-generator'
@@ -167,6 +168,31 @@ export async function GET(request: Request) {
   const sourceParam = searchParams.get('source')
 
   try {
+    // ── Step 0: everypropertyAI (primary) — accurate per-property coords ───
+    // The everypropertyAI DB stores real per-property lat/long for Casey/Cardinia
+    // sold + on-market data, so comp distances are exact (no suburb-centroid
+    // geocoding). Falls through to the legacy sources if it errors or is empty.
+    if (sourceParam !== 'local' && (type === 'sold' || type === 'buy')) {
+      try {
+        const epComps = await getEveryPropertyComparables(suburb, type, { state: 'VIC', limit: 200 })
+        if (epComps.length >= 1) {
+          console.log(`[api/comparables] everypropertyAI HIT for ${suburb} (${type}) — ${epComps.length} properties`)
+          return NextResponse.json({
+            address,
+            type,
+            count: epComps.length,
+            sales: epComps,
+            source: 'everypropertyai',
+            cached: false,
+            filters: cacheFilters,
+          })
+        }
+        console.log(`[api/comparables] everypropertyAI empty for ${suburb} (${type}) — falling back to legacy sources`)
+      } catch (epErr) {
+        console.error('[api/comparables] everypropertyAI lookup failed, falling back:', epErr)
+      }
+    }
+
     // ── Step 0: source=local — read directly from sold_properties table ───
     if (sourceParam === 'local' && getSoldPropertiesBySuburbs) {
       console.log(`[api/comparables] source=local — reading directly from sold_properties for ${suburb}`)
@@ -259,6 +285,7 @@ export async function GET(request: Request) {
             count: localSales.length,
             sales: localSales.map((s: any) => ({
               address: s.address,
+              suburb: s.suburb,
               price: s.price,
               askingPrice: type === 'buy'
                 ? (s.priceDisplay || s.price_display || (s.price ? `$${Number(s.price).toLocaleString()}` : 'Contact Agent'))
@@ -272,6 +299,7 @@ export async function GET(request: Request) {
               imageUrl: s.imageUrl || s.image_url || '',
               lat: s.lat,
               lng: s.lng,
+              geocoded: !!(s.geocodedAt || s.geocoded_at),
               distance: 0,
               sqft: 0,
             })),

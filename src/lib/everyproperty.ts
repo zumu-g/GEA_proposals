@@ -116,6 +116,124 @@ export async function getProposalData(
   return data
 }
 
+// ─── Comparables (per-property coords from the everypropertyAI DB) ────────────
+// The everypropertyAI database stores accurate per-property lat/long for Casey/
+// Cardinia sold + on-market data, so distances computed against these are exact
+// (no client-side suburb-centroid geocoding). Shape matches the wizard comp rows.
+
+export interface EveryPropertyComp {
+  address: string
+  price: number
+  askingPrice: string
+  bedrooms: number
+  bathrooms: number
+  carSpaces: number
+  cars: number
+  propertyType: string
+  date: string
+  soldDate: string
+  url: string
+  link: string
+  imageUrl: string | null
+  lat: number | null
+  lng: number | null
+  landSize: string | null
+  daysOnMarket: number | null
+  sqft: number
+  distance: number
+}
+
+interface SoldRow {
+  rawAddress: string; salePrice: number | null; saleDate: string | null
+  landAreaSqm: number | null; propertyType: string | null
+  bedrooms: number | null; bathrooms: number | null; carSpaces: number | null
+  latitude: number | null; longitude: number | null
+  listingUrl: string | null; imageUrl: string | null
+}
+interface OnMarketRow {
+  rawAddress: string; displayPrice: string | null; priceLow: number | null; priceHigh: number | null
+  landAreaSqm: number | null; propertyType: string | null
+  bedrooms: number | null; bathrooms: number | null; carSpaces: number | null
+  latitude: number | null; longitude: number | null
+  listingUrl: string | null; imageUrl: string | null
+}
+
+function titleCaseSuburb(s: string): string {
+  return s.trim().split(/\s+/).map((w) => (w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : '')).join(' ')
+}
+
+/**
+ * Comparables for a suburb from everypropertyAI, with accurate per-property
+ * coordinates. `type`: 'sold' → /api/sold-sales; 'buy' (on-market) →
+ * /api/on-market-listings. Returns [] on any error so callers can fall back.
+ */
+export async function getComparables(
+  suburb: string,
+  type: 'sold' | 'buy',
+  opts?: { state?: string; limit?: number }
+): Promise<EveryPropertyComp[]> {
+  const sub = titleCaseSuburb(suburb)
+  if (!sub) return []
+  const state = (opts?.state || 'VIC').toUpperCase()
+  const limit = String(opts?.limit ?? 200)
+  const path = type === 'buy' ? '/api/on-market-listings' : '/api/sold-sales'
+
+  let data: { results?: unknown[] }
+  try {
+    data = (await getJson(path, { suburb: sub, state, limit })) as { results?: unknown[] }
+  } catch {
+    return []
+  }
+  const rows = Array.isArray(data?.results) ? data.results : []
+  const landSizeStr = (n: number | null) => (n && n > 0 ? `${Math.round(n)}m²` : null)
+
+  if (type === 'sold') {
+    return (rows as SoldRow[]).map((r) => ({
+      address: r.rawAddress,
+      price: r.salePrice ?? 0,
+      askingPrice: r.salePrice ? `$${r.salePrice.toLocaleString()}` : 'Contact Agent',
+      bedrooms: r.bedrooms ?? 0,
+      bathrooms: r.bathrooms ?? 0,
+      carSpaces: r.carSpaces ?? 0,
+      cars: r.carSpaces ?? 0,
+      propertyType: r.propertyType ?? 'House',
+      date: r.saleDate ?? '',
+      soldDate: r.saleDate ?? '',
+      url: r.listingUrl ?? '',
+      link: r.listingUrl ?? '',
+      imageUrl: r.imageUrl ?? null,
+      lat: r.latitude ?? null,
+      lng: r.longitude ?? null,
+      landSize: landSizeStr(r.landAreaSqm),
+      daysOnMarket: null,
+      sqft: 0,
+      distance: 0,
+    }))
+  }
+
+  return (rows as OnMarketRow[]).map((r) => ({
+    address: r.rawAddress,
+    price: r.priceLow ?? 0,
+    askingPrice: r.displayPrice ?? (r.priceLow ? `$${r.priceLow.toLocaleString()}` : 'Contact Agent'),
+    bedrooms: r.bedrooms ?? 0,
+    bathrooms: r.bathrooms ?? 0,
+    carSpaces: r.carSpaces ?? 0,
+    cars: r.carSpaces ?? 0,
+    propertyType: r.propertyType ?? 'House',
+    date: '',
+    soldDate: '',
+    url: r.listingUrl ?? '',
+    link: r.listingUrl ?? '',
+    imageUrl: r.imageUrl ?? null,
+    lat: r.latitude ?? null,
+    lng: r.longitude ?? null,
+    landSize: landSizeStr(r.landAreaSqm),
+    daysOnMarket: null,
+    sqft: 0,
+    distance: 0,
+  }))
+}
+
 /** Address suggestions for a partial query (GET /api/search). */
 export async function suggestAddresses(query: string): Promise<AddressSuggestion[]> {
   const trimmed = query?.trim()

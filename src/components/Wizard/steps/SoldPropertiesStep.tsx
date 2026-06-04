@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -19,7 +19,10 @@ export interface ComparableRow {
   imageUrl?: string
   propertyType?: string
   included?: boolean
+  tier?: CompTier
 }
+
+export type CompTier = 'entry' | 'similar' | 'above'
 
 interface SoldPropertiesStepProps {
   propertyAddress: string
@@ -27,6 +30,8 @@ interface SoldPropertiesStepProps {
   onChangeSold: (rows: ComparableRow[]) => void
   onConfirmAddress?: (address: string, lat: number | null, lng: number | null) => void
   proposalType?: 'sale' | 'rental'
+  priceGuideMin?: string
+  priceGuideMax?: string
 }
 
 // ─── Internal row type ───────────────────────────────────────────────────────
@@ -46,6 +51,7 @@ interface InternalSoldRow {
   distance?: number
   lat?: number
   lng?: number
+  tier?: CompTier
 }
 
 interface AddressSuggestion {
@@ -112,6 +118,17 @@ function isCompleteAddress(addr: string): boolean {
   return /[A-Z]{2,3}\s+\d{4}\s*$/.test(addr.trim())
 }
 
+// Normalised (lowercase) suburb for a comparable row — prefer the API's suburb
+// field, fall back to parsing it out of the address.
+function compSuburbOf(s: { suburb?: string; address?: string }): string {
+  return (s.suburb || extractSuburb(s.address || '')).trim().toLowerCase()
+}
+
+// Title-case a suburb for display, e.g. "narre warren" → "Narre Warren".
+function titleCaseSuburb(s: string): string {
+  return s.replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
 // ─── Conversion helpers ─────────────────────────────────────────────────────
 
 function soldToExternal(row: InternalSoldRow): ComparableRow {
@@ -128,6 +145,7 @@ function soldToExternal(row: InternalSoldRow): ComparableRow {
     imageUrl: row.imageUrl || undefined,
     propertyType: row.propertyType,
     included: row.included,
+    tier: row.tier,
   }
 }
 
@@ -145,7 +163,41 @@ function externalToSold(row: ComparableRow): InternalSoldRow {
     imageUrl: row.imageUrl || '',
     included: row.included ?? true,
     distance: row.distance ? parseFloat(row.distance) : undefined,
+    tier: row.tier,
   }
+}
+
+// ─── Tier band helpers ───────────────────────────────────────────────────────
+
+export interface TierBand { min: number; max: number }
+export interface TierBands { entry: TierBand; similar: TierBand; above: TierBand }
+
+const TIER_LABELS: Record<CompTier, string> = {
+  entry: 'Entry level',
+  similar: 'Similar to yours',
+  above: 'Above',
+}
+
+const round5k = (n: number) => Math.max(0, Math.round(n / 5000) * 5000)
+
+// Derive default bands from the subject price guide. similar = the guide;
+// entry = one guide-width below; above = one guide-width above.
+function deriveBands(pMin: number, pMax: number): TierBands {
+  const w = Math.max(pMax - pMin, 60000)
+  return {
+    entry: { min: round5k(pMin - w), max: round5k(pMin) },
+    similar: { min: round5k(pMin), max: round5k(pMax) },
+    above: { min: round5k(pMax), max: round5k(pMax + w) },
+  }
+}
+
+// Map a price to a tier using the (contiguous) bands.
+function tierForPrice(price: number, b: TierBands): CompTier | undefined {
+  if (!price) return undefined
+  if (price >= b.entry.min && price < b.similar.min) return 'entry'
+  if (price >= b.similar.min && price <= b.similar.max) return 'similar'
+  if (price > b.similar.max && price <= b.above.max) return 'above'
+  return undefined
 }
 
 // ─── Distance filter options ─────────────────────────────────────────────────
@@ -167,6 +219,8 @@ export default function SoldPropertiesStep({
   onChangeSold,
   onConfirmAddress,
   proposalType = 'sale',
+  priceGuideMin,
+  priceGuideMax,
 }: SoldPropertiesStepProps) {
   const isRental = proposalType === 'rental'
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
@@ -199,6 +253,29 @@ export default function SoldPropertiesStep({
   // Raw unfiltered results
   const [rawComps, setRawComps] = useState<any[]>([])
 
+  // ─── Tiered comparables (entry / similar / above) ──────────────────────
+  const pgMin = priceGuideMin ? Number(priceGuideMin) : 0
+  const pgMax = priceGuideMax ? Number(priceGuideMax) : 0
+  const hasPriceGuide = pgMin > 0 && pgMax > 0
+  const [tieredView, setTieredView] = useState(hasPriceGuide)
+  const [bandsEdited, setBandsEdited] = useState(false)
+  const [bands, setBands] = useState<TierBands>(() =>
+    hasPriceGuide ? deriveBands(pgMin, pgMax) : { entry: { min: 0, max: 0 }, similar: { min: 0, max: 0 }, above: { min: 0, max: 0 } }
+  )
+
+  // Re-derive bands when the price guide changes, unless the agent edited them
+  useEffect(() => {
+    if (hasPriceGuide && !bandsEdited) {
+      setBands(deriveBands(pgMin, pgMax))
+      setTieredView(true)
+    }
+  }, [pgMin, pgMax, hasPriceGuide, bandsEdited])
+
+  const setBand = (tier: CompTier, edge: 'min' | 'max', value: number) => {
+    setBandsEdited(true)
+    setBands(prev => ({ ...prev, [tier]: { ...prev[tier], [edge]: value } }))
+  }
+
   // Search state
   const [isSearching, setIsSearching] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
@@ -217,6 +294,7 @@ export default function SoldPropertiesStep({
   const [bedsMin, setBedsMin] = useState('')
   const [bathsMin, setBathsMin] = useState('')
   const [propType, setPropType] = useState('')
+  const [suburbFilter, setSuburbFilter] = useState('')
   const [soldWithin, setSoldWithin] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -242,13 +320,71 @@ export default function SoldPropertiesStep({
   const [manualDate, setManualDate] = useState('')
   const [manualType, setManualType] = useState('House')
 
+  // Preserve which comps are selected across re-filters / background refreshes
+  const includedAddrRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    includedAddrRef.current = new Set(compRows.filter(r => r.included).map(r => r.address))
+  }, [compRows])
+
+  // Background distance refinement (geocode comp addresses to real coordinates)
+  const [isRefining, setIsRefining] = useState(false)
+  const refinedAddrRef = useRef<string>('')
+
+  // After results load, if any sold comps still sit at the suburb centroid
+  // (geocoded === false), geocode their real addresses server-side so distances
+  // become accurate. Runs once per confirmed address, in the background.
+  useEffect(() => {
+    if (isRental) return
+    const addr = confirmedAddress
+    if (!addr || refinedAddrRef.current === addr) return
+    const soldRows = rawComps.filter((s: any) => s.date || s.soldDate)
+    if (soldRows.length === 0) return
+    if (!soldRows.some((s: any) => s.geocoded === false)) {
+      refinedAddrRef.current = addr // all already geocoded
+      return
+    }
+
+    refinedAddrRef.current = addr
+    const suburb = extractSuburb(addr)
+    ;(async () => {
+      setIsRefining(true)
+      try {
+        for (let round = 0; round < 4; round++) {
+          const res = await fetch('/api/comparables/geocode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ address: addr }),
+          })
+          if (!res.ok) break
+          const data = await res.json()
+          if (data.updated > 0) {
+            const r = await fetch(`/api/comparables?address=${encodeURIComponent(suburb)}&type=sold`)
+            const rd = await r.json()
+            if (Array.isArray(rd.sales)) setRawComps(rd.sales)
+          }
+          if (!data.remaining || data.remaining <= 0) break
+        }
+      } catch {
+        // ignore — coarse distances remain
+      }
+      setIsRefining(false)
+    })()
+  }, [rawComps, confirmedAddress, isRental])
+
+  // Rows tagged with their tier (derived from the current bands, not stored —
+  // so editing bands never resets the include selections in compRows).
+  const taggedRows = useMemo(
+    () => compRows.map(r => ({ ...r, tier: tieredView ? tierForPrice(Number(r.price), bands) : undefined })),
+    [compRows, bands, tieredView]
+  )
+
   // ─── Sync internal state to parent ────────────────────────────────────
   const syncSoldRef = useRef(onChangeSold)
   syncSoldRef.current = onChangeSold
 
   useEffect(() => {
-    syncSoldRef.current(compRows.map(soldToExternal))
-  }, [compRows])
+    syncSoldRef.current(taggedRows.map(soldToExternal))
+  }, [taggedRows])
 
   // ─── Notify parent of confirmed address ────────────────────────────────
   const onConfirmAddressRef = useRef(onConfirmAddress)
@@ -350,9 +486,15 @@ export default function SoldPropertiesStep({
     (sold: any[]) => {
       const sLat = subjectLat
       const sLng = subjectLng
+      const subjectSuburb = confirmedAddress ? extractSuburb(confirmedAddress).trim().toLowerCase() : ''
 
       let filteredSold = sold.filter((s: any) => {
         if (removedSoldRef.current.has(s.address || '')) return false
+        const compSuburb = compSuburbOf(s)
+        // Explicit suburb filter
+        if (suburbFilter && compSuburb !== suburbFilter) return false
+        // Distance filter — comps now carry accurate per-property coords from
+        // everypropertyAI, so apply it uniformly (no same-suburb centroid exemption).
         if (distanceFilter !== Infinity && sLat && sLng && s.lat && s.lng) {
           const dist = haversineKm(sLat, sLng, s.lat, s.lng)
           if (dist > distanceFilter) return false
@@ -392,14 +534,24 @@ export default function SoldPropertiesStep({
       const subjectStreet = confirmedAddress ? extractStreetName(confirmedAddress) : ''
 
       filteredSold.sort((a: any, b: any) => {
-        // Always prioritise same-street properties
-        if (subjectStreet && sortBy === 'distance-asc') {
-          const aStreet = extractStreetName(a.address || '')
-          const bStreet = extractStreetName(b.address || '')
-          const aMatch = aStreet === subjectStreet
-          const bMatch = bStreet === subjectStreet
-          if (aMatch && !bMatch) return -1
-          if (!aMatch && bMatch) return 1
+        if (sortBy === 'distance-asc') {
+          // Always prioritise same-street properties
+          if (subjectStreet) {
+            const aStreet = extractStreetName(a.address || '')
+            const bStreet = extractStreetName(b.address || '')
+            const aMatch = aStreet === subjectStreet
+            const bMatch = bStreet === subjectStreet
+            if (aMatch && !bMatch) return -1
+            if (!aMatch && bMatch) return 1
+          }
+          // Then prioritise the subject's own suburb (centroid coords make their
+          // raw distance unreliable, so float them above farther neighbour comps)
+          if (subjectSuburb) {
+            const aSame = compSuburbOf(a) === subjectSuburb
+            const bSame = compSuburbOf(b) === subjectSuburb
+            if (aSame && !bSame) return -1
+            if (!aSame && bSame) return 1
+          }
         }
 
         switch (sortBy) {
@@ -441,7 +593,7 @@ export default function SoldPropertiesStep({
             landSize: s.landSize || undefined,
             url: s.url || '',
             imageUrl: s.imageUrl || '',
-            included: false,
+            included: includedAddrRef.current.has(addr),
             distance: dist,
             lat: s.lat,
             lng: s.lng,
@@ -471,7 +623,7 @@ export default function SoldPropertiesStep({
         )
       }
     },
-    [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, soldWithin, dateFrom, dateTo, sortBy, subjectLat, subjectLng, confirmedAddress]
+    [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, suburbFilter, soldWithin, dateFrom, dateTo, sortBy, subjectLat, subjectLng, confirmedAddress]
   )
 
   // Re-apply filters when filter values change
@@ -479,7 +631,7 @@ export default function SoldPropertiesStep({
     if (rawComps.length > 0) {
       applyFilters(rawComps)
     }
-  }, [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, soldWithin, dateFrom, dateTo, sortBy, subjectLat, subjectLng, rawComps, applyFilters])
+  }, [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, suburbFilter, soldWithin, dateFrom, dateTo, sortBy, subjectLat, subjectLng, rawComps, applyFilters])
 
   // ─── Search function ──────────────────────────────────────────────────
   const searchComparables = useCallback(
@@ -696,6 +848,172 @@ export default function SoldPropertiesStep({
     })
   }
 
+  const TIER_BADGE_CLASSES: Record<CompTier, string> = {
+    entry: 'bg-[#8B9F82]/15 text-[#6c7d63]',
+    similar: 'bg-[#C41E2A]/10 text-[#C41E2A]',
+    above: 'bg-amber-100 text-amber-700',
+  }
+
+  // Renders a single comparable result card. Used by both the flat and the
+  // tier-grouped layouts so the markup stays in one place. `index` is the row's
+  // position in compRows (stable across grouping) for include/edit/remove.
+  const renderCompCard = (row: InternalSoldRow, index: number) => (
+    <motion.div
+      key={`sold-${index}-${row.address}`}
+      initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2, delay: Math.min(index * 0.03, 0.3) }}
+      className={`group rounded-xl border p-4 transition-all duration-200 ${
+        row.included
+          ? 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+          : 'bg-gray-50 border-gray-100 opacity-50'
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        {/* Checkbox */}
+        <button
+          type="button"
+          onClick={() => updateCompRow(index, 'included', row.included ? '' : 'true')}
+          className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
+            row.included
+              ? 'bg-[#C41E2A] border-[#C41E2A] shadow-sm shadow-[#C41E2A]/30'
+              : 'border-gray-300 hover:border-gray-400'
+          }`}
+        >
+          {row.included && (
+            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          )}
+        </button>
+
+        {/* Thumbnail */}
+        <div className="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200 shadow-sm relative">
+          {row.imageUrl && !imageErrors.has(row.imageUrl) ? (
+            <img
+              src={row.imageUrl}
+              alt={row.address}
+              loading="lazy"
+              className="w-full h-full object-cover"
+              onError={() => {
+                setImageErrors(prev => new Set(prev).add(row.imageUrl))
+              }}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gray-100">
+              <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={0.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 21v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21m0 0h4.5V3.545M12.75 21h7.5V10.75M2.25 21h1.5m18 0h-18M2.25 9l4.5-1.636M18.75 3l-1.5.545m0 6.205l3 1m1.5.5l-1.5-.5M6.75 7.364V3h-3v18m3-13.636l10.5-3.819" />
+              </svg>
+            </div>
+          )}
+          {row.distance !== undefined && (
+            <span className="absolute top-1 left-1 text-xs font-medium bg-red-50 text-[#C41E2A] rounded-full px-2 py-0.5 shadow-sm">
+              {formatDistance(row.distance)}
+            </span>
+          )}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <div>
+            <div className="flex items-start justify-between gap-3 mb-1">
+              <p className="text-gray-900 font-sans text-sm font-medium leading-snug">
+                {row.address}
+              </p>
+              <p className="text-[#C41E2A] font-sans text-base font-bold whitespace-nowrap">
+                {fmtPrice(row.price)}
+              </p>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              {row.tier && (
+                <span className={`px-2 py-0.5 rounded font-sans text-[10px] font-semibold uppercase tracking-wider ${TIER_BADGE_CLASSES[row.tier]}`}>
+                  {TIER_LABELS[row.tier]}
+                </span>
+              )}
+              <span className="flex items-center gap-1 text-gray-500 font-sans text-xs">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 0 1-1.125-1.125v-3.75ZM14.25 8.625c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v8.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 0 1-1.125-1.125v-8.25ZM3.75 16.125c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v2.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 0 1-1.125-1.125v-2.25Z" />
+                </svg>
+                {row.bedrooms}
+              </span>
+              <span className="flex items-center gap-1 text-gray-500 font-sans text-xs">
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M7 7a2 2 0 0 1 2-2h1a1 1 0 0 1 0 2H9v1h11a3 3 0 0 1 3 3v2a5 5 0 0 1-4 4.9V19a1 1 0 0 1-2 0v-1H7v1a1 1 0 0 1-2 0v-1.1A5 5 0 0 1 1 13v-2a1 1 0 0 1 1-1h5V7Z" />
+                </svg>
+                {row.bathrooms}
+              </span>
+              {row.cars !== '0' && (
+                <span className="flex items-center gap-1 text-gray-500 font-sans text-xs">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 1.106 1.106 0 0 0-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
+                  </svg>
+                  {row.cars}
+                </span>
+              )}
+              <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-500 font-sans text-[10px] uppercase tracking-wider">
+                {row.propertyType}
+              </span>
+              {row.landSize && (
+                <span className="flex items-center gap-1 text-gray-500 font-sans text-xs">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                  </svg>
+                  {row.landSize}
+                </span>
+              )}
+              {row.date && (
+                <span className="px-2 py-0.5 rounded bg-[#C41E2A]/10 text-[#C41E2A]/70 font-sans text-[10px]">
+                  sold {row.date}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              const p = prompt('Price:', row.price)
+              if (p !== null) updateCompRow(index, 'price', p)
+            }}
+            className="p-1.5 text-gray-300 hover:text-gray-600 transition-colors rounded hover:bg-gray-100"
+            title="Edit price"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={() => removeCompRow(index)}
+            className="p-1.5 text-gray-300 hover:text-red-500 transition-colors rounded hover:bg-gray-100"
+            title="Remove"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  )
+
+  // Group the tagged rows for the tiered layout (keeping each row's compRows index)
+  const tierGroups = useMemo(() => {
+    const indexed = taggedRows.map((row, index) => ({ row, index }))
+    const order: CompTier[] = ['entry', 'similar', 'above']
+    const groups = order.map(tier => ({
+      tier,
+      label: TIER_LABELS[tier],
+      band: bands[tier],
+      entries: indexed.filter(e => e.row.tier === tier),
+    }))
+    const other = indexed.filter(e => !e.row.tier)
+    return { groups, other }
+  }, [taggedRows, bands])
+
   // ─── Manual add ───────────────────────────────────────────────────────
   const resetManualForm = () => {
     setManualAddress('')
@@ -731,7 +1049,17 @@ export default function SoldPropertiesStep({
   // ─── Counts ───────────────────────────────────────────────────────────
   const selectedSoldCount = compRows.filter(r => r.included && r.address.trim()).length
 
-  const hasActiveFilters = !!(priceMin || priceMax || bedsMin || bathsMin || propType || soldWithin || dateFrom || dateTo)
+  const hasActiveFilters = !!(priceMin || priceMax || bedsMin || bathsMin || propType || suburbFilter || soldWithin || dateFrom || dateTo)
+
+  // Suburbs present in the current results (for the suburb filter dropdown)
+  const availableSuburbs = useMemo(() => {
+    const set = new Set<string>()
+    for (const s of rawComps) {
+      const sub = compSuburbOf(s)
+      if (sub) set.add(sub)
+    }
+    return Array.from(set).sort()
+  }, [rawComps])
 
   // ─── Animation ────────────────────────────────────────────────────────
   const fadeUp = prefersReducedMotion
@@ -1009,6 +1337,7 @@ export default function SoldPropertiesStep({
                         setBedsMin('')
                         setBathsMin('')
                         setPropType('')
+                        setSuburbFilter('')
                         setSoldWithin('')
                         setDateFrom('')
                         setDateTo('')
@@ -1030,7 +1359,7 @@ export default function SoldPropertiesStep({
                       transition={{ duration: 0.3, ease: 'easeOut' }}
                       className="overflow-hidden"
                     >
-                      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mt-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mt-3">
                         <div>
                           <label className={labelClasses}>min price</label>
                           <div className="relative">
@@ -1097,6 +1426,19 @@ export default function SoldPropertiesStep({
                             <option value="unit">Unit</option>
                             <option value="townhouse">Townhouse</option>
                             <option value="land">Land</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelClasses}>suburb</label>
+                          <select
+                            value={suburbFilter}
+                            onChange={e => setSuburbFilter(e.target.value)}
+                            className={selectClasses}
+                          >
+                            <option value="">Any</option>
+                            {availableSuburbs.map(sub => (
+                              <option key={sub} value={sub}>{titleCaseSuburb(sub)}</option>
+                            ))}
                           </select>
                         </div>
                         <div>
@@ -1233,155 +1575,94 @@ export default function SoldPropertiesStep({
                   </div>
                 )}
 
-                {/* Results */}
-                <div className="space-y-2">
-                  {compRows.map((row, index) => (
-                    <motion.div
-                      key={`sold-${index}-${row.address}`}
-                      initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.2, delay: Math.min(index * 0.03, 0.3) }}
-                      className={`group rounded-xl border p-4 transition-all duration-200 ${
-                        row.included
-                          ? 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                          : 'bg-gray-50 border-gray-100 opacity-50'
+                {/* Tiered view toggle */}
+                {rawComps.length > 0 && (
+                  <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <p className="text-gray-400 font-sans text-xs flex items-center gap-2">
+                      {compRows.length} results
+                      {isRefining && (
+                        <span className="flex items-center gap-1 text-[#C41E2A]/70">
+                          <span className="w-3 h-3 border-2 border-[#C41E2A]/30 border-t-[#C41E2A] rounded-full animate-spin" />
+                          refining distances…
+                        </span>
+                      )}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setTieredView(v => !v)}
+                      className={`px-3 py-1.5 rounded-lg font-sans text-xs font-medium transition-colors ${
+                        tieredView
+                          ? 'bg-[#C41E2A]/10 text-[#C41E2A]'
+                          : 'bg-gray-100 text-gray-500 hover:text-gray-700'
                       }`}
                     >
-                      <div className="flex items-start gap-3">
-                        {/* Checkbox */}
-                        <button
-                          type="button"
-                          onClick={() => updateCompRow(index, 'included', row.included ? '' : 'true')}
-                          className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
-                            row.included
-                              ? 'bg-[#C41E2A] border-[#C41E2A] shadow-sm shadow-[#C41E2A]/30'
-                              : 'border-gray-300 hover:border-gray-400'
-                          }`}
-                        >
-                          {row.included && (
-                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                            </svg>
-                          )}
-                        </button>
+                      {tieredView ? 'tiered view: on' : 'tiered view: off'}
+                    </button>
+                  </div>
+                )}
 
-                        {/* Thumbnail */}
-                        <div className="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200 shadow-sm relative">
-                          {row.imageUrl && !imageErrors.has(row.imageUrl) ? (
-                            <img
-                              src={row.imageUrl}
-                              alt={row.address}
-                              loading="lazy"
-                              className="w-full h-full object-cover"
-                              onError={() => {
-                                setImageErrors(prev => new Set(prev).add(row.imageUrl))
-                              }}
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                              <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={0.8}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 21v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21m0 0h4.5V3.545M12.75 21h7.5V10.75M2.25 21h1.5m18 0h-18M2.25 9l4.5-1.636M18.75 3l-1.5.545m0 6.205l3 1m1.5.5l-1.5-.5M6.75 7.364V3h-3v18m3-13.636l10.5-3.819" />
-                              </svg>
-                            </div>
-                          )}
-                          {row.distance !== undefined && (
-                            <span className="absolute top-1 left-1 text-xs font-medium bg-red-50 text-[#C41E2A] rounded-full px-2 py-0.5 shadow-sm">
-                              {formatDistance(row.distance)}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1 min-w-0">
-                          <div>
-                            <div className="flex items-start justify-between gap-3 mb-1">
-                              <p className="text-gray-900 font-sans text-sm font-medium leading-snug">
-                                {row.address}
-                              </p>
-                              <p className="text-[#C41E2A] font-sans text-base font-bold whitespace-nowrap">
-                                {fmtPrice(row.price)}
-                              </p>
-                            </div>
-                              <div className="flex items-center gap-3 flex-wrap">
-                                <span className="flex items-center gap-1 text-gray-500 font-sans text-xs">
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 0 1-1.125-1.125v-3.75ZM14.25 8.625c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v8.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 0 1-1.125-1.125v-8.25ZM3.75 16.125c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v2.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 0 1-1.125-1.125v-2.25Z" />
-                                  </svg>
-                                  {row.bedrooms}
-                                </span>
-                                <span className="flex items-center gap-1 text-gray-500 font-sans text-xs">
-                                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M7 7a2 2 0 0 1 2-2h1a1 1 0 0 1 0 2H9v1h11a3 3 0 0 1 3 3v2a5 5 0 0 1-4 4.9V19a1 1 0 0 1-2 0v-1H7v1a1 1 0 0 1-2 0v-1.1A5 5 0 0 1 1 13v-2a1 1 0 0 1 1-1h5V7Z" />
-                                  </svg>
-                                  {row.bathrooms}
-                                </span>
-                                {row.cars !== '0' && (
-                                  <span className="flex items-center gap-1 text-gray-500 font-sans text-xs">
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 1.106 1.106 0 0 0-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
-                                    </svg>
-                                    {row.cars}
-                                  </span>
-                                )}
-                                <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-500 font-sans text-[10px] uppercase tracking-wider">
-                                  {row.propertyType}
-                                </span>
-                                {row.landSize && (
-                                  <span className="flex items-center gap-1 text-gray-500 font-sans text-xs">
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-                                    </svg>
-                                    {row.landSize}
-                                  </span>
-                                )}
-                                {row.distance !== undefined && (
-                                  <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-sans text-[10px] font-medium">
-                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
-                                    </svg>
-                                    {formatDistance(row.distance)}
-                                  </span>
-                                )}
-                                {row.date && (
-                                  <span className="px-2 py-0.5 rounded bg-[#C41E2A]/10 text-[#C41E2A]/70 font-sans text-[10px]">
-                                    sold {row.date}
-                                  </span>
-                                )}
+                {/* Results — grouped into tiers, or flat */}
+                {tieredView ? (
+                  <div className="space-y-6">
+                    {tierGroups.groups.map(group => {
+                      const selected = group.entries.filter(e => e.row.included).length
+                      return (
+                        <div key={group.tier}>
+                          {/* Tier header with editable band + selected counter */}
+                          <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`px-2 py-0.5 rounded font-sans text-[10px] font-semibold uppercase tracking-wider ${TIER_BADGE_CLASSES[group.tier]}`}>
+                                {group.label}
+                              </span>
+                              <div className="flex items-center gap-1 text-gray-400 font-sans text-xs">
+                                <input
+                                  type="text"
+                                  value={group.band.min ? `$${group.band.min.toLocaleString()}` : ''}
+                                  onChange={e => setBand(group.tier, 'min', Number(e.target.value.replace(/[^0-9]/g, '')) || 0)}
+                                  className="w-24 px-2 py-1 bg-white border border-gray-200 rounded text-gray-700 text-xs focus:ring-1 focus:ring-[#C41E2A]/40 outline-none"
+                                  placeholder="min"
+                                />
+                                <span>–</span>
+                                <input
+                                  type="text"
+                                  value={group.band.max ? `$${group.band.max.toLocaleString()}` : ''}
+                                  onChange={e => setBand(group.tier, 'max', Number(e.target.value.replace(/[^0-9]/g, '')) || 0)}
+                                  className="w-24 px-2 py-1 bg-white border border-gray-200 rounded text-gray-700 text-xs focus:ring-1 focus:ring-[#C41E2A]/40 outline-none"
+                                  placeholder="max"
+                                />
                               </div>
+                            </div>
+                            <span className={`font-sans text-xs font-medium ${selected >= 3 ? 'text-[#8B9F82]' : 'text-gray-400'}`}>
+                              {selected} / 3 selected
+                            </span>
                           </div>
+                          {group.entries.length === 0 ? (
+                            <p className="text-gray-300 font-sans text-xs italic px-1 py-3">no sales in this band</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {group.entries.map(e => renderCompCard(e.row, e.index))}
+                            </div>
+                          )}
                         </div>
-
-                        {/* Actions */}
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const p = prompt('Price:', row.price)
-                              if (p !== null) updateCompRow(index, 'price', p)
-                            }}
-                            className="p-1.5 text-gray-300 hover:text-gray-600 transition-colors rounded hover:bg-gray-100"
-                            title="Edit price"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => removeCompRow(index)}
-                            className="p-1.5 text-gray-300 hover:text-red-500 transition-colors rounded hover:bg-gray-100"
-                            title="Remove"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
+                      )
+                    })}
+                    {tierGroups.other.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-500 font-sans text-[10px] font-semibold uppercase tracking-wider">Other</span>
+                          <span className="text-gray-400 font-sans text-xs">outside the bands</span>
+                        </div>
+                        <div className="space-y-2">
+                          {tierGroups.other.map(e => renderCompCard(e.row, e.index))}
                         </div>
                       </div>
-                    </motion.div>
-                  ))}
-                </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {compRows.map((row, index) => renderCompCard(row, index))}
+                  </div>
+                )}
 
                 {/* Add sale manually */}
                 <button
