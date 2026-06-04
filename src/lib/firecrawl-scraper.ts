@@ -20,6 +20,7 @@ export interface ScrapedSale {
   imageUrl?: string
   lat?: number
   lng?: number
+  geocodedAt?: string // set once lat/lng backfilled to a real address
   source: 'realestate.com.au'
 }
 

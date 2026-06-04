@@ -124,6 +124,7 @@ export interface PropertySale {
   distance: number;
   url: string;
   imageUrl?: string;
+  tier?: 'entry' | 'similar' | 'above';  // comparable price-band tier
 }
 
 export interface AdvertisingWeek {

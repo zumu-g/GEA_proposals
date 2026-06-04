@@ -15,9 +15,7 @@ interface PropertyRentalStepProps {
     propertyAddress: string
   }
   autoImages: string[]
-  isFetchingImages?: boolean
   onChange: (field: string, value: any) => void
-  onAutoFetchImages: () => void
 }
 
 const LEASE_TYPES = [
@@ -49,9 +47,7 @@ export function validatePropertyRental(
 export default function PropertyRentalStep({
   formData,
   autoImages,
-  isFetchingImages = false,
   onChange,
-  onAutoFetchImages,
 }: PropertyRentalStepProps) {
   const prefersReducedMotion = useReducedMotion()
 
@@ -161,39 +157,9 @@ export default function PropertyRentalStep({
           <p className="text-gray-500 font-sans text-xs tracking-wider uppercase">
             property images
           </p>
-          {!hasAutoImages && !isFetchingImages && formData.propertyAddress && (
-            <button
-              type="button"
-              onClick={onAutoFetchImages}
-              className="px-4 py-2 bg-brand/20 border border-brand/40 rounded text-brand text-sm font-sans font-medium hover:bg-brand/30 transition-colors min-h-[44px] flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
-              </svg>
-              fetch images
-            </button>
-          )}
         </div>
 
         <AnimatePresence mode="wait">
-          {isFetchingImages && !hasAutoImages && (
-            <motion.div
-              key="loading-images"
-              initial={prefersReducedMotion ? false : { opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-4"
-            >
-              <div className="relative w-full h-[220px] rounded-lg bg-gray-200 animate-pulse overflow-hidden">
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-                  <div className="w-8 h-8 border-3 border-gray-300 border-t-gray-500 rounded-full animate-spin" />
-                  <p className="text-gray-500 font-sans text-sm">fetching property images...</p>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
           {hasAutoImages && (
             <motion.div
               key="auto-images"

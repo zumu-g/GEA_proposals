@@ -159,6 +159,8 @@ export function extractPropertySales(rows: SpreadsheetRow[]): PropertySale[] {
         distance: distanceCol ? Number(row[distanceCol]) || 0 : 0,
         url: urlCol ? String(row[urlCol] || '') : '',
         imageUrl: imageCol && row[imageCol] ? String(row[imageCol]) : undefined,
+        // Preserve the tier tag when comps come pre-selected from the wizard.
+        ...((row as any).tier ? { tier: (row as any).tier } : {}),
       }
     })
 }

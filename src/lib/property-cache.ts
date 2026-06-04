@@ -372,6 +372,7 @@ function rowToScrapedSale(row: Record<string, unknown>): ScrapedSale {
     imageUrl: row.image_url as string | undefined,
     lat: row.lat as number | undefined,
     lng: row.lng as number | undefined,
+    geocodedAt: (row.geocoded_at as string) || undefined,
     source: 'realestate.com.au',
   }
 }
@@ -447,6 +448,61 @@ export function getSoldPropertiesBySuburbs(suburbs: string[]): ScrapedSale[] {
     `SELECT * FROM sold_properties WHERE LOWER(suburb) IN (${placeholders}) ORDER BY sold_date DESC`
   ).all(...suburbs) as Record<string, unknown>[]
   return rows.map(rowToScrapedSale)
+}
+
+/** Sold rows in the given suburbs that still need real-address geocoding. */
+export function getSoldRowsNeedingGeocode(
+  suburbs: string[],
+  limit: number,
+  primarySuburb?: string
+): { id: number; address: string }[] {
+  if (suburbs.length === 0) return []
+  const db = getDb()
+  const placeholders = suburbs.map(() => 'LOWER(?)').join(', ')
+  // Geocode the subject suburb's rows first (most relevant distances), then the
+  // rest by recency.
+  return db
+    .prepare(
+      `SELECT id, address FROM sold_properties
+       WHERE LOWER(suburb) IN (${placeholders})
+         AND geocoded_at IS NULL
+         AND address GLOB '[0-9]*'
+       ORDER BY CASE WHEN LOWER(suburb) = ? THEN 0 ELSE 1 END, sold_date DESC
+       LIMIT ?`
+    )
+    .all(...suburbs, (primarySuburb || '').toLowerCase(), limit) as { id: number; address: string }[]
+}
+
+/** Count sold rows in the given suburbs still awaiting geocoding. */
+export function countSoldNeedingGeocode(suburbs: string[]): number {
+  if (suburbs.length === 0) return 0
+  const db = getDb()
+  const placeholders = suburbs.map(() => 'LOWER(?)').join(', ')
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM sold_properties
+       WHERE LOWER(suburb) IN (${placeholders})
+         AND geocoded_at IS NULL
+         AND address GLOB '[0-9]*'`
+    )
+    .get(...suburbs) as { n: number }
+  return row?.n ?? 0
+}
+
+/** Write real coordinates back to a sold row and mark it geocoded. */
+export function updateSoldCoords(id: number, lat: number, lng: number): void {
+  const db = getDb()
+  db.prepare(
+    `UPDATE sold_properties SET lat = ?, lng = ?, geocoded_at = datetime('now') WHERE id = ?`
+  ).run(lat, lng, id)
+}
+
+/** Mark a sold row as geocoded without changing coords (un-geocodable address). */
+export function markSoldGeocoded(id: number): void {
+  const db = getDb()
+  db.prepare(
+    `UPDATE sold_properties SET geocoded_at = datetime('now') WHERE id = ?`
+  ).run(id)
 }
 
 /** Get the most recent scraped_at timestamp for a suburb, or null if never scraped */

@@ -168,11 +168,10 @@ export default function HomePage() {
   const [commission, setCommission] = useState('')
   const [showPriceRange, setShowPriceRange] = useState(true)
   const [showCommission, setShowCommission] = useState(true)
+  // Subject property photos — populated only from the everypropertyAI lookup
+  // (ClientDetailsStep "look up property from everyproperty"). No REA scraping.
   const [propertyImages, setPropertyImages] = useState<PropertyImages | null>(null)
   const [selectedAutoImageUrl, setSelectedAutoImageUrl] = useState('')
-  const [isFetchingImages, setIsFetchingImages] = useState(false)
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const lastFetchedAddressRef = useRef('')
 
   // ── Step 3: Marketing state ──────────────────────────────────────────────
   const [marketingCosts, setMarketingCosts] = useState<MarketingCostItem[]>(DEFAULT_MARKETING_COSTS)
@@ -212,94 +211,6 @@ export default function HomePage() {
     if (!propertyImages) return []
     return [propertyImages.heroImage, ...propertyImages.galleryImages]
   }, [propertyImages])
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // Property image auto-fetch
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  const isAddressComplete = useCallback((address: string) => {
-    return /\d{4}\s*$/.test(address.trim())
-  }, [])
-
-  const fetchPropertyImages = useCallback(async (address: string) => {
-    if (!address || !isAddressComplete(address)) return
-    if (lastFetchedAddressRef.current === address) return
-
-    lastFetchedAddressRef.current = address
-    setIsFetchingImages(true)
-
-    try {
-      // Resolve the correct REA property slug browser-side (server IP is blocked by REA)
-      let slug = ''
-      try {
-        const suggestRes = await fetch(
-          `https://suggest.realestate.com.au/consumer-suggest/suggestions?max=5&type=address&src=homepage&query=${encodeURIComponent(address)}`,
-          { headers: { Accept: 'application/json' } }
-        )
-        if (suggestRes.ok) {
-          const suggestData = await suggestRes.json()
-          const sugg = suggestData?._embedded?.suggestions?.[0]
-          const src = typeof sugg?.source === 'object' ? sugg.source : null
-          if (src?.shortAddress && src?.suburb && src?.state && src?.postcode) {
-            slug = `${src.shortAddress} ${src.suburb} ${src.state} ${src.postcode}`
-              .toLowerCase().replace(/,/g, '').replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-          }
-        }
-      } catch { /* ignore — server will fall back to address-based slug */ }
-
-      const qs = new URLSearchParams({ address })
-      if (slug) qs.set('slug', slug)
-      const response = await fetch(`/api/property-images?${qs}`)
-      if (response.ok) {
-        const data = await response.json()
-        if (data.heroImage) {
-          setPropertyImages({
-            heroImage: data.heroImage,
-            galleryImages: data.galleryImages || [],
-          })
-        } else {
-          setPropertyImages(null)
-        }
-      } else {
-        setPropertyImages(null)
-      }
-    } catch {
-      setPropertyImages(null)
-    } finally {
-      setIsFetchingImages(false)
-    }
-  }, [isAddressComplete])
-
-  const handleAutoFetchImages = useCallback(() => {
-    if (propertyAddress && isAddressComplete(propertyAddress)) {
-      lastFetchedAddressRef.current = '' // force re-fetch when manually triggered
-      fetchPropertyImages(propertyAddress)
-    }
-  }, [propertyAddress, isAddressComplete, fetchPropertyImages])
-
-  // Auto-fetch images when address changes (debounced)
-  // Clear old images immediately so step 2 shows loading state
-  const prevAddressRef = useRef(propertyAddress)
-  useEffect(() => {
-    if (!propertyAddress || !isAddressComplete(propertyAddress)) return
-
-    // If address changed, clear old images and show loading
-    if (propertyAddress !== prevAddressRef.current) {
-      prevAddressRef.current = propertyAddress
-      setPropertyImages(null)
-      lastFetchedAddressRef.current = ''
-      setIsFetchingImages(true)
-    }
-
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
-    debounceTimerRef.current = setTimeout(() => {
-      fetchPropertyImages(propertyAddress)
-    }, 500)
-
-    return () => {
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
-    }
-  }, [propertyAddress, isAddressComplete, fetchPropertyImages])
 
   // ─── Auto-adjust REA premiere listing cost to the property's suburb ─────────
   // Only touches the premiere line, and only when the user hasn't edited it
@@ -606,6 +517,7 @@ export default function HomePage() {
       distance: r.distance ? parseFloat(r.distance) : 0,
       url: r.url || '',
       imageUrl: r.imageUrl || '',
+      tier: r.tier,
     }))))
     const includedOnMarket = onMarketListings.filter(r => r.address && r.included === true)
     console.log(`[wizard] Submitting ${includedOnMarket.length} on-market (of ${onMarketListings.length} total)`)
@@ -683,7 +595,6 @@ export default function HomePage() {
     setShowCommission(true)
     setPropertyImages(null)
     setSelectedAutoImageUrl('')
-    lastFetchedAddressRef.current = ''
     setAskingRent('')
     setLeaseType('')
     setAvailableDate('')
@@ -759,6 +670,8 @@ export default function HomePage() {
       case 'showPriceRange': setShowPriceRange(value); break
       case 'showCommission': setShowCommission(value); break
       case 'selectedAutoImageUrl': setSelectedAutoImageUrl(value); break
+      // Full subject-property photo set from the everypropertyAI lookup
+      case 'propertyImages': setPropertyImages(value); break
       case 'askingRent': setAskingRent(value); break
       case 'leaseType': setLeaseType(value); break
       case 'availableDate': setAvailableDate(value); break
@@ -823,9 +736,7 @@ export default function HomePage() {
             propertyAddress,
           }}
           autoImages={autoImageUrls}
-          isFetchingImages={isFetchingImages}
           onChange={handleFieldChange}
-          onAutoFetchImages={handleAutoFetchImages}
         />
       )}
 
@@ -843,9 +754,7 @@ export default function HomePage() {
             propertyAddress,
           }}
           autoImages={autoImageUrls}
-          isFetchingImages={isFetchingImages}
           onChange={handleFieldChange}
-          onAutoFetchImages={handleAutoFetchImages}
         />
       )}
 
@@ -866,6 +775,8 @@ export default function HomePage() {
           onChangeSold={setSoldComparables}
           onConfirmAddress={handleConfirmAddress}
           proposalType={proposalType}
+          priceGuideMin={priceGuideMin}
+          priceGuideMax={priceGuideMax}
         />
       )}
 

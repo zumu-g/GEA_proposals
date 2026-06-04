@@ -14,7 +14,7 @@ interface ClientDetailsStepProps {
     priceGuideMax?: string
     hasHeroImage?: boolean
   }
-  onChange: (field: string, value: string) => void
+  onChange: (field: string, value: any) => void
   recentProposals: any[]
   editingId: string | null
   onLoadProposal: (proposal: any) => void
@@ -309,7 +309,7 @@ interface EpLookupProps {
   currentPriceMin: string
   currentPriceMax: string
   hasHeroImage: boolean
-  onChange: (field: string, value: string) => void
+  onChange: (field: string, value: any) => void
 }
 
 function suggestionLabel(s: EpSuggestion): string {
@@ -408,12 +408,15 @@ function EveryPropertyLookup({ currentPriceMin, currentPriceMax, hasHeroImage, o
       }
     }
 
-    // Hero image — only if the user hasn't chosen/uploaded one.
-    const photo = data.heroPhotos?.[0]
+    // Hero image + gallery — only if the user hasn't chosen/uploaded one.
+    // These everypropertyAI photos are the sole source of subject-property images.
+    const photos = data.heroPhotos ?? []
+    const photo = photos[0]
     if (photo) {
       if (!hasHeroImage) {
         onChange('heroImageUrl', photo)
         onChange('selectedAutoImageUrl', photo)
+        onChange('propertyImages', { heroImage: photo, galleryImages: photos.slice(1) })
         didSeed.push('hero image')
       } else {
         didSkip.push('hero image')
