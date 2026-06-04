@@ -188,7 +188,12 @@ export async function getComparables(
   const landSizeStr = (n: number | null) => (n && n > 0 ? `${Math.round(n)}m²` : null)
 
   if (type === 'sold') {
-    return (rows as SoldRow[]).map((r) => ({
+    // Drop upstream data anomalies until everypropertyAI re-scrapes its
+    // back-catalogue: a sold comp needs a usable price, and the dataset
+    // currently carries garbage outliers (e.g. a bogus $140,000,000 row).
+    return (rows as SoldRow[])
+      .filter((r) => r.salePrice != null && r.salePrice > 0 && r.salePrice <= 50_000_000)
+      .map((r) => ({
       address: r.rawAddress,
       price: r.salePrice ?? 0,
       askingPrice: r.salePrice ? `$${r.salePrice.toLocaleString()}` : 'Contact Agent',
@@ -211,7 +216,11 @@ export async function getComparables(
     }))
   }
 
-  return (rows as OnMarketRow[]).map((r) => ({
+  // Lighter touch for on-market: only drop garbage price outliers. Price-less
+  // listings ("Contact Agent") are legitimate and kept.
+  return (rows as OnMarketRow[])
+    .filter((r) => !(r.priceLow != null && r.priceLow > 50_000_000))
+    .map((r) => ({
     address: r.rawAddress,
     price: r.priceLow ?? 0,
     askingPrice: r.displayPrice ?? (r.priceLow ? `$${r.priceLow.toLocaleString()}` : 'Contact Agent'),

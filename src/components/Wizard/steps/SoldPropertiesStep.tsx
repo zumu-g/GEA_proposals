@@ -213,6 +213,9 @@ const DISTANCE_OPTIONS = [
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
+// How many of the closest, most-recent comps to pre-tick on a fresh search
+const AUTO_SELECT_COUNT = 8
+
 export default function SoldPropertiesStep({
   propertyAddress,
   soldComparables,
@@ -295,7 +298,7 @@ export default function SoldPropertiesStep({
   const [bathsMin, setBathsMin] = useState('')
   const [propType, setPropType] = useState('')
   const [suburbFilter, setSuburbFilter] = useState('')
-  const [soldWithin, setSoldWithin] = useState('')
+  const [soldWithin, setSoldWithin] = useState('12')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [sortBy, setSortBy] = useState('distance-asc')
@@ -309,6 +312,14 @@ export default function SoldPropertiesStep({
   // Exclusion tracking
   const excludedSoldRef = useRef<Set<string>>(new Set())
   const removedSoldRef = useRef<Set<string>>(new Set())
+
+  // Time-window auto-widen: track whether the user touched the time control,
+  // and whether we've already bumped 12→24 for this (sparse) search.
+  const userSetTimeRef = useRef(false)
+  const timeWidenedRef = useRef(false)
+
+  // Auto-select: pre-tick the closest recent comps once per fresh search
+  const hasAutoSelectedRef = useRef(false)
 
   // Manual add
   const [showManualSold, setShowManualSold] = useState(false)
@@ -575,6 +586,17 @@ export default function SoldPropertiesStep({
         }
       })
 
+      // Auto-select the most relevant comps on a fresh search: the list is
+      // already distance-sorted (closest first) and time-filtered (recent), so
+      // the top N are the best comps. Only runs once per search and never when
+      // the user has already made a manual selection.
+      if (!hasAutoSelectedRef.current && includedAddrRef.current.size === 0) {
+        for (const s of filteredSold.slice(0, AUTO_SELECT_COUNT)) {
+          if (s.address) includedAddrRef.current.add(s.address)
+        }
+        hasAutoSelectedRef.current = true
+      }
+
       setCompRows(
         filteredSold.map((s: any) => {
           const dist =
@@ -633,6 +655,25 @@ export default function SoldPropertiesStep({
     }
   }, [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, suburbFilter, soldWithin, dateFrom, dateTo, sortBy, subjectLat, subjectLng, rawComps, applyFilters])
 
+  // Sparse-suburb auto-widen: after a fresh search, if the user hasn't touched
+  // the time control and fewer than 15 comps fall within the default 12-month
+  // window, widen to 24 months. Runs once per search (timeWidenedRef guard).
+  useEffect(() => {
+    if (rawComps.length === 0) return
+    if (userSetTimeRef.current || timeWidenedRef.current) return
+    if (soldWithin !== '12') return
+    const now = new Date()
+    const cutoff = new Date(now.getFullYear(), now.getMonth() - 12, now.getDate())
+    const within12 = rawComps.filter((s: any) => {
+      const d = s.date || s.soldDate
+      return d && new Date(d) >= cutoff
+    }).length
+    if (within12 < 15) {
+      timeWidenedRef.current = true
+      setSoldWithin('24')
+    }
+  }, [rawComps, soldWithin])
+
   // ─── Search function ──────────────────────────────────────────────────
   const searchComparables = useCallback(
     async (searchAddress?: string) => {
@@ -645,6 +686,10 @@ export default function SoldPropertiesStep({
       setStatusMessage('Searching...')
       excludedSoldRef.current.clear()
       removedSoldRef.current.clear()
+      // Reset per-search guards so a fresh search re-runs auto-select and
+      // the sparse-suburb time auto-widen.
+      hasAutoSelectedRef.current = false
+      timeWidenedRef.current = false
 
       try {
         // ── Fetch comparables ──
@@ -1338,6 +1383,7 @@ export default function SoldPropertiesStep({
                         setBathsMin('')
                         setPropType('')
                         setSuburbFilter('')
+                        userSetTimeRef.current = true
                         setSoldWithin('')
                         setDateFrom('')
                         setDateTo('')
@@ -1446,6 +1492,7 @@ export default function SoldPropertiesStep({
                           <select
                             value={soldWithin}
                             onChange={e => {
+                              userSetTimeRef.current = true
                               setSoldWithin(e.target.value)
                               if (e.target.value) { setDateFrom(''); setDateTo('') }
                             }}
@@ -1463,7 +1510,7 @@ export default function SoldPropertiesStep({
                           <input
                             type="date"
                             value={dateFrom}
-                            onChange={e => { setDateFrom(e.target.value); if (e.target.value) setSoldWithin('') }}
+                            onChange={e => { userSetTimeRef.current = true; setDateFrom(e.target.value); if (e.target.value) setSoldWithin('') }}
                             className={inputClasses}
                           />
                         </div>
@@ -1472,7 +1519,7 @@ export default function SoldPropertiesStep({
                           <input
                             type="date"
                             value={dateTo}
-                            onChange={e => { setDateTo(e.target.value); if (e.target.value) setSoldWithin('') }}
+                            onChange={e => { userSetTimeRef.current = true; setDateTo(e.target.value); if (e.target.value) setSoldWithin('') }}
                             className={inputClasses}
                           />
                         </div>
