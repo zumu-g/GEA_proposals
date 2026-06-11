@@ -3,7 +3,6 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useEffect, useState, useRef, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { isServiceSuburb } from '@/lib/service-suburbs'
 
 interface ClientDetailsStepProps {
   formData: {
@@ -46,18 +45,6 @@ export function validateClientDetails(
 interface AddressAutoProps {
   value: string
   onChange: (val: string) => void
-}
-
-interface ReaSuggestion {
-  display?: { text?: string }
-  source?: { suburb?: string; state?: string; postcode?: string; shortAddress?: string }
-}
-
-function parseReaSuggestion(s: ReaSuggestion): string {
-  const src = s.source
-  if (!src) return s.display?.text || ''
-  return [src.shortAddress || s.display?.text, src.suburb, `${src.state ?? ''} ${src.postcode ?? ''}`.trim()]
-    .filter(Boolean).join(', ')
 }
 
 export function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
@@ -107,59 +94,22 @@ export function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
 
     const controller = new AbortController()
 
-    // Fetch VIC suggestions from REA, retrying with a shorter query if needed.
-    // REA's index returns 0 VIC results for partial street types (e.g. "5 curtis st")
-    // because the NSW results crowd them out. Stripping the last word and retrying
-    // (e.g. → "5 curtis") brings VIC results back without showing interstate noise.
-    async function fetchVic(q: string): Promise<string[]> {
-      // max=100: interstate matches crowd out VIC ones at lower limits — e.g.
-      // "7 gilbert" only surfaces 7 Gilbert Pl Berwick when fetching ~100
-      const res = await fetch(
-        `https://suggest.realestate.com.au/consumer-suggest/suggestions?max=100&type=address&src=homepage&query=${encodeURIComponent(q)}`,
-        { signal: controller.signal, headers: { Accept: 'application/json' } }
-      )
-      if (!res.ok) return []
-      const data = await res.json()
-      const raw: ReaSuggestion[] = data?._embedded?.suggestions || []
-      const vic = raw.filter((s) => s.source?.state === 'VIC' && s.display?.text)
-      // Service-area suburbs first — clients are almost always local
-      return vic
-        .sort((a, b) => Number(isServiceSuburb(b.source?.suburb)) - Number(isServiceSuburb(a.source?.suburb)))
-        .map(parseReaSuggestion)
-        .filter((s) => s.length > 5)
-        .slice(0, 8)
-    }
-
+    // Server route: Mapbox (everypropertyAI) primary, REA fallback —
+    // VIC-filtered, service-area suburbs ranked first
     const timer = setTimeout(async () => {
       setIsLoading(true)
       let results: string[] = []
       try {
-        results = await fetchVic(query)
-
-        // If no VIC results, retry without the last word — street type suffixes
-        // like "st" or "street" confuse REA's index for less-common VIC streets
-        if (results.length === 0 && query.includes(' ')) {
-          const shorter = query.split(' ').slice(0, -1).join(' ')
-          if (shorter.length >= 3) results = await fetchVic(shorter)
-        }
+        const res = await fetch(`/api/address-suggest?q=${encodeURIComponent(query)}`, {
+          signal: controller.signal,
+        })
+        const data = await res.json()
+        results = (data.suggestions || [])
+          .map((s: { fullAddress?: string; display?: string }) => s.fullAddress || s.display || '')
+          .filter((s: string) => s.length > 3)
+          .slice(0, 8)
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') { setIsLoading(false); return }
-      }
-
-      // Fallback to server route (also VIC-filtered) if both browser attempts failed
-      if (results.length === 0) {
-        try {
-          const res = await fetch(`/api/address-suggest?q=${encodeURIComponent(query)}`, {
-            signal: controller.signal,
-          })
-          const data = await res.json()
-          results = (data.suggestions || [])
-            .map((s: { fullAddress?: string; display?: string }) => s.fullAddress || s.display || '')
-            .filter((s: string) => s.length > 3)
-            .slice(0, 8)
-        } catch (err) {
-          if (err instanceof Error && err.name === 'AbortError') { setIsLoading(false); return }
-        }
       }
 
       setSuggestions(results)

@@ -1,11 +1,17 @@
 /**
- * Address Autocomplete via realestate.com.au Suggest API
+ * Address Autocomplete
  *
- * Provides address suggestions as the user types, returning
- * structured address data (suburb, state, postcode, street).
+ * Primary source: everypropertyAI's /api/search (Mapbox address index) —
+ * authenticated server-to-server, so this must stay a server-side module.
+ * Fallback: realestate.com.au suggest API, only when Mapbox returns no
+ * VIC results for the query.
+ *
+ * Returns structured address data (suburb, state, postcode, street),
+ * filtered to VIC and ranked with GEA service-area suburbs first.
  */
 
 import { isServiceSuburb } from './service-suburbs'
+import { suggestAddresses as epSuggestAddresses } from './everyproperty'
 
 const USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
@@ -21,6 +27,67 @@ export interface AddressSuggestion {
   fullAddress: string   // "17 Rose Garden Avenue, Officer VIC 3809"
   slug?: string         // realestate.com.au slug if available
 }
+
+/**
+ * Fetch address suggestions — Mapbox (everypropertyAI) first, REA fallback.
+ * Returns an empty array if the query is too short or on failure.
+ */
+export async function suggestAddresses(query: string): Promise<AddressSuggestion[]> {
+  const trimmed = query?.trim()
+  if (!trimmed || trimmed.length < 3) {
+    return []
+  }
+
+  let results = await fetchMapboxSuggestions(trimmed)
+  if (results.length === 0) {
+    results = await fetchReaSuggestions(trimmed)
+  }
+
+  // Both indexes can return nothing when a suburb is appended without a
+  // street type (e.g. "7 gilbert berwick") — retry without the last word
+  if (results.length === 0 && trimmed.includes(' ')) {
+    const shorter = trimmed.split(/\s+/).slice(0, -1).join(' ')
+    if (shorter.length >= 3) {
+      results = await fetchMapboxSuggestions(shorter)
+      if (results.length === 0) results = await fetchReaSuggestions(shorter)
+    }
+  }
+
+  return results
+}
+
+/** Rank VIC service-area suburbs first, cap at 8. */
+function rankAndTrim(suggestions: AddressSuggestion[]): AddressSuggestion[] {
+  return suggestions
+    .filter((s) => s.state === 'VIC')
+    .sort((a, b) => Number(isServiceSuburb(b.suburb)) - Number(isServiceSuburb(a.suburb)))
+    .slice(0, 8)
+}
+
+// ─── Primary: everypropertyAI /api/search (Mapbox) ───────────────────────────
+
+async function fetchMapboxSuggestions(query: string): Promise<AddressSuggestion[]> {
+  try {
+    const raw = await epSuggestAddresses(query)
+    return rankAndTrim(
+      raw
+        .filter((s) => s.fullAddress || s.display)
+        .map((s) => ({
+          display: s.display || s.fullAddress || '',
+          suburb: s.suburb || '',
+          state: (s.state || '').toUpperCase(),
+          postcode: s.postcode || '',
+          streetAddress: s.streetAddress || '',
+          fullAddress: s.fullAddress || s.display || '',
+        }))
+    )
+  } catch (err) {
+    console.error('[address-suggest] everypropertyAI search failed:', err)
+    return []
+  }
+}
+
+// ─── Fallback: realestate.com.au suggest API ─────────────────────────────────
 
 interface ReaSuggestionSource {
   streetName?: string
@@ -48,29 +115,7 @@ interface ReaSuggestion {
   type?: string
 }
 
-/**
- * Fetch address suggestions from realestate.com.au suggest API.
- * Returns an empty array if the query is too short or on failure.
- */
-export async function suggestAddresses(query: string): Promise<AddressSuggestion[]> {
-  const trimmed = query?.trim()
-  if (!trimmed || trimmed.length < 3) {
-    return []
-  }
-
-  let results = await fetchVicSuggestions(trimmed)
-
-  // REA's index often returns nothing when a suburb is appended without a
-  // street type (e.g. "7 gilbert berwick") — retry without the last word
-  if (results.length === 0 && trimmed.includes(' ')) {
-    const shorter = trimmed.split(/\s+/).slice(0, -1).join(' ')
-    if (shorter.length >= 3) results = await fetchVicSuggestions(shorter)
-  }
-
-  return results
-}
-
-async function fetchVicSuggestions(query: string): Promise<AddressSuggestion[]> {
+async function fetchReaSuggestions(query: string): Promise<AddressSuggestion[]> {
   // max=100: interstate matches crowd out VIC ones at lower limits — e.g.
   // "7 gilbert" only surfaces 7 Gilbert Pl Berwick when fetching ~100
   const url = `${SUGGEST_URL}?max=100&type=address&src=homepage&query=${encodeURIComponent(query)}`
@@ -92,13 +137,9 @@ async function fetchVicSuggestions(query: string): Promise<AddressSuggestion[]> 
     const suggestions: ReaSuggestion[] =
       data?._embedded?.suggestions || data?.suggestions || []
 
-    return suggestions
-      .filter((s) => s.display?.text)
-      .map((s) => parseSuggestion(s))
-      .filter((s) => s.state === 'VIC')
-      // Service-area suburbs first — clients are almost always local
-      .sort((a, b) => Number(isServiceSuburb(b.suburb)) - Number(isServiceSuburb(a.suburb)))
-      .slice(0, 8)
+    return rankAndTrim(
+      suggestions.filter((s) => s.display?.text).map((s) => parseSuggestion(s))
+    )
   } catch (err) {
     console.error('[address-suggest] Failed to fetch suggestions:', err)
     return []
