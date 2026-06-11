@@ -5,6 +5,8 @@
  * structured address data (suburb, state, postcode, street).
  */
 
+import { isServiceSuburb } from './service-suburbs'
+
 const USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
 
@@ -56,9 +58,22 @@ export async function suggestAddresses(query: string): Promise<AddressSuggestion
     return []
   }
 
-  const encoded = encodeURIComponent(trimmed)
-  // Fetch more results so we still have enough after filtering to VIC only
-  const url = `${SUGGEST_URL}?max=20&type=address&src=homepage&query=${encoded}`
+  let results = await fetchVicSuggestions(trimmed)
+
+  // REA's index often returns nothing when a suburb is appended without a
+  // street type (e.g. "7 gilbert berwick") — retry without the last word
+  if (results.length === 0 && trimmed.includes(' ')) {
+    const shorter = trimmed.split(/\s+/).slice(0, -1).join(' ')
+    if (shorter.length >= 3) results = await fetchVicSuggestions(shorter)
+  }
+
+  return results
+}
+
+async function fetchVicSuggestions(query: string): Promise<AddressSuggestion[]> {
+  // max=100: interstate matches crowd out VIC ones at lower limits — e.g.
+  // "7 gilbert" only surfaces 7 Gilbert Pl Berwick when fetching ~100
+  const url = `${SUGGEST_URL}?max=100&type=address&src=homepage&query=${encodeURIComponent(query)}`
 
   try {
     const res = await fetch(url, {
@@ -81,6 +96,8 @@ export async function suggestAddresses(query: string): Promise<AddressSuggestion
       .filter((s) => s.display?.text)
       .map((s) => parseSuggestion(s))
       .filter((s) => s.state === 'VIC')
+      // Service-area suburbs first — clients are almost always local
+      .sort((a, b) => Number(isServiceSuburb(b.suburb)) - Number(isServiceSuburb(a.suburb)))
       .slice(0, 8)
   } catch (err) {
     console.error('[address-suggest] Failed to fetch suggestions:', err)

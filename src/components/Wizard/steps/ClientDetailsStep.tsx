@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useEffect, useState, useRef, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { isServiceSuburb } from '@/lib/service-suburbs'
 
 interface ClientDetailsStepProps {
   formData: {
@@ -111,15 +112,19 @@ export function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
     // because the NSW results crowd them out. Stripping the last word and retrying
     // (e.g. → "5 curtis") brings VIC results back without showing interstate noise.
     async function fetchVic(q: string): Promise<string[]> {
+      // max=100: interstate matches crowd out VIC ones at lower limits — e.g.
+      // "7 gilbert" only surfaces 7 Gilbert Pl Berwick when fetching ~100
       const res = await fetch(
-        `https://suggest.realestate.com.au/consumer-suggest/suggestions?max=20&type=address&src=homepage&query=${encodeURIComponent(q)}`,
+        `https://suggest.realestate.com.au/consumer-suggest/suggestions?max=100&type=address&src=homepage&query=${encodeURIComponent(q)}`,
         { signal: controller.signal, headers: { Accept: 'application/json' } }
       )
       if (!res.ok) return []
       const data = await res.json()
       const raw: ReaSuggestion[] = data?._embedded?.suggestions || []
-      return raw
-        .filter((s) => s.source?.state === 'VIC' && s.display?.text)
+      const vic = raw.filter((s) => s.source?.state === 'VIC' && s.display?.text)
+      // Service-area suburbs first — clients are almost always local
+      return vic
+        .sort((a, b) => Number(isServiceSuburb(b.source?.suburb)) - Number(isServiceSuburb(a.source?.suburb)))
         .map(parseReaSuggestion)
         .filter((s) => s.length > 5)
         .slice(0, 8)
