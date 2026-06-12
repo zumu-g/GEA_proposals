@@ -388,6 +388,36 @@ function buildAgentApprovalHtml(proposal: Proposal, proposalUrl: string): string
     }
   }
 
+  // Build development site campaign rows (dual target campaign)
+  let devMarketingRows = ''
+  let devScheduleRows = ''
+  if (proposal.dualCampaign) {
+    if (proposal.devMarketingPlan && proposal.devMarketingPlan.length > 0) {
+      for (const item of proposal.devMarketingPlan) {
+        devMarketingRows += `
+        <tr>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #F0F0F0; color: #1A1A1A; font-size: 14px;">${escapeHtml(item.channel)}</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #F0F0F0; color: #737373; font-size: 13px;">${escapeHtml(item.description)}</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #F0F0F0; color: #1A1A1A; font-size: 13px; text-align: right;">${item.cost ? escapeHtml(item.cost) : 'Included'}</td>
+        </tr>`
+      }
+    }
+    if (proposal.devAdvertisingSchedule && proposal.devAdvertisingSchedule.length > 0) {
+      for (const week of proposal.devAdvertisingSchedule) {
+        const activities = week.activities.map(a => escapeHtml(a.category)).join(', ')
+        const weekCost = week.activities.reduce((sum, a) => sum + (a.cost || 0), 0)
+        devScheduleRows += `
+        <tr>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #F0F0F0; color: #1A1A1A; font-size: 14px; font-weight: 500;">Week ${week.week}</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #F0F0F0; color: #737373; font-size: 13px;">${activities}</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #F0F0F0; color: #1A1A1A; font-size: 13px; text-align: right;">${weekCost ? fmtPrice(weekCost) : '—'}</td>
+        </tr>`
+      }
+    }
+  }
+  const devTotalAdCost = proposal.devTotalAdvertisingCost
+  const combinedAdCost = (totalAdCost ?? 0) + (devTotalAdCost ?? 0)
+
   // Build comparable sales rows
   let comparablesRows = ''
   if (proposal.recentSales && proposal.recentSales.length > 0) {
@@ -482,6 +512,10 @@ function buildAgentApprovalHtml(proposal: Proposal, proposalUrl: string): string
                   <td style="padding: 6px 0; color: #737373; font-size: 13px;">Marketing Budget</td>
                   <td style="padding: 6px 0; color: #1A1A1A; font-size: 14px; font-weight: 500;">${escapeHtml(marketingBudget)}</td>
                 </tr>` : ''}
+                ${proposal.dualCampaign ? `<tr>
+                  <td style="padding: 6px 0; color: #737373; font-size: 13px;">Dual Campaign</td>
+                  <td style="padding: 6px 0; color: #1A1A1A; font-size: 14px; font-weight: 500;">Development site campaign — ${escapeHtml(proposal.devMethodOfSale || 'TBC')}${proposal.devPriceGuide ? ', guide ' + fmtPrice(proposal.devPriceGuide.min) + ' — ' + fmtPrice(proposal.devPriceGuide.max) : ''}</td>
+                </tr>` : ''}
               </table>
               ${inclusionsHtml}
             </td>
@@ -516,7 +550,34 @@ function buildAgentApprovalHtml(proposal: Proposal, proposalUrl: string): string
                 </tr>
                 ${scheduleRows}
               </table>
-              ${totalAdCost ? `<p style="color: #1A1A1A; font-size: 14px; font-weight: 600; margin: 12px 0 0 0; text-align: right;">Total: ${fmtPrice(totalAdCost)}</p>` : ''}
+              ${totalAdCost ? `<p style="color: #1A1A1A; font-size: 14px; font-weight: 600; margin: 12px 0 0 0; text-align: right;">${proposal.dualCampaign ? 'Residential total' : 'Total'}: ${fmtPrice(totalAdCost)}</p>` : ''}
+            </td>
+          </tr>` : ''}
+
+          ${devMarketingRows ? `
+          <!-- Development site campaign -->
+          <tr>
+            <td style="background-color: #FFFFFF; padding: 32px 40px; border-bottom: 1px solid #F0F0F0;">
+              <p style="color: #737373; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; margin: 0 0 16px 0;">development site campaign</p>
+              <table cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: collapse;">
+                <tr style="background-color: #F9F9F9;">
+                  <td style="padding: 8px 12px; font-size: 11px; color: #737373; text-transform: uppercase; letter-spacing: 1px;">Channel</td>
+                  <td style="padding: 8px 12px; font-size: 11px; color: #737373; text-transform: uppercase; letter-spacing: 1px;">Details</td>
+                  <td style="padding: 8px 12px; font-size: 11px; color: #737373; text-transform: uppercase; letter-spacing: 1px; text-align: right;">Cost</td>
+                </tr>
+                ${devMarketingRows}
+              </table>
+              ${devScheduleRows ? `
+              <table cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: collapse; margin-top: 16px;">
+                <tr style="background-color: #F9F9F9;">
+                  <td style="padding: 8px 12px; font-size: 11px; color: #737373; text-transform: uppercase; letter-spacing: 1px;">Week</td>
+                  <td style="padding: 8px 12px; font-size: 11px; color: #737373; text-transform: uppercase; letter-spacing: 1px;">Activities</td>
+                  <td style="padding: 8px 12px; font-size: 11px; color: #737373; text-transform: uppercase; letter-spacing: 1px; text-align: right;">Cost</td>
+                </tr>
+                ${devScheduleRows}
+              </table>` : ''}
+              ${devTotalAdCost ? `<p style="color: #1A1A1A; font-size: 14px; font-weight: 600; margin: 12px 0 0 0; text-align: right;">Development total: ${fmtPrice(devTotalAdCost)}</p>` : ''}
+              ${combinedAdCost ? `<p style="color: #C41E2A; font-size: 15px; font-weight: 700; margin: 8px 0 0 0; text-align: right;">Combined advertising investment: ${fmtPrice(combinedAdCost)}</p>` : ''}
             </td>
           </tr>` : ''}
 
@@ -580,6 +641,12 @@ function buildClientApprovalHtml(proposal: Proposal, proposalUrl: string, agency
   const totalAdCost = proposal.totalAdvertisingCost
 
   // Marketing summary
+  let devMarketingSummary = ''
+  if (proposal.dualCampaign && proposal.devMarketingPlan && proposal.devMarketingPlan.length > 0) {
+    const items = proposal.devMarketingPlan.map(m => `<li style="color: #4A4A4A; font-size: 14px; line-height: 1.8;">${escapeHtml(m.channel)}${m.cost ? ' — ' + escapeHtml(m.cost) : ''}</li>`).join('')
+    devMarketingSummary = `<ul style="margin: 8px 0 0 0; padding-left: 20px;">${items}</ul>`
+  }
+
   let marketingSummary = ''
   if (proposal.marketingPlan && proposal.marketingPlan.length > 0) {
     const items = proposal.marketingPlan.map(m => `<li style="color: #4A4A4A; font-size: 14px; line-height: 1.8;">${escapeHtml(m.channel)}${m.cost ? ' — ' + escapeHtml(m.cost) : ''}</li>`).join('')
@@ -653,9 +720,13 @@ function buildClientApprovalHtml(proposal: Proposal, proposalUrl: string, agency
                         <td style="padding: 8px 0; color: #737373; font-size: 13px; vertical-align: top;">Commission</td>
                         <td style="padding: 8px 0; color: #1A1A1A; font-size: 14px;">${fmtPercent(commission)}</td>
                       </tr>
+                      ${proposal.dualCampaign ? `<tr>
+                        <td style="padding: 8px 0; color: #737373; font-size: 13px; vertical-align: top;">Development Campaign</td>
+                        <td style="padding: 8px 0; color: #1A1A1A; font-size: 14px;">${escapeHtml(proposal.devMethodOfSale || 'TBC')} — advertised on realcommercial.com.au</td>
+                      </tr>` : ''}
                       ${totalAdCost ? `<tr>
                         <td style="padding: 8px 0; color: #737373; font-size: 13px; vertical-align: top;">Marketing Investment</td>
-                        <td style="padding: 8px 0; color: #1A1A1A; font-size: 14px; font-weight: 500;">${fmtPrice(totalAdCost)}</td>
+                        <td style="padding: 8px 0; color: #1A1A1A; font-size: 14px; font-weight: 500;">${proposal.dualCampaign && proposal.devTotalAdvertisingCost ? fmtPrice(totalAdCost + proposal.devTotalAdvertisingCost) + ' (combined)' : fmtPrice(totalAdCost)}</td>
                       </tr>` : ''}
                     </table>
                   </td>
@@ -665,6 +736,12 @@ function buildClientApprovalHtml(proposal: Proposal, proposalUrl: string, agency
               ${marketingSummary ? `
               <p style="color: #737373; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; margin: 0 0 8px 0;">marketing campaign includes</p>
               ${marketingSummary}
+              <div style="height: 24px;"></div>
+              ` : ''}
+
+              ${devMarketingSummary ? `
+              <p style="color: #737373; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; margin: 0 0 8px 0;">development site campaign includes</p>
+              ${devMarketingSummary}
               <div style="height: 24px;"></div>
               ` : ''}
 
