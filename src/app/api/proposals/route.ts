@@ -3,6 +3,54 @@ import { createProposal, parseCSV, parseExcel } from '@/lib/spreadsheet-parser'
 import { saveProposal, getProposal, getAgencyConfig, listProposals, deleteProposal } from '@/lib/proposal-generator'
 import { lookupComparables, lookupOnMarket } from '@/lib/comparables-lookup'
 
+interface WizardMarketingItem {
+  id?: string; category: string; description: string; cost: number; included: boolean
+}
+
+// Build the weekly advertising schedule from raw wizard marketing items.
+// The residential campaign keeps the original behaviour (weekly open-home rows);
+// the development campaign omits them — open homes are residential-specific.
+function buildAdvertisingSchedule(items: WizardMarketingItem[], opts: { includeOpenHomes: boolean }) {
+  const prepItems = items.filter(i => i.category)
+  // Campaign prep (week 0) gets all one-off items, weeks 1-4 get ongoing items
+  const campaignPrep = prepItems.filter(i => !['Open Homes', 'Internet Listings'].some(k => i.category.toLowerCase().includes(k.toLowerCase())))
+  const ongoingItems = prepItems.filter(i => ['Open Homes', 'Internet Listings'].some(k => i.category.toLowerCase().includes(k.toLowerCase())))
+
+  return [
+    {
+      week: 0,
+      activities: campaignPrep.map(i => ({
+        category: i.category,
+        description: i.description,
+        ...(i.included ? { included: true } : { cost: i.cost }),
+      })),
+    },
+    ...([1, 2, 3, 4].map(w => ({
+      week: w,
+      activities: [
+        ...ongoingItems.map(i => ({
+          category: i.category,
+          description: w === 1 ? i.description : `Continued ${i.category.toLowerCase()}`,
+          included: true as const,
+        })),
+        ...(opts.includeOpenHomes
+          ? [{ category: 'Open Home', description: w === 1 ? 'First open home inspection' : 'Open home inspection', included: true as const }]
+          : []),
+      ],
+    }))),
+  ]
+}
+
+// Derive display/email channel rows from raw wizard items — the wizard path
+// never populates marketingPlan, so the dev email table needs this.
+function itemsToMarketingPlan(items: WizardMarketingItem[]) {
+  return items.map(i => ({
+    channel: i.category,
+    description: i.description,
+    cost: i.included ? 'Included' : `$${(i.cost || 0).toLocaleString()}`,
+  }))
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
@@ -29,6 +77,13 @@ export async function POST(request: NextRequest) {
     const availableDate = formData.get('availableDate') as string | null
     const managementFeeStr = formData.get('managementFee') as string | null
     const lettingFee = formData.get('lettingFee') as string | null
+    const dualCampaign = formData.get('dualCampaign') as string | null
+    const devMethodOfSale = formData.get('devMethodOfSale') as string | null
+    const devPriceGuideMinStr = formData.get('devPriceGuideMin') as string | null
+    const devPriceGuideMaxStr = formData.get('devPriceGuideMax') as string | null
+    const devShowPriceRange = formData.get('devShowPriceRange') as string | null
+    const devMarketingCostsJson = formData.get('devMarketingCosts') as string | null
+    const devMarketingTotalStr = formData.get('devMarketingTotal') as string | null
     const file = formData.get('file') as File | null
 
     // Collect auto-fetched property gallery images
@@ -232,45 +287,42 @@ export async function POST(request: NextRequest) {
     // Add custom marketing costs as advertising schedule
     if (marketingCostsJson) {
       try {
-        const items = JSON.parse(marketingCostsJson) as Array<{
-          id?: string; category: string; description: string; cost: number; included: boolean
-        }>
+        const items = JSON.parse(marketingCostsJson) as WizardMarketingItem[]
         if (items.length > 0) {
           // Persist the raw items verbatim so the single-page marketing plan
           // can be regenerated exactly (not just reconstructed from the schedule).
           proposal.marketingCosts = items
-          const prepItems = items.filter(i => i.category)
-          // Campaign prep (week 0) gets all one-off items, weeks 1-4 get ongoing items
-          const campaignPrep = prepItems.filter(i => !['Open Homes', 'Internet Listings'].some(k => i.category.toLowerCase().includes(k.toLowerCase())))
-          const ongoingItems = prepItems.filter(i => ['Open Homes', 'Internet Listings'].some(k => i.category.toLowerCase().includes(k.toLowerCase())))
-
-          const schedule = [
-            {
-              week: 0,
-              activities: campaignPrep.map(i => ({
-                category: i.category,
-                description: i.description,
-                ...(i.included ? { included: true } : { cost: i.cost }),
-              })),
-            },
-            ...([1, 2, 3, 4].map(w => ({
-              week: w,
-              activities: [
-                ...(w === 1 ? [] : []),
-                ...ongoingItems.map(i => ({
-                  category: i.category,
-                  description: w === 1 ? i.description : `Continued ${i.category.toLowerCase()}`,
-                  included: true as const,
-                })),
-                { category: 'Open Home', description: w === 1 ? 'First open home inspection' : 'Open home inspection', included: true as const },
-              ],
-            }))),
-          ]
-          proposal.advertisingSchedule = schedule
+          proposal.advertisingSchedule = buildAdvertisingSchedule(items, { includeOpenHomes: true })
           proposal.totalAdvertisingCost = marketingTotalStr ? parseFloat(marketingTotalStr) : undefined
         }
       } catch {
         // Invalid JSON, ignore — defaults will be used
+      }
+    }
+
+    // Dual target campaign (development site) — only when the toggle is on;
+    // stray dev fields from stale drafts are ignored otherwise
+    if (dualCampaign === '1' && proposalType !== 'rental') {
+      proposal.dualCampaign = true
+      proposal.devMethodOfSale = devMethodOfSale || undefined
+      const devMin = devPriceGuideMinStr ? parseInt(devPriceGuideMinStr) : NaN
+      const devMax = devPriceGuideMaxStr ? parseInt(devPriceGuideMaxStr) : NaN
+      if (Number.isFinite(devMin) && Number.isFinite(devMax) && devMin > 0 && devMax > 0) {
+        proposal.devPriceGuide = { min: devMin, max: devMax }
+      }
+      proposal.devShowPriceRange = devShowPriceRange !== '0'
+      if (devMarketingCostsJson) {
+        try {
+          const devItems = JSON.parse(devMarketingCostsJson) as WizardMarketingItem[]
+          if (devItems.length > 0) {
+            proposal.devMarketingCosts = devItems
+            proposal.devMarketingPlan = itemsToMarketingPlan(devItems)
+            proposal.devAdvertisingSchedule = buildAdvertisingSchedule(devItems, { includeOpenHomes: false })
+            proposal.devTotalAdvertisingCost = devMarketingTotalStr ? parseFloat(devMarketingTotalStr) : undefined
+          }
+        } catch {
+          // Invalid JSON, ignore — wizard validation guards this in practice
+        }
       }
     }
 
