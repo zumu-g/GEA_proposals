@@ -71,6 +71,15 @@ export interface Proposal {
   availableDate?: string;
   managementFee?: number;
   lettingFee?: string;
+  // Dual target campaign (residential + development site)
+  dualCampaign?: boolean;
+  devMethodOfSale?: string;
+  devPriceGuide?: { min: number; max: number };
+  devShowPriceRange?: boolean;
+  devMarketingCosts?: MarketingCostItem[];  // raw dev campaign wizard items
+  devMarketingPlan?: MarketingItem[];       // email/display channel rows
+  devAdvertisingSchedule?: AdvertisingWeek[];
+  devTotalAdvertisingCost?: number;
   status: 'draft' | 'sent' | 'viewed' | 'approved' | 'rejected';
   sentAt?: string;
   viewedAt?: string;

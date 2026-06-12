@@ -105,6 +105,15 @@ interface ProposalRow {
   available_date: string | null
   management_fee: number | null
   letting_fee: string | null
+  dual_campaign: number | null
+  dev_method_of_sale: string | null
+  dev_price_guide_min: number | null
+  dev_price_guide_max: number | null
+  dev_show_price_range: number | null
+  dev_marketing_costs: string | null
+  dev_marketing_plan: string | null
+  dev_advertising_schedule: string | null
+  dev_total_advertising_cost: number | null
   created_at: string
   updated_at: string
 }
@@ -145,6 +154,17 @@ function rowToProposal(row: ProposalRow): Proposal {
     availableDate: row.available_date ?? undefined,
     managementFee: row.management_fee ?? undefined,
     lettingFee: row.letting_fee ?? undefined,
+    dualCampaign: row.dual_campaign === 1,
+    devMethodOfSale: row.dev_method_of_sale || undefined,
+    devPriceGuide:
+      row.dev_price_guide_min != null && row.dev_price_guide_max != null
+        ? { min: row.dev_price_guide_min, max: row.dev_price_guide_max }
+        : undefined,
+    devShowPriceRange: row.dev_show_price_range !== 0,
+    devMarketingCosts: row.dev_marketing_costs ? JSON.parse(row.dev_marketing_costs) : undefined,
+    devMarketingPlan: row.dev_marketing_plan ? JSON.parse(row.dev_marketing_plan) : undefined,
+    devAdvertisingSchedule: row.dev_advertising_schedule ? JSON.parse(row.dev_advertising_schedule) : undefined,
+    devTotalAdvertisingCost: row.dev_total_advertising_cost ?? undefined,
     status: row.status as Proposal['status'],
     sentAt: row.sent_at || undefined,
     viewedAt: row.viewed_at || undefined,
@@ -186,6 +206,15 @@ function proposalToParams(proposal: Proposal) {
     available_date: proposal.availableDate || null,
     management_fee: proposal.managementFee ?? null,
     letting_fee: proposal.lettingFee || null,
+    dual_campaign: proposal.dualCampaign ? 1 : 0,
+    dev_method_of_sale: proposal.devMethodOfSale || null,
+    dev_price_guide_min: proposal.devPriceGuide?.min ?? null,
+    dev_price_guide_max: proposal.devPriceGuide?.max ?? null,
+    dev_show_price_range: proposal.devShowPriceRange === false ? 0 : 1,
+    dev_marketing_costs: proposal.devMarketingCosts ? JSON.stringify(proposal.devMarketingCosts) : null,
+    dev_marketing_plan: proposal.devMarketingPlan ? JSON.stringify(proposal.devMarketingPlan) : null,
+    dev_advertising_schedule: proposal.devAdvertisingSchedule ? JSON.stringify(proposal.devAdvertisingSchedule) : null,
+    dev_total_advertising_cost: proposal.devTotalAdvertisingCost ?? null,
     status: proposal.status,
     sent_at: proposal.sentAt || null,
     viewed_at: proposal.viewedAt || null,
@@ -206,6 +235,8 @@ export async function saveProposal(proposal: Proposal): Promise<void> {
       advertising_schedule, total_advertising_cost, area_analysis, team_members,
       marketing_approach, marketing_costs, database_info, internet_listings, on_market_listings,
       proposal_type, asking_rent, lease_type, available_date, management_fee, letting_fee,
+      dual_campaign, dev_method_of_sale, dev_price_guide_min, dev_price_guide_max, dev_show_price_range,
+      dev_marketing_costs, dev_marketing_plan, dev_advertising_schedule, dev_total_advertising_cost,
       status, sent_at, viewed_at, approved_at)
     VALUES (@id, @client_name, @client_email, @property_address, @proposal_date,
       @hero_image, @property_images, @price_guide_min, @price_guide_max, @show_price_range, @show_commission, @method_of_sale,
@@ -213,6 +244,8 @@ export async function saveProposal(proposal: Proposal): Promise<void> {
       @advertising_schedule, @total_advertising_cost, @area_analysis, @team_members,
       @marketing_approach, @marketing_costs, @database_info, @internet_listings, @on_market_listings,
       @proposal_type, @asking_rent, @lease_type, @available_date, @management_fee, @letting_fee,
+      @dual_campaign, @dev_method_of_sale, @dev_price_guide_min, @dev_price_guide_max, @dev_show_price_range,
+      @dev_marketing_costs, @dev_marketing_plan, @dev_advertising_schedule, @dev_total_advertising_cost,
       @status, @sent_at, @viewed_at, @approved_at)
     ON CONFLICT(id) DO UPDATE SET
       client_name=@client_name, client_email=@client_email, property_address=@property_address,
@@ -227,6 +260,11 @@ export async function saveProposal(proposal: Proposal): Promise<void> {
       internet_listings=@internet_listings, on_market_listings=@on_market_listings,
       proposal_type=@proposal_type, asking_rent=@asking_rent, lease_type=@lease_type,
       available_date=@available_date, management_fee=@management_fee, letting_fee=@letting_fee,
+      dual_campaign=@dual_campaign, dev_method_of_sale=@dev_method_of_sale,
+      dev_price_guide_min=@dev_price_guide_min, dev_price_guide_max=@dev_price_guide_max,
+      dev_show_price_range=@dev_show_price_range, dev_marketing_costs=@dev_marketing_costs,
+      dev_marketing_plan=@dev_marketing_plan, dev_advertising_schedule=@dev_advertising_schedule,
+      dev_total_advertising_cost=@dev_total_advertising_cost,
       status=@status, sent_at=@sent_at, viewed_at=@viewed_at, approved_at=@approved_at,
       updated_at=datetime('now')
   `)

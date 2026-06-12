@@ -256,6 +256,16 @@ function initSchema(db: Database.Database) {
     // Nurture touchpoints — new columns for AI-generated plans
     'ALTER TABLE nurture_touchpoints ADD COLUMN day_number INTEGER NOT NULL DEFAULT 0',
     'ALTER TABLE nurture_touchpoints ADD COLUMN talking_points TEXT',
+    // Dual target campaign (residential + development site)
+    'ALTER TABLE proposals ADD COLUMN dual_campaign INTEGER DEFAULT 0',
+    'ALTER TABLE proposals ADD COLUMN dev_method_of_sale TEXT',
+    'ALTER TABLE proposals ADD COLUMN dev_price_guide_min REAL',
+    'ALTER TABLE proposals ADD COLUMN dev_price_guide_max REAL',
+    'ALTER TABLE proposals ADD COLUMN dev_show_price_range INTEGER DEFAULT 1',
+    'ALTER TABLE proposals ADD COLUMN dev_marketing_costs TEXT',      // JSON — raw dev campaign wizard items
+    'ALTER TABLE proposals ADD COLUMN dev_marketing_plan TEXT',       // JSON — email/display channel rows
+    'ALTER TABLE proposals ADD COLUMN dev_advertising_schedule TEXT', // JSON
+    'ALTER TABLE proposals ADD COLUMN dev_total_advertising_cost REAL',
   ]
 
   for (const sql of newColumns) {
