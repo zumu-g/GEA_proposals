@@ -14,6 +14,11 @@ interface PropertySaleStepProps {
     showPriceRange: boolean
     showCommission: boolean
     propertyAddress: string
+    dualCampaign: boolean
+    devMethodOfSale: string
+    devPriceGuideMin: string
+    devPriceGuideMax: string
+    devShowPriceRange: boolean
   }
   autoImages: string[]
   onChange: (field: string, value: any) => void
@@ -37,6 +42,15 @@ const METHODS_OF_SALE = [
     label: 'n/a',
     description: 'method to be confirmed',
   },
+] as const
+
+// Methods offered for the development campaign — only methods with
+// MethodExplainer content (never fall back to residential auction copy)
+const DEV_METHODS_OF_SALE = [
+  { value: 'Expressions of Interest', description: 'written offers by a closing date' },
+  { value: 'Tender', description: 'sealed offers by a deadline' },
+  { value: 'Private Sale', description: 'offers accepted directly by the vendor' },
+  { value: 'Auction', description: 'competitive bidding on auction day' },
 ] as const
 
 export function validatePropertySale(
@@ -520,6 +534,133 @@ export default function PropertySaleStep({
             </span>
           </motion.p>
         )}
+      </motion.div>
+
+      {/* ─── Dual target campaign (development site) ─── */}
+      <motion.div {...stagger(3)} className="space-y-4 pt-4 border-t border-gray-200">
+        <div className="flex items-center justify-between">
+          <label className="block text-sm font-sans font-medium text-gray-700 lowercase">
+            dual target campaign
+            <span className="text-gray-400 text-xs ml-2">also market as a development site</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer group">
+            <span className="text-gray-500 font-sans text-xs group-hover:text-gray-700 transition-colors">
+              {formData.dualCampaign ? 'on' : 'off'}
+            </span>
+            <div className="relative">
+              <input
+                type="checkbox"
+                checked={formData.dualCampaign}
+                onChange={(e) => onChange('dualCampaign', e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 bg-gray-300 rounded-full peer-checked:bg-brand transition-colors duration-200" />
+              <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 peer-checked:translate-x-4" />
+            </div>
+          </label>
+        </div>
+
+        <AnimatePresence initial={false}>
+          {formData.dualCampaign && (
+            <motion.div
+              initial={prefersReducedMotion ? false : { opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={prefersReducedMotion ? undefined : { opacity: 0, height: 0 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+              className="overflow-hidden"
+            >
+              <div className="space-y-4 rounded-xl border border-gray-200 bg-gray-50/60 p-4">
+                <p className="text-gray-500 font-sans text-xs tracking-wider uppercase">
+                  development site campaign
+                </p>
+
+                <div>
+                  <label className="block text-sm font-sans font-medium text-gray-700 mb-2 lowercase">
+                    method of sale
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {DEV_METHODS_OF_SALE.map((method) => {
+                      const isSelected = formData.devMethodOfSale === method.value
+                      return (
+                        <button
+                          key={method.value}
+                          type="button"
+                          onClick={() => onChange('devMethodOfSale', method.value)}
+                          className={`relative p-3 rounded-xl border-2 text-left transition-all duration-200 ${
+                            isSelected
+                              ? 'border-brand bg-red-50 shadow-sm shadow-brand/20'
+                              : 'border-gray-300 bg-white hover:border-gray-400 hover:bg-gray-50'
+                          }`}
+                        >
+                          <span className={`block font-sans text-sm font-medium ${isSelected ? 'text-gray-900' : 'text-gray-700'}`}>
+                            {method.value.toLowerCase()}
+                          </span>
+                          <span className={`block font-sans text-xs mt-0.5 ${isSelected ? 'text-gray-600' : 'text-gray-400'}`}>
+                            {method.description}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-sans font-medium text-gray-700 lowercase">
+                      price guide
+                      <span className="text-gray-400 text-xs ml-2">optional — developer market</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <span className="text-gray-500 font-sans text-xs group-hover:text-gray-700 transition-colors">
+                        show on proposal
+                      </span>
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          checked={formData.devShowPriceRange}
+                          onChange={(e) => onChange('devShowPriceRange', e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-gray-300 rounded-full peer-checked:bg-brand transition-colors duration-200" />
+                        <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 peer-checked:translate-x-4" />
+                      </div>
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-sans text-base">$</span>
+                      <input
+                        type="number"
+                        value={formData.devPriceGuideMin}
+                        onChange={(e) => onChange('devPriceGuideMin', e.target.value)}
+                        min="0"
+                        step="10000"
+                        className="w-full pl-8 pr-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900 font-sans placeholder-gray-400 focus:ring-1 focus:ring-brand focus:border-brand text-base touch-manipulation transition-colors"
+                        placeholder="low"
+                      />
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-sans text-base">$</span>
+                      <input
+                        type="number"
+                        value={formData.devPriceGuideMax}
+                        onChange={(e) => onChange('devPriceGuideMax', e.target.value)}
+                        min="0"
+                        step="10000"
+                        className="w-full pl-8 pr-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900 font-sans placeholder-gray-400 focus:ring-1 focus:ring-brand focus:border-brand text-base touch-manipulation transition-colors"
+                        placeholder="high"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-gray-400 font-sans text-xs">
+                  the development campaign gets its own marketing items in the marketing step, advertised on realcommercial.com.au
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
 
       {/* ─── Divider ─── */}

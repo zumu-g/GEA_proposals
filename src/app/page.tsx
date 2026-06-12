@@ -168,6 +168,13 @@ export default function HomePage() {
   const [commission, setCommission] = useState('')
   const [showPriceRange, setShowPriceRange] = useState(true)
   const [showCommission, setShowCommission] = useState(true)
+  // Dual target campaign (development site) — KTD 2c: state persists when toggled off
+  const [dualCampaign, setDualCampaign] = useState(false)
+  const [devMethodOfSale, setDevMethodOfSale] = useState('Expressions of Interest')
+  const [devPriceGuideMin, setDevPriceGuideMin] = useState('')
+  const [devPriceGuideMax, setDevPriceGuideMax] = useState('')
+  const [devShowPriceRange, setDevShowPriceRange] = useState(true)
+  const [devMarketingCosts, setDevMarketingCosts] = useState<MarketingCostItem[]>([])
   // Subject property photos — populated only from the everypropertyAI lookup
   // (ClientDetailsStep "look up property from everyproperty"). No REA scraping.
   const [propertyImages, setPropertyImages] = useState<PropertyImages | null>(null)
@@ -204,6 +211,10 @@ export default function HomePage() {
   // ═══════════════════════════════════════════════════════════════════════════
 
   const marketingTotal = marketingCosts
+    .filter(item => !item.included)
+    .reduce((sum, item) => sum + item.cost, 0)
+
+  const devMarketingTotal = devMarketingCosts
     .filter(item => !item.included)
     .reduce((sum, item) => sum + item.cost, 0)
 
@@ -290,8 +301,14 @@ export default function HomePage() {
     managementFee,
     lettingFee,
     marketingCosts,
+    dualCampaign,
+    devMethodOfSale,
+    devPriceGuideMin,
+    devPriceGuideMax,
+    devShowPriceRange,
+    devMarketingCosts,
     editingProposalId,
-  }), [proposalType, clientName, clientEmail, propertyAddress, methodOfSale, priceGuideMin, priceGuideMax, heroImageUrl, commission, showPriceRange, showCommission, askingRent, leaseType, availableDate, managementFee, lettingFee, marketingCosts, editingProposalId])
+  }), [proposalType, clientName, clientEmail, propertyAddress, methodOfSale, priceGuideMin, priceGuideMax, heroImageUrl, commission, showPriceRange, showCommission, askingRent, leaseType, availableDate, managementFee, lettingFee, marketingCosts, dualCampaign, devMethodOfSale, devPriceGuideMin, devPriceGuideMax, devShowPriceRange, devMarketingCosts, editingProposalId])
 
   const handleRestoreDraft = useCallback((data: { step: number; formData: Record<string, unknown> }) => {
     const d = data.formData
@@ -312,6 +329,12 @@ export default function HomePage() {
     if (d.managementFee) setManagementFee(d.managementFee as string)
     if (d.lettingFee) setLettingFee(d.lettingFee as string)
     if (d.marketingCosts && Array.isArray(d.marketingCosts)) setMarketingCosts(d.marketingCosts as MarketingCostItem[])
+    if (d.dualCampaign !== undefined) setDualCampaign(d.dualCampaign as boolean)
+    if (d.devMethodOfSale) setDevMethodOfSale(d.devMethodOfSale as string)
+    if (d.devPriceGuideMin) setDevPriceGuideMin(d.devPriceGuideMin as string)
+    if (d.devPriceGuideMax) setDevPriceGuideMax(d.devPriceGuideMax as string)
+    if (d.devShowPriceRange !== undefined) setDevShowPriceRange(d.devShowPriceRange as boolean)
+    if (d.devMarketingCosts && Array.isArray(d.devMarketingCosts)) setDevMarketingCosts(d.devMarketingCosts as MarketingCostItem[])
     if (d.editingProposalId) setEditingProposalId(d.editingProposalId as string)
     setCurrentStep(data.step)
   }, [])
@@ -347,6 +370,15 @@ export default function HomePage() {
       if (proposal.managementFee != null) setManagementFee(String(proposal.managementFee))
       if (proposal.lettingFee) setLettingFee(proposal.lettingFee)
       if (proposal.heroImage) setHeroImageUrl(proposal.heroImage)
+
+      // Pre-fill dual campaign — dev items come from the persisted raw list
+      // (dev_marketing_costs), never reconstructed from the schedule
+      setDualCampaign(proposal.dualCampaign === true)
+      setDevMethodOfSale(proposal.devMethodOfSale || 'Expressions of Interest')
+      setDevPriceGuideMin(proposal.devPriceGuide?.min ? String(proposal.devPriceGuide.min) : '')
+      setDevPriceGuideMax(proposal.devPriceGuide?.max ? String(proposal.devPriceGuide.max) : '')
+      setDevShowPriceRange(proposal.devShowPriceRange !== false)
+      setDevMarketingCosts(Array.isArray(proposal.devMarketingCosts) ? proposal.devMarketingCosts : [])
 
       // Pre-fill marketing costs
       if (proposal.advertisingSchedule) {
@@ -417,6 +449,13 @@ export default function HomePage() {
       setCommission(proposal.fees?.commissionRate ? String(proposal.fees.commissionRate) : '')
       setShowPriceRange(proposal.showPriceRange !== false)
       setShowCommission(proposal.showCommission !== false)
+
+      setDualCampaign(proposal.dualCampaign === true)
+      setDevMethodOfSale(proposal.devMethodOfSale || 'Expressions of Interest')
+      setDevPriceGuideMin(proposal.devPriceGuide?.min ? String(proposal.devPriceGuide.min) : '')
+      setDevPriceGuideMax(proposal.devPriceGuide?.max ? String(proposal.devPriceGuide.max) : '')
+      setDevShowPriceRange(proposal.devShowPriceRange !== false)
+      setDevMarketingCosts(Array.isArray(proposal.devMarketingCosts) ? proposal.devMarketingCosts : [])
 
       if (proposal.advertisingSchedule) {
         const items: MarketingCostItem[] = []
@@ -498,6 +537,15 @@ export default function HomePage() {
         formData.append('propertyImages[]', img)
       })
     }
+
+    // Dual target campaign — always submitted; server ignores when dualCampaign=0 (KTD 2c)
+    formData.append('dualCampaign', dualCampaign && proposalType !== 'rental' ? '1' : '0')
+    formData.append('devMethodOfSale', devMethodOfSale)
+    if (devPriceGuideMin) formData.append('devPriceGuideMin', devPriceGuideMin)
+    if (devPriceGuideMax) formData.append('devPriceGuideMax', devPriceGuideMax)
+    formData.append('devShowPriceRange', devShowPriceRange ? '1' : '0')
+    formData.append('devMarketingCosts', JSON.stringify(devMarketingCosts))
+    formData.append('devMarketingTotal', devMarketingTotal.toString())
 
     // Step 3 fields
     formData.append('marketingCosts', JSON.stringify(marketingCosts))
@@ -601,6 +649,12 @@ export default function HomePage() {
     setManagementFee('')
     setLettingFee('')
     setMarketingCosts(DEFAULT_MARKETING_COSTS)
+    setDualCampaign(false)
+    setDevMethodOfSale('Expressions of Interest')
+    setDevPriceGuideMin('')
+    setDevPriceGuideMax('')
+    setDevShowPriceRange(true)
+    setDevMarketingCosts([])
     setSoldComparables([])
     setOnMarketListings([])
     setConfirmedAddress('')
@@ -631,9 +685,15 @@ export default function HomePage() {
         return !validatePropertySale({
           methodOfSale, priceGuideMin, priceGuideMax,
           heroImage, heroImageUrl, commission, showPriceRange, showCommission, propertyAddress,
+          dualCampaign, devMethodOfSale, devPriceGuideMin, devPriceGuideMax, devShowPriceRange,
         })
       case 2:
-        return !validateMarketing(marketingCosts)
+        if (validateMarketing(marketingCosts)) return false
+        // Dual campaign needs at least one dev item with a description
+        if (dualCampaign && proposalType !== 'rental') {
+          return devMarketingCosts.length > 0 && devMarketingCosts.every(i => i.description.trim())
+        }
+        return true
       case 3:
         if (proposalType === 'rental') return true // leased comparables are optional
         return !validateSoldProperties(soldComparables)
@@ -644,7 +704,7 @@ export default function HomePage() {
       default:
         return true
     }
-  }, [currentStep, proposalType, clientName, clientEmail, propertyAddress, methodOfSale, priceGuideMin, priceGuideMax, heroImage, heroImageUrl, commission, askingRent, leaseType, availableDate, managementFee, lettingFee, marketingCosts, soldComparables])
+  }, [currentStep, proposalType, clientName, clientEmail, propertyAddress, methodOfSale, priceGuideMin, priceGuideMax, heroImage, heroImageUrl, commission, askingRent, leaseType, availableDate, managementFee, lettingFee, marketingCosts, soldComparables, dualCampaign, devMethodOfSale, devPriceGuideMin, devPriceGuideMax, devShowPriceRange, devMarketingCosts])
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Step field change handler (for ClientDetailsStep and PropertySaleStep)
@@ -669,6 +729,11 @@ export default function HomePage() {
       case 'commission': setCommission(value); break
       case 'showPriceRange': setShowPriceRange(value); break
       case 'showCommission': setShowCommission(value); break
+      case 'dualCampaign': setDualCampaign(value); break
+      case 'devMethodOfSale': setDevMethodOfSale(value); break
+      case 'devPriceGuideMin': setDevPriceGuideMin(value); break
+      case 'devPriceGuideMax': setDevPriceGuideMax(value); break
+      case 'devShowPriceRange': setDevShowPriceRange(value); break
       case 'selectedAutoImageUrl': setSelectedAutoImageUrl(value); break
       // Full subject-property photo set from the everypropertyAI lookup
       case 'propertyImages': setPropertyImages(value); break
@@ -752,6 +817,11 @@ export default function HomePage() {
             showPriceRange,
             showCommission,
             propertyAddress,
+            dualCampaign,
+            devMethodOfSale,
+            devPriceGuideMin,
+            devPriceGuideMax,
+            devShowPriceRange,
           }}
           autoImages={autoImageUrls}
           onChange={handleFieldChange}
@@ -765,6 +835,9 @@ export default function HomePage() {
           propertyAddress={propertyAddress}
           priceGuideMin={priceGuideMin}
           priceGuideMax={priceGuideMax}
+          dualCampaign={dualCampaign && proposalType !== 'rental'}
+          devMarketingCosts={devMarketingCosts}
+          onChangeDev={setDevMarketingCosts}
         />
       )}
 

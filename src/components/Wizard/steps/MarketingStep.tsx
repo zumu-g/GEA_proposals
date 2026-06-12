@@ -20,6 +20,10 @@ interface MarketingStepProps {
   propertyAddress?: string;
   priceGuideMin?: string;
   priceGuideMax?: string;
+  // Dual target campaign — second item list for the development site campaign
+  dualCampaign?: boolean;
+  devMarketingCosts?: MarketingCostItem[];
+  onChangeDev?: (costs: MarketingCostItem[]) => void;
 }
 
 // sessionStorage key shared with /marketing-plan/preview
@@ -86,6 +90,16 @@ const PREMIUM_PACKAGE: MarketingCostItem[] = [
   { category: 'Auctioneer', description: 'Aleisha — professional auctioneer', cost: 700, included: false },
 ];
 
+// Development site campaign preset — realcommercial.com.au-led, costs editable.
+// Listing tier pricing is a best-guess default; confirm with the agency.
+const DEVELOPMENT_PACKAGE: MarketingCostItem[] = [
+  { category: 'Internet', description: 'Premium Listing — realcommercial.com.au (development site campaign)', cost: 1800, included: false },
+  { category: 'Signboard', description: 'Development site signboard — 6 x 4 with site dimensions', cost: 450, included: false },
+  { category: 'Photography', description: 'Drone / aerial photography with site boundary overlay', cost: 550, included: false },
+  { category: 'Other', description: 'Expressions of Interest campaign administration', cost: 0, included: true },
+  { category: 'Internet', description: 'Targeted developer eDM — agency developer database', cost: 0, included: true },
+];
+
 const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
   Photography: { bg: 'bg-blue-50', text: 'text-blue-700' },
   Copywriting: { bg: 'bg-purple-50', text: 'text-purple-700' },
@@ -133,9 +147,151 @@ function AnimatedTotal({ value }: { value: number }) {
   );
 }
 
+// ── Development site campaign editor ───────────────────────────────────────
+// Self-contained second item list shown when the dual campaign toggle is on.
+// Deliberately separate from the residential editor so the existing flow is
+// untouched for non-dual proposals.
+
+function DevCampaignEditor({
+  items,
+  onChange,
+}: {
+  items: MarketingCostItem[];
+  onChange: (costs: MarketingCostItem[]) => void;
+}) {
+  const total = items.filter((i) => !i.included).reduce((s, i) => s + (i.cost || 0), 0);
+  const isEmpty = items.length === 0;
+
+  const update = (index: number, field: keyof MarketingCostItem, value: string | number | boolean) => {
+    const updated = [...items];
+    updated[index] = { ...updated[index], [field]: value };
+    onChange(updated);
+  };
+
+  return (
+    <div className="space-y-4 pt-8 mt-8 border-t border-gray-200">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h3
+            className="text-xl font-light tracking-tight text-gray-900 lowercase"
+            style={{ fontFamily: 'Playfair Display, serif' }}
+          >
+            development site campaign
+          </h3>
+          <p className="mt-1 text-gray-500 font-sans text-xs">
+            targeting developers — advertised on realcommercial.com.au
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onChange(DEVELOPMENT_PACKAGE.map((item) => ({ ...item, id: generateItemId() })))}
+          className="px-3 py-2 rounded-lg border border-[#C41E2A]/30 bg-[#C41E2A]/[0.04] hover:bg-[#C41E2A]/[0.08] text-[#C41E2A] font-sans text-xs font-medium transition-colors"
+        >
+          apply development preset
+        </button>
+      </div>
+
+      {isEmpty && (
+        <p className="text-[#C41E2A] font-sans text-xs">
+          add at least one development campaign item
+        </p>
+      )}
+
+      <div className="space-y-2">
+        {items.map((item, index) => {
+          const catColor = CATEGORY_COLORS[item.category] || CATEGORY_COLORS.Other;
+          return (
+            <div
+              key={item.id || `dev-${index}`}
+              className={`rounded-xl border p-3 flex flex-col sm:flex-row sm:items-center gap-2 ${
+                item.included ? 'bg-green-50 border-[#8B9F82]/30' : 'bg-white border-gray-200'
+              }`}
+            >
+              <select
+                value={item.category}
+                onChange={(e) => update(index, 'category', e.target.value)}
+                className={`px-2 py-2 rounded-lg font-sans text-sm border-0 outline-none ${catColor.bg} ${catColor.text} sm:w-36`}
+              >
+                {CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={item.description}
+                onChange={(e) => update(index, 'description', e.target.value)}
+                className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 font-sans text-sm placeholder-gray-400 focus:ring-1 focus:ring-[#C41E2A]/50 focus:border-[#C41E2A]/50 outline-none"
+                placeholder="Description"
+              />
+              {item.included ? (
+                <div className="px-3 py-2 bg-[#8B9F82]/10 border border-[#8B9F82]/20 rounded-lg text-[#8B9F82] font-sans text-sm text-center sm:w-28">
+                  included
+                </div>
+              ) : (
+                <div className="relative sm:w-28">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-sans text-sm pointer-events-none">$</span>
+                  <input
+                    type="number"
+                    value={item.cost || ''}
+                    onChange={(e) => update(index, 'cost', parseFloat(e.target.value) || 0)}
+                    min="0"
+                    step="10"
+                    className="w-full pl-7 pr-2 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 font-sans text-sm outline-none focus:ring-1 focus:ring-[#C41E2A]/50"
+                    placeholder="0"
+                  />
+                </div>
+              )}
+              <div className="flex items-center gap-2 sm:gap-1">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={item.included}
+                      onChange={(e) => update(index, 'included', e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-8 h-[18px] bg-gray-300 rounded-full peer-checked:bg-[#8B9F82] transition-colors duration-200" />
+                    <div className="absolute top-0.5 left-0.5 w-[14px] h-[14px] bg-white rounded-full shadow transition-transform duration-200 peer-checked:translate-x-3.5" />
+                  </div>
+                  <span className="text-gray-500 font-sans text-xs whitespace-nowrap">incl</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => onChange(items.filter((_, i) => i !== index))}
+                  className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors rounded hover:bg-red-50"
+                  aria-label="Remove item"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => onChange([...items, { id: generateItemId(), category: 'Other', description: '', cost: 0, included: false }])}
+        className="w-full py-2.5 rounded-xl border-2 border-dashed border-gray-300 hover:border-[#C41E2A]/40 bg-white hover:bg-gray-50 transition-all duration-200 flex items-center justify-center gap-2 text-gray-400 hover:text-gray-600 font-sans text-sm"
+      >
+        + add development item
+      </button>
+
+      {!isEmpty && (
+        <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+          <span className="text-gray-700 font-sans text-sm font-medium">development campaign total</span>
+          <span className="text-[#C41E2A] font-sans text-lg font-bold tabular-nums">${total.toLocaleString()}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────
 
-export default function MarketingStep({ marketingCosts, onChange, propertyAddress, priceGuideMin, priceGuideMax }: MarketingStepProps) {
+export default function MarketingStep({ marketingCosts, onChange, propertyAddress, priceGuideMin, priceGuideMax, dualCampaign, devMarketingCosts, onChangeDev }: MarketingStepProps) {
   const [openCategoryIndex, setOpenCategoryIndex] = useState<number | null>(null);
   const prefersReducedMotion =
     typeof window !== 'undefined'
@@ -701,8 +857,14 @@ export default function MarketingStep({ marketingCosts, onChange, propertyAddres
         </motion.div>
       )}
 
+      {/* ── Development site campaign (dual target) ───────────────────── */}
+      {dualCampaign && onChangeDev && (
+        <DevCampaignEditor items={devMarketingCosts || []} onChange={onChangeDev} />
+      )}
+
       {/* ── Marketing plan preview / print ─────────────────────────────── */}
-      {!isEmpty && (
+      {/* Hidden for dual proposals — the preview page renders the residential campaign only */}
+      {!isEmpty && !dualCampaign && (
         <button
           type="button"
           onClick={openMarketingPlanPreview}
