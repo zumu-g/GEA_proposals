@@ -45,9 +45,11 @@ export function validateClientDetails(
 interface AddressAutoProps {
   value: string
   onChange: (val: string) => void
+  /** Fired when the user picks a suggestion from the dropdown (a confirmed, complete address). */
+  onSelect?: (address: string) => void
 }
 
-export function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
+export function AddressAutocomplete({ value, onChange, onSelect }: AddressAutoProps) {
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -57,6 +59,12 @@ export function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => { setMounted(true) }, [])
+
+  // Robustness: whenever suggestions exist, make sure the dropdown is open —
+  // guards against any state-update race between fetch completion and render
+  useEffect(() => {
+    if (suggestions.length > 0) setShowDropdown(true)
+  }, [suggestions])
 
   // Keep dropdown aligned with input on scroll/resize
   useLayoutEffect(() => {
@@ -125,6 +133,7 @@ export function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
     onChange(address)
     setShowDropdown(false)
     setSuggestions([])
+    onSelect?.(address)
   }
 
   useEffect(() => {
@@ -229,17 +238,10 @@ export function AddressAutocomplete({ value, onChange }: AddressAutoProps) {
   )
 }
 
-// ─── everyproperty lookup (PropertyIQ data via the everypropertyai CLI) ────────
-// Search an address → pick a suggestion → fetch presentation-ready data → preview
-// → seed the proposal. Never silently overwrites a value the user already entered.
-
-interface EpSuggestion {
-  fullAddress?: string
-  streetAddress?: string
-  suburb?: string
-  state?: string
-  postcode?: string
-}
+// ─── everyproperty enrichment ─────────────────────────────────────────────────
+// When the toggle is on (default), selecting an address in the autocomplete
+// automatically fetches everypropertyAI data and seeds the proposal — price
+// guide and photos only when the user hasn't already provided them.
 
 interface EpPriceEstimate { low?: number; mid?: number; high?: number; source?: string }
 
@@ -260,97 +262,40 @@ interface EpProposalData {
   confidence?: number
 }
 
-interface EpLookupProps {
+interface EpEnrichProps {
+  /** Confirmed address from the autocomplete (set when the user picks a suggestion). */
+  selectedAddress: string
   currentPriceMin: string
   currentPriceMax: string
   hasHeroImage: boolean
   onChange: (field: string, value: any) => void
 }
 
-function suggestionLabel(s: EpSuggestion): string {
-  if (s.fullAddress) return s.fullAddress
-  return [s.streetAddress, s.suburb, `${s.state ?? ''} ${s.postcode ?? ''}`.trim()]
-    .filter(Boolean).join(', ')
-}
-
-function EveryPropertyLookup({ currentPriceMin, currentPriceMax, hasHeroImage, onChange }: EpLookupProps) {
-  const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState('')
-  const [suggestions, setSuggestions] = useState<EpSuggestion[]>([])
-  const [searching, setSearching] = useState(false)
+function EveryPropertyEnrich({ selectedAddress, currentPriceMin, currentPriceMax, hasHeroImage, onChange }: EpEnrichProps) {
+  const [enabled, setEnabled] = useState(true)
   const [fetching, setFetching] = useState(false)
   const [data, setData] = useState<EpProposalData | null>(null)
   const [error, setError] = useState('')
   const [seeded, setSeeded] = useState<string[]>([])
   const [skipped, setSkipped] = useState<string[]>([])
-  const debounceRef = useRef<NodeJS.Timeout | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const enrichedRef = useRef('')
 
-  // Debounced address search
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    const q = query.trim()
-    if (q.length < 3) { setSuggestions([]); return }
-    debounceRef.current = setTimeout(async () => {
-      setSearching(true)
-      try {
-        const res = await fetch(`/api/everyproperty?q=${encodeURIComponent(q)}`)
-        const json = await res.json()
-        setSuggestions(Array.isArray(json.suggestions) ? json.suggestions.slice(0, 8) : [])
-      } catch {
-        setSuggestions([])
-      } finally {
-        setSearching(false)
-      }
-    }, 350)
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
-  }, [query])
+  // Latest seed inputs without retriggering the fetch effect
+  const seedCtxRef = useRef({ currentPriceMin, currentPriceMax, hasHeroImage })
+  seedCtxRef.current = { currentPriceMin, currentPriceMax, hasHeroImage }
 
-  const handleSelect = async (s: EpSuggestion) => {
-    const address = suggestionLabel(s)
-    setQuery(address)
-    setSuggestions([])
-    setData(null)
-    setError('')
-    setSeeded([])
-    setSkipped([])
-    setFetching(true)
-    abortRef.current?.abort()
-    const controller = new AbortController()
-    abortRef.current = controller
-    try {
-      const res = await fetch(`/api/everyproperty?address=${encodeURIComponent(address)}`, {
-        signal: controller.signal,
-      })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'lookup failed')
-      setData(json as EpProposalData)
-    } catch (err: any) {
-      if (err?.name !== 'AbortError') {
-        setError(err?.message || 'lookup failed')
-      }
-    } finally {
-      setFetching(false)
-    }
-  }
-
-  const handleUse = () => {
-    if (!data) return
+  const applyData = (d: EpProposalData) => {
+    const { currentPriceMin: min, currentPriceMax: max, hasHeroImage: hasHero } = seedCtxRef.current
     const didSeed: string[] = []
     const didSkip: string[] = []
 
-    // Address — the whole point of the lookup; always resolve it.
-    if (data.address) {
-      onChange('propertyAddress', data.address)
-      didSeed.push('address')
-    }
-
     // Price guide — only if the user hasn't entered one (no silent overwrite).
-    const priceEmpty = !currentPriceMin.trim() && !currentPriceMax.trim()
-    let lo = data.priceEstimate?.low
-    let hi = data.priceEstimate?.high
-    if (lo == null && hi == null && data.formattedEstimate) {
-      const n = Number(data.formattedEstimate.replace(/[^0-9]/g, ''))
+    const priceEmpty = !min.trim() && !max.trim()
+    let lo = d.priceEstimate?.low
+    let hi = d.priceEstimate?.high
+    if (lo == null && hi == null && d.formattedEstimate) {
+      const n = Number(d.formattedEstimate.replace(/[^0-9]/g, ''))
       if (n > 0) { lo = n; hi = n }
     }
     if (lo != null || hi != null) {
@@ -365,10 +310,10 @@ function EveryPropertyLookup({ currentPriceMin, currentPriceMax, hasHeroImage, o
 
     // Hero image + gallery — only if the user hasn't chosen/uploaded one.
     // These everypropertyAI photos are the sole source of subject-property images.
-    const photos = data.heroPhotos ?? []
+    const photos = d.heroPhotos ?? []
     const photo = photos[0]
     if (photo) {
-      if (!hasHeroImage) {
+      if (!hasHero) {
         onChange('heroImageUrl', photo)
         onChange('selectedAutoImageUrl', photo)
         onChange('propertyImages', { heroImage: photo, galleryImages: photos.slice(1) })
@@ -381,6 +326,42 @@ function EveryPropertyLookup({ currentPriceMin, currentPriceMax, hasHeroImage, o
     setSeeded(didSeed)
     setSkipped(didSkip)
   }
+
+  // Auto-enrich when an address is confirmed (or when the toggle is switched on)
+  useEffect(() => {
+    const address = selectedAddress.trim()
+    if (!enabled || !address || address === enrichedRef.current) return
+    enrichedRef.current = address
+
+    setData(null)
+    setError('')
+    setSeeded([])
+    setSkipped([])
+    setFetching(true)
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/everyproperty?address=${encodeURIComponent(address)}`, {
+          signal: controller.signal,
+        })
+        const json = await res.json()
+        if (!res.ok) throw new Error(json.error || 'lookup failed')
+        setData(json as EpProposalData)
+        applyData(json as EpProposalData)
+      } catch (err: any) {
+        if (err?.name !== 'AbortError') {
+          enrichedRef.current = '' // allow retry by re-toggling
+          setError(err?.message || 'lookup failed')
+        }
+      } finally {
+        setFetching(false)
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, selectedAddress])
 
   const confidencePct = data?.confidence != null ? Math.round(data.confidence * 100) : null
   const specs = data
@@ -395,62 +376,38 @@ function EveryPropertyLookup({ currentPriceMin, currentPriceMax, hasHeroImage, o
 
   return (
     <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50/60">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 text-left"
-      >
+      <div className="flex items-center justify-between px-4 py-3">
         <span className="text-sm font-sans font-medium text-gray-700 lowercase">
-          look up property from everyproperty
+          enrich data from everypropertyAI
         </span>
-        <svg className={`w-4 h-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
-          fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled}
+          onClick={() => setEnabled((v) => !v)}
+          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+            enabled ? 'bg-[#C41E2A]' : 'bg-gray-300'
+          }`}
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+              enabled ? 'translate-x-6' : 'translate-x-1'
+            }`}
+          />
+        </button>
+      </div>
 
-      {open && (
+      {enabled && (fetching || error || data) && (
         <div className="px-4 pb-4">
-          <div className="relative">
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="search an address — e.g. 9 Gloucester Ave Berwick"
-              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 font-sans placeholder-gray-400 focus:ring-2 focus:ring-[#C41E2A] focus:border-[#C41E2A] text-base transition-all"
-            />
-            {searching && (
-              <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-              </div>
-            )}
-          </div>
-
-          {suggestions.length > 0 && (
-            <ul className="mt-1.5 rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
-              {suggestions.map((s, i) => (
-                <li key={i}>
-                  <button
-                    type="button"
-                    onClick={() => handleSelect(s)}
-                    className="w-full text-left px-4 py-2.5 text-sm font-sans text-gray-700 hover:bg-gray-50 border-b border-gray-100 last:border-0"
-                  >
-                    {suggestionLabel(s)}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-
           {fetching && (
-            <div className="mt-3 flex items-center gap-3 text-sm font-sans text-gray-500">
+            <div className="flex items-center gap-3 text-sm font-sans text-gray-500">
               <div className="w-4 h-4 border-2 border-gray-300 border-t-[#C41E2A] rounded-full animate-spin" />
-              fetching from PropertyIQ — can take up to ~2 min for a new address…
+              fetching property data — can take up to ~2 min for a new address…
             </div>
           )}
 
           {error && (
-            <p className="mt-3 text-sm font-sans text-[#C41E2A]">{error}</p>
+            <p className="text-sm font-sans text-[#C41E2A]">{error}</p>
           )}
 
           {data && !fetching && (
@@ -491,16 +448,8 @@ function EveryPropertyLookup({ currentPriceMin, currentPriceMax, hasHeroImage, o
                 <p className="mt-3 text-sm font-sans text-gray-600 line-clamp-4">{data.description}</p>
               )}
 
-              <button
-                type="button"
-                onClick={handleUse}
-                className="mt-4 px-4 py-2 bg-[#C41E2A] rounded-lg text-white font-sans text-sm font-medium hover:bg-[#a81823] transition-colors"
-              >
-                use this data
-              </button>
-
               {seeded.length > 0 && (
-                <p className="mt-2 text-xs font-sans text-[#8B9F82]">seeded: {seeded.join(', ')}</p>
+                <p className="mt-3 text-xs font-sans text-[#8B9F82]">added automatically: {seeded.join(', ')}</p>
               )}
               {skipped.length > 0 && (
                 <p className="mt-1 text-xs font-sans text-gray-400">kept your existing value: {skipped.join(', ')}</p>
@@ -526,6 +475,8 @@ export default function ClientDetailsStep({
 }: ClientDetailsStepProps) {
   const [hasDraft, setHasDraft] = useState(false)
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
+  // Address confirmed via autocomplete selection — triggers everyproperty enrichment
+  const [selectedAddress, setSelectedAddress] = useState('')
 
   useEffect(() => {
     setPrefersReducedMotion(
@@ -780,9 +731,11 @@ export default function ClientDetailsStep({
         <AddressAutocomplete
           value={formData.propertyAddress}
           onChange={(val) => onChange('propertyAddress', val)}
+          onSelect={setSelectedAddress}
         />
 
-        <EveryPropertyLookup
+        <EveryPropertyEnrich
+          selectedAddress={selectedAddress}
           currentPriceMin={formData.priceGuideMin ?? ''}
           currentPriceMax={formData.priceGuideMax ?? ''}
           hasHeroImage={!!formData.hasHeroImage}
