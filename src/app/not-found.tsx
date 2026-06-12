@@ -7,7 +7,7 @@ export default function NotFound() {
       <div className="w-full h-1 bg-gold" />
       <div className="text-left max-w-md pt-32 sm:pt-40 px-6 sm:px-12 lg:px-24">
         <p className="text-gold font-sans text-sm tracking-wider-custom mb-8">
-          grant estate agents
+          grants estate agents
         </p>
         <div className="gold-accent-line mb-8" />
         <h1 className="font-display text-5xl font-normal text-white lowercase mb-3">404</h1>

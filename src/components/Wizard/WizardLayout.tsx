@@ -451,7 +451,7 @@ export function WizardLayout({
               new proposal
             </h1>
             <p className="text-xs text-white/40 mt-1 uppercase tracking-widest">
-              Grant Estate Agents
+              Grants Estate Agents
             </p>
           </div>
 
