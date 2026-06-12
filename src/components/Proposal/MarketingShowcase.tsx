@@ -6,6 +6,8 @@ import type { MarketingItem } from '@/types/proposal'
 
 interface MarketingShowcaseProps {
   items: MarketingItem[]
+  /** Dual-campaign label, e.g. "development site campaign" */
+  campaignLabel?: string
 }
 
 /* ------------------------------------------------------------------ */
@@ -85,7 +87,7 @@ const cardGradients = [
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
-export function MarketingShowcase({ items }: MarketingShowcaseProps) {
+export function MarketingShowcase({ items, campaignLabel }: MarketingShowcaseProps) {
   const prefersReducedMotion = useReducedMotion()
 
   const fadeUp = prefersReducedMotion
@@ -107,7 +109,7 @@ export function MarketingShowcase({ items }: MarketingShowcaseProps) {
         >
           <div>
             <p className="font-sans text-xs font-medium tracking-wider-custom uppercase text-gold/80 mb-4">
-              marketing strategy
+              {campaignLabel ? `${campaignLabel} — marketing strategy` : 'marketing strategy'}
             </p>
             <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-normal text-white lowercase">
               how we market your property

@@ -121,7 +121,81 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
           schedule={proposal.advertisingSchedule || getDefaultProposalExtras().advertisingSchedule}
           totalCost={proposal.totalAdvertisingCost ?? DEFAULT_TOTAL_ADVERTISING_COST}
           methodOfSale={proposal.methodOfSale}
+          campaignLabel={proposal.dualCampaign ? 'residential campaign' : undefined}
         />
+
+        {/* ─── Development site campaign (dual target) ─── */}
+        {proposal.dualCampaign && (
+          <>
+            {/* Section break — campaign heading */}
+            <section className="py-16 sm:py-20 bg-charcoal-900 text-white relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-1 bg-brand" />
+              <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-16 xl:px-24">
+                <p className="font-sans text-xs font-medium tracking-wider-custom uppercase text-gold/80 mb-4">
+                  dual target campaign
+                </p>
+                <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-normal lowercase mb-4">
+                  development site campaign
+                </h2>
+                <p className="text-white/70 font-sans text-base sm:text-lg font-light max-w-2xl leading-relaxed">
+                  alongside the residential campaign, your property is presented to the development
+                  market — run simultaneously, with its own marketing and advertised on realcommercial.com.au
+                </p>
+                {proposal.devPriceGuide && proposal.devShowPriceRange !== false && (
+                  <p className="mt-6 font-display text-2xl text-white">
+                    developer guide: ${proposal.devPriceGuide.min.toLocaleString()} — ${proposal.devPriceGuide.max.toLocaleString()}
+                  </p>
+                )}
+              </div>
+            </section>
+
+            {/* Dev method of sale — strict: never falls back to residential auction copy */}
+            <MethodExplainer method={proposal.devMethodOfSale} strict />
+
+            {/* Dev internet presence — realcommercial-led */}
+            <InternetPresence listings={[
+              'realcommercial.com.au (Premium listing)',
+              'developmentready.com.au',
+              'realestate.com.au',
+              'grantsea.com.au',
+            ]} />
+
+            {/* Dev marketing channels */}
+            {proposal.devMarketingPlan && proposal.devMarketingPlan.length > 0 && (
+              <MarketingShowcase items={proposal.devMarketingPlan} campaignLabel="development site campaign" />
+            )}
+
+            {/* Dev advertising schedule */}
+            <AdvertisingSchedule
+              schedule={proposal.devAdvertisingSchedule}
+              totalCost={proposal.devTotalAdvertisingCost}
+              methodOfSale={proposal.devMethodOfSale}
+              campaignLabel="development site campaign"
+            />
+
+            {/* Combined advertising investment */}
+            <section className="py-12 sm:py-16 bg-white border-t border-gray-100">
+              <div className="max-w-3xl mx-auto px-6 sm:px-8">
+                <div className="space-y-2 font-sans text-base text-charcoal-400">
+                  <div className="flex items-center justify-between">
+                    <span>residential campaign</span>
+                    <span className="tabular-nums">${(proposal.totalAdvertisingCost ?? 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>development site campaign</span>
+                    <span className="tabular-nums">${(proposal.devTotalAdvertisingCost ?? 0).toLocaleString()}</span>
+                  </div>
+                </div>
+                <div className="mt-4 pt-4 border-t border-gray-200 flex items-center justify-between">
+                  <span className="font-display text-xl text-charcoal lowercase">combined advertising investment</span>
+                  <span className="font-display text-2xl text-brand tabular-nums">
+                    ${((proposal.totalAdvertisingCost ?? 0) + (proposal.devTotalAdvertisingCost ?? 0)).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </section>
+          </>
+        )}
 
         {/* Fee structure */}
         <FeeStructureVisual fees={proposal.fees} showCommission={proposal.showCommission !== false} methodOfSale={proposal.methodOfSale} />

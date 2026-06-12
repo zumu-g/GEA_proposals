@@ -9,9 +9,11 @@ interface AdvertisingScheduleProps {
   schedule?: AdvertisingWeek[]
   totalCost?: number
   methodOfSale?: string
+  /** Dual-campaign label, e.g. "development site campaign" */
+  campaignLabel?: string
 }
 
-export function AdvertisingSchedule({ schedule, totalCost, methodOfSale }: AdvertisingScheduleProps) {
+export function AdvertisingSchedule({ schedule, totalCost, methodOfSale, campaignLabel }: AdvertisingScheduleProps) {
   const prefersReducedMotion = useReducedMotion()
 
   if (!schedule || schedule.length === 0) return null
@@ -48,7 +50,7 @@ export function AdvertisingSchedule({ schedule, totalCost, methodOfSale }: Adver
           className="mb-12 sm:mb-16"
         >
           <p className="text-warm font-sans text-xs tracking-[0.3em] uppercase mb-3">
-            advertising schedule
+            {campaignLabel ? `${campaignLabel} — advertising schedule` : 'advertising schedule'}
           </p>
           <h2 className="font-display text-3xl sm:text-4xl font-normal text-charcoal lowercase mb-3">
             {isAuction ? 'your auction campaign' : 'your campaign'}

@@ -5,6 +5,10 @@ import { motion, useReducedMotion } from 'framer-motion'
 
 interface MethodExplainerProps {
   method?: string
+  /** When true, render nothing for unknown methods instead of falling back to
+   *  auction copy — used by the development campaign section where residential
+   *  auction rationale would be visibly wrong. */
+  strict?: boolean
 }
 
 const METHOD_CONTENT: Record<string, { rationale: string; benefits: string[] }> = {
@@ -26,6 +30,15 @@ const METHOD_CONTENT: Record<string, { rationale: string; benefits: string[] }> 
       'Ability to negotiate the best outcome',
     ],
   },
+  tender: {
+    rationale: 'A tender campaign invites buyers to submit their best and final offer in writing by a set deadline. It suits properties with broad appeal to different buyer types — owner-occupiers, investors and developers — where the market is best placed to determine value through sealed, competitive offers.',
+    benefits: [
+      'Sealed offers encourage buyers to lead with their best price',
+      'A set deadline creates urgency',
+      'Terms and conditions can be negotiated',
+      'Well suited to properties with development potential',
+    ],
+  },
   'expressions of interest': {
     rationale: 'An Expressions of Interest campaign combines the best elements of both auction and private sale. By setting a closing date for offers, we create urgency while giving buyers the privacy to submit their best terms without the pressure of a public auction.',
     benefits: [
@@ -37,13 +50,14 @@ const METHOD_CONTENT: Record<string, { rationale: string; benefits: string[] }> 
   },
 }
 
-export function MethodExplainer({ method }: MethodExplainerProps) {
+export function MethodExplainer({ method, strict }: MethodExplainerProps) {
   const prefersReducedMotion = useReducedMotion()
   const [imageError, setImageError] = useState(false)
 
   if (!method) return null
 
   const methodLower = method.toLowerCase()
+  if (strict && !METHOD_CONTENT[methodLower]) return null
   const content = METHOD_CONTENT[methodLower] || METHOD_CONTENT['auction']
 
   return (
