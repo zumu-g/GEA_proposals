@@ -1,17 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createUser, authenticateUser, userExists } from '@/lib/auth'
+import { signSession } from '@/lib/session'
 
 export const runtime = 'nodejs'
 
-// Legacy single shared password — kept as a fallback so existing access is not
-// broken while user accounts roll out.
-const AUTH_PASSWORD = process.env.AUTH_PASSWORD || 'grants'
 const COOKIE_NAME = 'gea_auth'
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30 // 30 days
-const MIN_PASSWORD_LENGTH = 6
+const MIN_PASSWORD_LENGTH = 8
 
-function setAuthCookie(response: NextResponse, email: string) {
-  response.cookies.set(COOKIE_NAME, email, {
+// Who may create an account: the agency domain, plus an env-configurable
+// allowlist for principals whose personal email isn't on the domain.
+const ALLOWED_DOMAINS = ['grantsea.com.au']
+const DEFAULT_ALLOWED_EMAILS = ['stuart_grant@me.com']
+
+function signupAllowed(email: string): boolean {
+  const normalised = email.trim().toLowerCase()
+  const domain = normalised.split('@')[1] || ''
+  if (ALLOWED_DOMAINS.includes(domain)) return true
+  const extra = (process.env.AUTH_ALLOWED_EMAILS || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+  return [...DEFAULT_ALLOWED_EMAILS, ...extra].includes(normalised)
+}
+
+async function setAuthCookie(response: NextResponse, email: string) {
+  const token = await signSession(email, COOKIE_MAX_AGE)
+  response.cookies.set(COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
@@ -21,20 +36,12 @@ function setAuthCookie(response: NextResponse, email: string) {
 }
 
 // POST /api/auth
-//   { email, password, mode: 'login' }  → verify account (or legacy password)
-//   { email, password, mode: 'signup' } → create account
-//   { mode: 'skip' }                    → bypass auth for now (guest session)
+//   { email, password, mode: 'login' }  → verify account
+//   { email, password, mode: 'signup' } → create account (allowlisted emails only)
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const mode: 'login' | 'signup' | 'skip' = body.mode || 'login'
-
-    // ── Skip for now ──────────────────────────────────────────────────────
-    if (mode === 'skip') {
-      const response = NextResponse.json({ success: true, guest: true })
-      setAuthCookie(response, 'guest@grantsea.local')
-      return response
-    }
+    const mode: 'login' | 'signup' = body.mode === 'signup' ? 'signup' : 'login'
 
     const email: string = body.email
     const password: string = body.password
@@ -48,6 +55,12 @@ export async function POST(request: NextRequest) {
 
     // ── Sign up ───────────────────────────────────────────────────────────
     if (mode === 'signup') {
+      if (!signupAllowed(email)) {
+        return NextResponse.json(
+          { error: 'Accounts are limited to Grants Estate Agents staff. Use your @grantsea.com.au email.' },
+          { status: 403 }
+        )
+      }
       if (password.length < MIN_PASSWORD_LENGTH) {
         return NextResponse.json(
           { error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` },
@@ -62,21 +75,17 @@ export async function POST(request: NextRequest) {
       }
       createUser(email, password)
       const response = NextResponse.json({ success: true })
-      setAuthCookie(response, email.trim().toLowerCase())
+      await setAuthCookie(response, email)
       return response
     }
 
     // ── Log in ────────────────────────────────────────────────────────────
-    // Real account first, then fall back to the legacy shared password.
-    const validAccount = authenticateUser(email, password)
-    const validLegacy = !userExists(email) && password === AUTH_PASSWORD
-
-    if (!validAccount && !validLegacy) {
+    if (!authenticateUser(email, password)) {
       return NextResponse.json({ error: 'Incorrect email or password' }, { status: 401 })
     }
 
     const response = NextResponse.json({ success: true })
-    setAuthCookie(response, email.trim().toLowerCase())
+    await setAuthCookie(response, email)
     return response
   } catch {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })

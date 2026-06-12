@@ -10,7 +10,6 @@ function LoginForm() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [skipping, setSkipping] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const from = searchParams.get('from') || '/'
@@ -47,26 +46,6 @@ function LoginForm() {
     }
 
     setIsLoading(false)
-  }
-
-  const handleSkip = async () => {
-    setSkipping(true)
-    setError('')
-    try {
-      const res = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'skip' }),
-      })
-      if (res.ok) {
-        go()
-        return
-      }
-      setError('Could not skip. Please try again.')
-    } catch {
-      setError('Connection error. Please try again.')
-    }
-    setSkipping(false)
   }
 
   return (
@@ -134,15 +113,12 @@ function LoginForm() {
         )}
       </button>
 
-      {/* Skip for now — auth is not yet enforced */}
-      <button
-        type="button"
-        onClick={handleSkip}
-        disabled={skipping}
-        className="w-full py-3 text-white/40 hover:text-white/70 font-sans text-sm transition-colors disabled:opacity-30"
-      >
-        {skipping ? 'skipping…' : 'skip for now →'}
-      </button>
+      {mode === 'signup' && (
+        <p className="text-white/30 font-sans text-xs text-center leading-relaxed">
+          accounts are for grants estate agents staff —<br />
+          sign up with your @grantsea.com.au email (min 8 character password)
+        </p>
+      )}
     </form>
   )
 }
@@ -160,7 +136,7 @@ export default function LoginPage() {
         <div className="text-center mb-10">
           <div className="w-12 h-1 bg-[#C41E2A] mx-auto mb-8" />
           <h1 className="font-display text-3xl text-white font-light lowercase tracking-tight">
-            grant&rsquo;s estate agents
+            grants estate agents
           </h1>
           <p className="text-white/30 font-sans text-sm mt-3 lowercase">
             proposal system

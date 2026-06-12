@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { verifySession } from '@/lib/session'
 
 const COOKIE_NAME = 'gea_auth'
 
@@ -20,13 +21,7 @@ function isProtectedApi(pathname: string): boolean {
   )
 }
 
-function isValidAuthCookie(value: string): boolean {
-  // Basic validation: non-empty, contains @, looks like an email
-  const trimmed = value.trim()
-  return trimmed.length > 0 && trimmed.includes('@') && trimmed.includes('.')
-}
-
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   const protectedPage = isProtectedPage(pathname)
@@ -34,9 +29,10 @@ export function middleware(request: NextRequest) {
 
   if (!protectedPage && !protectedApi) return NextResponse.next()
 
-  // Check auth cookie with validation
+  // Verify the signed session token (HMAC + expiry). Legacy plain-email
+  // cookies fail verification, so old sessions require a fresh login.
   const authCookie = request.cookies.get(COOKIE_NAME)
-  const isAuthenticated = authCookie?.value && isValidAuthCookie(authCookie.value)
+  const isAuthenticated = !!(await verifySession(authCookie?.value))
 
   if (!isAuthenticated) {
     if (protectedApi) {
