@@ -191,12 +191,15 @@ function deriveBands(pMin: number, pMax: number): TierBands {
   }
 }
 
-// Map a price to a tier using the (contiguous) bands.
+// Map a price to a tier using each band's own (possibly manually edited)
+// min/max. Bands may overlap after manual edits — first match wins.
 function tierForPrice(price: number, b: TierBands): CompTier | undefined {
   if (!price) return undefined
-  if (price >= b.entry.min && price < b.similar.min) return 'entry'
-  if (price >= b.similar.min && price <= b.similar.max) return 'similar'
-  if (price > b.similar.max && price <= b.above.max) return 'above'
+  const order: CompTier[] = ['entry', 'similar', 'above']
+  for (const tier of order) {
+    const band = b[tier]
+    if (band.max > 0 && price >= band.min && price <= band.max) return tier
+  }
   return undefined
 }
 
@@ -277,6 +280,19 @@ export default function SoldPropertiesStep({
   const setBand = (tier: CompTier, edge: 'min' | 'max', value: number) => {
     setBandsEdited(true)
     setBands(prev => ({ ...prev, [tier]: { ...prev[tier], [edge]: value } }))
+  }
+
+  // Per-tier search: re-bucket results against the (possibly edited) bands.
+  // Clears the global price filter so sales matching the new range aren't
+  // excluded before they reach the tier grouping; everything else re-applies
+  // reactively via the filter effect.
+  const searchTier = () => {
+    if (priceMin || priceMax) {
+      setPriceMin('')
+      setPriceMax('')
+    } else if (rawComps.length > 0) {
+      applyFilters(rawComps)
+    }
   }
 
   // Search state
@@ -1677,6 +1693,17 @@ export default function SoldPropertiesStep({
                                   className="w-24 px-2 py-1 bg-white border border-gray-200 rounded text-gray-700 text-xs focus:ring-1 focus:ring-[#C41E2A]/40 outline-none"
                                   placeholder="max"
                                 />
+                                <button
+                                  type="button"
+                                  onClick={() => searchTier()}
+                                  className="ml-1 flex items-center gap-1 px-2.5 py-1 rounded bg-[#C41E2A]/10 text-[#C41E2A] font-sans text-xs font-medium hover:bg-[#C41E2A]/20 transition-colors"
+                                  title="refresh this tier's results using the edited range"
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                                  </svg>
+                                  search
+                                </button>
                               </div>
                             </div>
                             <span className={`font-sans text-xs font-medium ${selected >= 3 ? 'text-[#8B9F82]' : 'text-gray-400'}`}>
