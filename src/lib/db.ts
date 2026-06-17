@@ -253,6 +253,7 @@ function initSchema(db: Database.Database) {
     'ALTER TABLE proposals ADD COLUMN letting_fee TEXT',
     'ALTER TABLE sold_properties ADD COLUMN price_display TEXT',
     'ALTER TABLE sold_properties ADD COLUMN geocoded_at TEXT',       // set when lat/lng backfilled to a real address
+    'ALTER TABLE leased_properties ADD COLUMN geocoded_at TEXT',     // set when lat/lng backfilled to a real address
     // Nurture touchpoints — new columns for AI-generated plans
     'ALTER TABLE nurture_touchpoints ADD COLUMN day_number INTEGER NOT NULL DEFAULT 0',
     'ALTER TABLE nurture_touchpoints ADD COLUMN talking_points TEXT',

@@ -505,6 +505,61 @@ export function markSoldGeocoded(id: number): void {
   ).run(id)
 }
 
+/** Leased rows in the given suburbs that still need real-address geocoding. */
+export function getLeasedRowsNeedingGeocode(
+  suburbs: string[],
+  limit: number,
+  primarySuburb?: string
+): { id: number; address: string }[] {
+  if (suburbs.length === 0) return []
+  const db = getDb()
+  const placeholders = suburbs.map(() => 'LOWER(?)').join(', ')
+  return db
+    .prepare(
+      `SELECT id, address FROM leased_properties
+       WHERE LOWER(suburb) IN (${placeholders})
+         AND geocoded_at IS NULL
+         AND (lat IS NULL OR lng IS NULL)
+         AND address GLOB '[0-9]*'
+       ORDER BY CASE WHEN LOWER(suburb) = ? THEN 0 ELSE 1 END, scraped_at DESC
+       LIMIT ?`
+    )
+    .all(...suburbs, (primarySuburb || '').toLowerCase(), limit) as { id: number; address: string }[]
+}
+
+/** Count leased rows in the given suburbs still awaiting geocoding. */
+export function countLeasedNeedingGeocode(suburbs: string[]): number {
+  if (suburbs.length === 0) return 0
+  const db = getDb()
+  const placeholders = suburbs.map(() => 'LOWER(?)').join(', ')
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM leased_properties
+       WHERE LOWER(suburb) IN (${placeholders})
+         AND geocoded_at IS NULL
+         AND (lat IS NULL OR lng IS NULL)
+         AND address GLOB '[0-9]*'`
+    )
+    .get(...suburbs) as { n: number }
+  return row?.n ?? 0
+}
+
+/** Write real coordinates back to a leased row and mark it geocoded. */
+export function updateLeasedCoords(id: number, lat: number, lng: number): void {
+  const db = getDb()
+  db.prepare(
+    `UPDATE leased_properties SET lat = ?, lng = ?, geocoded_at = datetime('now') WHERE id = ?`
+  ).run(lat, lng, id)
+}
+
+/** Mark a leased row as geocoded without changing coords (un-geocodable address). */
+export function markLeasedGeocoded(id: number): void {
+  const db = getDb()
+  db.prepare(
+    `UPDATE leased_properties SET geocoded_at = datetime('now') WHERE id = ?`
+  ).run(id)
+}
+
 /** Get the most recent scraped_at timestamp for a suburb, or null if never scraped */
 export function getLastScrapedDate(suburb: string): string | null {
   const db = getDb()

@@ -23,6 +23,27 @@ export function isApifyRentalAvailable(): boolean {
   return !!APIFY_TOKEN
 }
 
+// Resolve a postcode for a suburb from the known Casey/Cardinia map.
+export function postcodeForSuburb(suburb: string): string | undefined {
+  return SUBURB_POSTCODES[suburb.trim().toLowerCase()]
+}
+
+// On-demand single-suburb leased scrape — used by /api/scrape-leased when a
+// rental proposal hits a suburb with no local leased comps. Scrapes REA leased
+// listings (with lat/lng) via Apify and upserts them into leased_properties.
+export async function scrapeSuburbLeased(
+  suburb: string,
+  postcode?: string
+): Promise<{ scraped: number; stored: number }> {
+  if (!APIFY_TOKEN) return { scraped: 0, stored: 0 }
+  const pc = postcode || postcodeForSuburb(suburb)
+  if (!pc) return { scraped: 0, stored: 0 }
+  const listings = await scrapeSuburbLeasedViaApify(suburb.trim().toLowerCase(), pc)
+  if (listings.length === 0) return { scraped: 0, stored: 0 }
+  const stored = upsertLeasedProperties(listings)
+  return { scraped: listings.length, stored }
+}
+
 async function scrapeSuburbLeasedViaApify(suburb: string, postcode: string): Promise<ScrapedSale[]> {
   if (!APIFY_TOKEN) return []
 
@@ -168,7 +189,9 @@ export async function runDailyLeasedScrape(): Promise<{
   }
 
   const suburbList = Array.from(allSuburbs).sort()
-  const BATCH_SIZE = 6
+  // Leased listings are sparse (often 0–2 per suburb), so cover more suburbs per
+  // day than the sold scrape — 12/day clears the ~30-suburb map in ~3 days.
+  const BATCH_SIZE = 12
 
   const now = new Date()
   const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000)
