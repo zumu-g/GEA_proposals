@@ -850,6 +850,7 @@ export default function HomePage() {
           proposalType={proposalType}
           priceGuideMin={priceGuideMin}
           priceGuideMax={priceGuideMax}
+          askingRent={askingRent}
         />
       )}
 

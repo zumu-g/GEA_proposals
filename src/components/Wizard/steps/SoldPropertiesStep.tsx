@@ -32,6 +32,7 @@ interface SoldPropertiesStepProps {
   proposalType?: 'sale' | 'rental'
   priceGuideMin?: string
   priceGuideMax?: string
+  askingRent?: string
 }
 
 // ─── Internal row type ───────────────────────────────────────────────────────
@@ -179,15 +180,25 @@ const TIER_LABELS: Record<CompTier, string> = {
 }
 
 const round5k = (n: number) => Math.max(0, Math.round(n / 5000) * 5000)
+// Weekly-rent magnitudes are ~1000x smaller than sale prices — round to $10.
+const round10 = (n: number) => Math.max(0, Math.round(n / 10) * 10)
 
-// Derive default bands from the subject price guide. similar = the guide;
-// entry = one guide-width below; above = one guide-width above.
-function deriveBands(pMin: number, pMax: number): TierBands {
-  const w = Math.max(pMax - pMin, 60000)
+// Derive default bands from the subject guide. similar = the guide;
+// entry = one guide-width below; above = one guide-width above. Sale proposals
+// use $5k rounding and a $60k width floor; rental proposals pass rent-scale
+// rounding ($10) and a small width floor via opts.
+function deriveBands(
+  pMin: number,
+  pMax: number,
+  opts?: { round?: (n: number) => number; floor?: number }
+): TierBands {
+  const round = opts?.round ?? round5k
+  const floor = opts?.floor ?? 60000
+  const w = Math.max(pMax - pMin, floor)
   return {
-    entry: { min: round5k(pMin - w), max: round5k(pMin) },
-    similar: { min: round5k(pMin), max: round5k(pMax) },
-    above: { min: round5k(pMax), max: round5k(pMax + w) },
+    entry: { min: round(pMin - w), max: round(pMin) },
+    similar: { min: round(pMin), max: round(pMax) },
+    above: { min: round(pMax), max: round(pMax + w) },
   }
 }
 
@@ -227,6 +238,7 @@ export default function SoldPropertiesStep({
   proposalType = 'sale',
   priceGuideMin,
   priceGuideMax,
+  askingRent,
 }: SoldPropertiesStepProps) {
   const isRental = proposalType === 'rental'
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
@@ -260,22 +272,34 @@ export default function SoldPropertiesStep({
   const [rawComps, setRawComps] = useState<any[]>([])
 
   // ─── Tiered comparables (entry / similar / above) ──────────────────────
-  const pgMin = priceGuideMin ? Number(priceGuideMin) : 0
-  const pgMax = priceGuideMax ? Number(priceGuideMax) : 0
+  // Sale proposals band around the price guide; rental proposals band around
+  // the weekly asking rent (±15%) so leased comps (rent-scale) bucket correctly
+  // instead of being measured against sale-scale bands.
+  const rentVal = isRental && askingRent
+    ? Number(String(askingRent).replace(/[^0-9.]/g, ''))
+    : 0
+  const pgMin = isRental
+    ? (rentVal > 0 ? Math.round(rentVal * 0.85) : 0)
+    : (priceGuideMin ? Number(priceGuideMin) : 0)
+  const pgMax = isRental
+    ? (rentVal > 0 ? Math.round(rentVal * 1.15) : 0)
+    : (priceGuideMax ? Number(priceGuideMax) : 0)
   const hasPriceGuide = pgMin > 0 && pgMax > 0
+  const bandOpts = isRental ? { round: round10, floor: 40 } : undefined
   const [tieredView, setTieredView] = useState(hasPriceGuide)
   const [bandsEdited, setBandsEdited] = useState(false)
   const [bands, setBands] = useState<TierBands>(() =>
-    hasPriceGuide ? deriveBands(pgMin, pgMax) : { entry: { min: 0, max: 0 }, similar: { min: 0, max: 0 }, above: { min: 0, max: 0 } }
+    hasPriceGuide ? deriveBands(pgMin, pgMax, bandOpts) : { entry: { min: 0, max: 0 }, similar: { min: 0, max: 0 }, above: { min: 0, max: 0 } }
   )
 
-  // Re-derive bands when the price guide changes, unless the agent edited them
+  // Re-derive bands when the guide changes, unless the agent edited them
   useEffect(() => {
     if (hasPriceGuide && !bandsEdited) {
-      setBands(deriveBands(pgMin, pgMax))
+      setBands(deriveBands(pgMin, pgMax, bandOpts))
       setTieredView(true)
     }
-  }, [pgMin, pgMax, hasPriceGuide, bandsEdited])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pgMin, pgMax, hasPriceGuide, bandsEdited, isRental])
 
   const setBand = (tier: CompTier, edge: 'min' | 'max', value: number) => {
     setBandsEdited(true)
@@ -386,6 +410,48 @@ export default function SoldPropertiesStep({
           const data = await res.json()
           if (data.updated > 0) {
             const r = await fetch(`/api/comparables?address=${encodeURIComponent(suburb)}&type=sold`)
+            const rd = await r.json()
+            if (Array.isArray(rd.sales)) setRawComps(rd.sales)
+          }
+          if (!data.remaining || data.remaining <= 0) break
+        }
+      } catch {
+        // ignore — coarse distances remain
+      }
+      setIsRefining(false)
+    })()
+  }, [rawComps, confirmedAddress, isRental])
+
+  // Leased equivalent: leased comps occasionally lack coordinates, which makes
+  // the distance filter inapplicable. Geocode their real addresses server-side
+  // (type=leased) and re-fetch so distances become accurate. Runs once per
+  // confirmed address, in the background.
+  const refinedLeasedAddrRef = useRef<string>('')
+  useEffect(() => {
+    if (!isRental) return
+    const addr = confirmedAddress
+    if (!addr || refinedLeasedAddrRef.current === addr) return
+    if (rawComps.length === 0) return
+    if (!rawComps.some((s: any) => !s.lat || !s.lng)) {
+      refinedLeasedAddrRef.current = addr // all already have coords
+      return
+    }
+
+    refinedLeasedAddrRef.current = addr
+    const suburb = extractSuburb(addr)
+    ;(async () => {
+      setIsRefining(true)
+      try {
+        for (let round = 0; round < 4; round++) {
+          const res = await fetch('/api/comparables/geocode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ address: addr, type: 'leased' }),
+          })
+          if (!res.ok) break
+          const data = await res.json()
+          if (data.updated > 0) {
+            const r = await fetch(`/api/comparables?address=${encodeURIComponent(suburb)}&type=leased`)
             const rd = await r.json()
             if (Array.isArray(rd.sales)) setRawComps(rd.sales)
           }
@@ -651,10 +717,19 @@ export default function SoldPropertiesStep({
             if (dist < nearest) nearest = dist
           }
         }
-        const suggestedDist = nearest < 1 ? '1km' : nearest < 2 ? '2km' : nearest < 5 ? '5km' : '10km'
-        setStatusMessage(
-          `No properties within ${distanceFilter < 1 ? `${distanceFilter * 1000}m` : `${distanceFilter}km`} — nearest is ${formatDistance(nearest)} away. Try ${suggestedDist}.`
-        )
+        if (nearest === Infinity) {
+          // No comp carries coordinates — distance can't be measured (common for
+          // leased data). Point the user at price/other filters rather than a
+          // bogus "Infinitykm away" message.
+          setStatusMessage(
+            `${sold.length} ${isRental ? 'leased' : 'sold'} ${sold.length === 1 ? 'property' : 'properties'} found, but none match the current filters. Try clearing the price range or other filters.`
+          )
+        } else {
+          const suggestedDist = nearest < 1 ? '1km' : nearest < 2 ? '2km' : nearest < 5 ? '5km' : '10km'
+          setStatusMessage(
+            `No properties within ${distanceFilter < 1 ? `${distanceFilter * 1000}m` : `${distanceFilter}km`} — nearest is ${formatDistance(nearest)} away. Try ${suggestedDist}.`
+          )
+        }
       } else {
         setStatusMessage(
           `Found ${soldCount} ${isRental ? 'leased' : 'sold'} properties${soldCount < sold.length ? ` (from ${sold.length})` : ''}`
@@ -725,7 +800,9 @@ export default function SoldPropertiesStep({
         if (sold.length === 0) {
           setStatusMessage('No local data — scraping realestate.com.au...')
           try {
-            const scrapeRes = await fetch('/api/scrape-sold', {
+            // Rentals scrape REA leased listings; sales scrape sold listings.
+            // The sold-scrape path can never populate leased_properties.
+            const scrapeRes = await fetch(isRental ? '/api/scrape-leased' : '/api/scrape-sold', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ suburb, pages: 3 }),
@@ -1024,7 +1101,7 @@ export default function SoldPropertiesStep({
               )}
               {row.date && (
                 <span className="px-2 py-0.5 rounded bg-[#C41E2A]/10 text-[#C41E2A]/70 font-sans text-[10px]">
-                  sold {row.date}
+                  {isRental ? 'leased' : 'sold'} {row.date}
                 </span>
               )}
             </div>
@@ -1504,7 +1581,7 @@ export default function SoldPropertiesStep({
                           </select>
                         </div>
                         <div>
-                          <label className={labelClasses}>sold within</label>
+                          <label className={labelClasses}>{isRental ? 'leased within' : 'sold within'}</label>
                           <select
                             value={soldWithin}
                             onChange={e => {
@@ -1593,7 +1670,7 @@ export default function SoldPropertiesStep({
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                   </svg>
-                  sold properties
+                  {isRental ? 'leased properties' : 'sold properties'}
                   {compRows.length > 0 && (
                     <span className="ml-1 px-2 py-0.5 rounded-full bg-[#C41E2A]/20 text-[#C41E2A] text-[10px] font-medium">
                       {compRows.filter(r => r.included).length}/{compRows.length}
@@ -1610,7 +1687,7 @@ export default function SoldPropertiesStep({
                       <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
                     </svg>
                     <p className="text-gray-400 font-sans text-sm">
-                      no comparable sales found
+                      {isRental ? 'no comparable rentals found' : 'no comparable sales found'}
                     </p>
                     <p className="text-gray-300 font-sans text-xs mt-1">
                       try increasing the distance or adjusting filters
@@ -1750,7 +1827,7 @@ export default function SoldPropertiesStep({
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                   </svg>
-                  add sale manually
+                  {isRental ? 'add lease manually' : 'add sale manually'}
                 </button>
 
                 {/* Manual add sold form */}
@@ -1765,7 +1842,7 @@ export default function SoldPropertiesStep({
                     >
                       <div className="mt-3 p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
                         <p className="text-gray-500 font-sans text-xs uppercase tracking-wider">
-                          add comparable sale
+                          {isRental ? 'add comparable rental' : 'add comparable sale'}
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div className="sm:col-span-2">
@@ -1779,7 +1856,7 @@ export default function SoldPropertiesStep({
                             />
                           </div>
                           <div>
-                            <label className={labelClasses}>sold price</label>
+                            <label className={labelClasses}>{isRental ? 'weekly rent' : 'sold price'}</label>
                             <div className="relative">
                               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-sans text-xs">$</span>
                               <input
@@ -1792,7 +1869,7 @@ export default function SoldPropertiesStep({
                             </div>
                           </div>
                           <div>
-                            <label className={labelClasses}>sold date</label>
+                            <label className={labelClasses}>{isRental ? 'leased date' : 'sold date'}</label>
                             <input
                               type="date"
                               value={manualDate}
@@ -1829,7 +1906,7 @@ export default function SoldPropertiesStep({
                             disabled={!manualAddress.trim()}
                             className="px-4 py-2 bg-[#C41E2A] hover:bg-[#a81823] rounded-lg text-white font-sans text-xs font-medium transition-all disabled:opacity-30 active:scale-[0.97]"
                           >
-                            add sale
+                            {isRental ? 'add rental' : 'add sale'}
                           </button>
                           <button
                             type="button"
@@ -1859,7 +1936,7 @@ export default function SoldPropertiesStep({
                     selection summary
                   </p>
                   <p className="text-gray-500 font-sans text-xs">
-                    {selectedSoldCount} sold properties selected
+                    {selectedSoldCount} {isRental ? 'leased' : 'sold'} properties selected
                   </p>
                 </div>
 
