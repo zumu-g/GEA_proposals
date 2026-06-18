@@ -269,9 +269,11 @@ interface EpEnrichProps {
   currentPriceMax: string
   hasHeroImage: boolean
   onChange: (field: string, value: any) => void
+  /** Rentals don't need a sale valuation/price guide — just the property attributes. */
+  isRental?: boolean
 }
 
-function EveryPropertyEnrich({ selectedAddress, currentPriceMin, currentPriceMax, hasHeroImage, onChange }: EpEnrichProps) {
+function EveryPropertyEnrich({ selectedAddress, currentPriceMin, currentPriceMax, hasHeroImage, onChange, isRental }: EpEnrichProps) {
   const [enabled, setEnabled] = useState(true)
   const [fetching, setFetching] = useState(false)
   const [data, setData] = useState<EpProposalData | null>(null)
@@ -290,21 +292,23 @@ function EveryPropertyEnrich({ selectedAddress, currentPriceMin, currentPriceMax
     const didSeed: string[] = []
     const didSkip: string[] = []
 
-    // Price guide — only if the user hasn't entered one (no silent overwrite).
-    const priceEmpty = !min.trim() && !max.trim()
-    let lo = d.priceEstimate?.low
-    let hi = d.priceEstimate?.high
-    if (lo == null && hi == null && d.formattedEstimate) {
-      const n = Number(d.formattedEstimate.replace(/[^0-9]/g, ''))
-      if (n > 0) { lo = n; hi = n }
-    }
-    if (lo != null || hi != null) {
-      if (priceEmpty) {
-        if (lo != null) onChange('priceGuideMin', String(Math.round(lo)))
-        if (hi != null) onChange('priceGuideMax', String(Math.round(hi)))
-        didSeed.push('price guide')
-      } else {
-        didSkip.push('price guide')
+    // Price guide — sale only. Rentals never seed a sale valuation/price guide.
+    if (!isRental) {
+      const priceEmpty = !min.trim() && !max.trim()
+      let lo = d.priceEstimate?.low
+      let hi = d.priceEstimate?.high
+      if (lo == null && hi == null && d.formattedEstimate) {
+        const n = Number(d.formattedEstimate.replace(/[^0-9]/g, ''))
+        if (n > 0) { lo = n; hi = n }
+      }
+      if (lo != null || hi != null) {
+        if (priceEmpty) {
+          if (lo != null) onChange('priceGuideMin', String(Math.round(lo)))
+          if (hi != null) onChange('priceGuideMax', String(Math.round(hi)))
+          didSeed.push('price guide')
+        } else {
+          didSkip.push('price guide')
+        }
       }
     }
 
@@ -419,14 +423,14 @@ function EveryPropertyEnrich({ selectedAddress, currentPriceMin, currentPriceMax
             <div className="mt-3 rounded-lg border border-gray-200 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <p className="font-display text-base text-gray-900 lowercase">{data.address?.toLowerCase()}</p>
-                {confidencePct != null && (
+                {!isRental && confidencePct != null && (
                   <span className="shrink-0 px-2 py-0.5 rounded bg-gray-100 text-gray-600 font-sans text-xs">
                     {confidencePct}% confidence
                   </span>
                 )}
               </div>
 
-              {data.formattedEstimate && (
+              {!isRental && data.formattedEstimate && (
                 <p className="mt-2 font-display text-2xl text-[#C41E2A]">{data.formattedEstimate}</p>
               )}
 
@@ -745,6 +749,7 @@ export default function ClientDetailsStep({
           currentPriceMax={formData.priceGuideMax ?? ''}
           hasHeroImage={!!formData.hasHeroImage}
           onChange={onChange}
+          isRental={formData.proposalType === 'rental'}
         />
       </motion.div>
 
