@@ -42,7 +42,7 @@ export async function generateMetadata({ params }: ProposalPageProps) {
 
   return {
     title: `${proposal.propertyAddress} — Grant's Proposal`,
-    description: `Property sale proposal for ${proposal.propertyAddress}`,
+    description: `Property ${proposal.proposalType === 'rental' ? 'rental' : 'sale'} proposal for ${proposal.propertyAddress}`,
   }
 }
 
@@ -89,14 +89,14 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
           propertyAddress={proposal.propertyAddress}
         />
 
-        {/* Method of sale explainer */}
-        <MethodExplainer method={proposal.methodOfSale} />
+        {/* Method of sale explainer — sale proposals only */}
+        {proposal.proposalType !== 'rental' && <MethodExplainer method={proposal.methodOfSale} />}
 
         {/* Area analysis - local market conditions */}
         <AreaAnalysis analysis={proposal.areaAnalysis} />
 
-        {/* Recent comparable sales */}
-        <RecentSales sales={proposal.recentSales} />
+        {/* Recent comparable sales / rentals */}
+        <RecentSales sales={proposal.recentSales} proposalType={proposal.proposalType} />
 
         {/* On-market comparable listings */}
         <OnMarketListings listings={proposal.onMarketListings || []} />
@@ -111,7 +111,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
         <TeamShowcase agency={proposal.agency} />
 
         {/* Visual process journey */}
-        <ProcessJourney steps={proposal.saleProcess} methodOfSale={proposal.methodOfSale} />
+        <ProcessJourney steps={proposal.saleProcess} methodOfSale={proposal.methodOfSale} proposalType={proposal.proposalType} />
 
         {/* Marketing showcase - channels */}
         <MarketingShowcase items={proposal.marketingPlan} />
@@ -198,7 +198,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
         )}
 
         {/* Fee structure */}
-        <FeeStructureVisual fees={proposal.fees} showCommission={proposal.showCommission !== false} methodOfSale={proposal.methodOfSale} />
+        <FeeStructureVisual fees={proposal.fees} showCommission={proposal.showCommission !== false} methodOfSale={proposal.methodOfSale} proposalType={proposal.proposalType} managementFee={proposal.managementFee} lettingFee={proposal.lettingFee} />
 
         {/* Personal closing statement */}
         <ClosingStatement
