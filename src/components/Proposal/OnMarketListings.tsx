@@ -6,11 +6,16 @@ import { OnMarketListing } from '@/types/proposal'
 
 interface OnMarketListingsProps {
   listings: OnMarketListing[]
+  proposalType?: 'sale' | 'rental'
 }
 
-export function OnMarketListings({ listings }: OnMarketListingsProps) {
+export function OnMarketListings({ listings, proposalType }: OnMarketListingsProps) {
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set())
   const prefersReducedMotion = useReducedMotion()
+  const isRental = proposalType === 'rental'
+  const subCopy = isRental
+    ? 'properties currently listed for rent in your area'
+    : 'properties currently listed for sale in your area'
 
   if (!listings || listings.length === 0) {
     return (
@@ -54,7 +59,7 @@ export function OnMarketListings({ listings }: OnMarketListingsProps) {
               your competition
             </h2>
             <p className="text-charcoal-400 font-sans text-lg font-light">
-              properties currently listed for sale in your area
+              {subCopy}
             </p>
           </div>
         </motion.div>

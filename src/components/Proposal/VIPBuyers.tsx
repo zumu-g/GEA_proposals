@@ -3,10 +3,18 @@
 import React from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 
-export function VIPBuyers() {
-  const prefersReducedMotion = useReducedMotion()
+interface VIPBuyersProps {
+  proposalType?: 'sale' | 'rental'
+}
 
-  const features = [
+export function VIPBuyers({ proposalType }: VIPBuyersProps = {}) {
+  const prefersReducedMotion = useReducedMotion()
+  const isRental = proposalType === 'rental'
+
+  const overline = isRental ? 'tenant access' : 'buyer access'
+  const heading = isRental ? 'reaching the right tenants' : 'reaching the right buyers'
+
+  const saleFeatures = [
     {
       title: 'database access',
       description: 'Our database system provides you with the benefit of accessing hundreds of buyers instantly as soon as your property is listed. This system also allows us to send a hyperlink connection of your property from our website to clients with an e-mail address.',
@@ -36,6 +44,26 @@ export function VIPBuyers() {
     },
   ]
 
+  // Rental copy mirrors the sale features one-for-one, reusing the same icons.
+  const rentalCopy = [
+    {
+      title: 'database access',
+      description: 'Our database system gives you the benefit of accessing hundreds of pre-qualified tenants instantly as soon as your property is listed for lease. We can also send a direct link to your property to registered renters by email.',
+    },
+    {
+      title: 'vip tenants',
+      description: 'Your property will have the benefit of our current pool of quality tenants who are actively seeking the right home. These applicants are ready to move now and will be notified as soon as we commence the campaign.',
+    },
+    {
+      title: 'internet presence',
+      description: 'Your property will be prominently displayed on the 5 leading local websites, including realestate.com.au and domain.com.au, reaching thousands of active renters.',
+    },
+  ]
+
+  const features = isRental
+    ? saleFeatures.map((f, i) => ({ ...f, ...rentalCopy[i] }))
+    : saleFeatures
+
   return (
     <section className="py-20 sm:py-28 lg:py-32 bg-forest-50">
       <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-16 xl:px-24">
@@ -47,10 +75,10 @@ export function VIPBuyers() {
           className="text-center mb-16 sm:mb-20"
         >
           <p className="font-sans text-xs font-medium tracking-wider-custom uppercase text-sage-600 mb-4">
-            buyer access
+            {overline}
           </p>
           <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-normal text-charcoal lowercase mb-5">
-            reaching the right buyers
+            {heading}
           </h2>
           <div className="w-12 h-px bg-sage mx-auto mb-5" />
           <p className="text-charcoal-400 font-sans text-lg font-light max-w-xl mx-auto">

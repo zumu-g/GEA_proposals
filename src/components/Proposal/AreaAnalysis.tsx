@@ -14,24 +14,26 @@ interface AreaAnalysisProps {
     overview: string
     highlights?: string[]
   }
+  proposalType?: 'sale' | 'rental'
 }
 
-export function AreaAnalysis({ analysis }: AreaAnalysisProps) {
+export function AreaAnalysis({ analysis, proposalType }: AreaAnalysisProps) {
   const prefersReducedMotion = useReducedMotion()
 
   if (!analysis) return null
 
+  const isRental = proposalType === 'rental'
   const stats = [
     analysis.medianPrice != null && {
-      label: 'median price',
+      label: isRental ? 'median rent' : 'median price',
       value: formatCurrency(analysis.medianPrice),
     },
     analysis.medianDaysOnMarket != null && {
-      label: 'days on market',
+      label: isRental ? 'days to lease' : 'days on market',
       value: String(analysis.medianDaysOnMarket),
     },
     analysis.demandLevel && {
-      label: 'buyer demand',
+      label: isRental ? 'rental demand' : 'buyer demand',
       value: analysis.demandLevel,
       indicator:
         analysis.demandLevel.toLowerCase() === 'high'

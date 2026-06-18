@@ -8,6 +8,7 @@ interface MarketingShowcaseProps {
   items: MarketingItem[]
   /** Dual-campaign label, e.g. "development site campaign" */
   campaignLabel?: string
+  proposalType?: 'sale' | 'rental'
 }
 
 /* ------------------------------------------------------------------ */
@@ -87,8 +88,9 @@ const cardGradients = [
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
-export function MarketingShowcase({ items, campaignLabel }: MarketingShowcaseProps) {
+export function MarketingShowcase({ items, campaignLabel, proposalType }: MarketingShowcaseProps) {
   const prefersReducedMotion = useReducedMotion()
+  const audience = proposalType === 'rental' ? 'quality tenants' : 'qualified buyers'
 
   const fadeUp = prefersReducedMotion
     ? {}
@@ -116,7 +118,7 @@ export function MarketingShowcase({ items, campaignLabel }: MarketingShowcasePro
             </h2>
           </div>
           <p className="text-white/70 font-sans text-base sm:text-lg font-light max-w-sm lg:text-right leading-relaxed">
-            a comprehensive, multi-channel approach to ensure maximum exposure to qualified buyers
+            a comprehensive, multi-channel approach to ensure maximum exposure to {audience}
           </p>
         </motion.div>
 

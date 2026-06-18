@@ -7,12 +7,14 @@ import type { SaleStep } from '@/types/proposal'
 interface ProcessJourneyProps {
   steps: SaleStep[]
   methodOfSale?: string
+  proposalType?: 'sale' | 'rental'
 }
 
-export function ProcessJourney({ steps, methodOfSale }: ProcessJourneyProps) {
+export function ProcessJourney({ steps, methodOfSale, proposalType }: ProcessJourneyProps) {
   const prefersReducedMotion = useReducedMotion()
   const [imageErrors, setImageErrors] = useState<Set<number>>(new Set())
   const isAuction = methodOfSale?.toLowerCase() === 'auction'
+  const isRental = proposalType === 'rental'
 
   const fadeUp = prefersReducedMotion
     ? {}
@@ -51,14 +53,16 @@ export function ProcessJourney({ steps, methodOfSale }: ProcessJourneyProps) {
           className="mb-20 sm:mb-28 text-center"
         >
           <p className="font-sans text-xs font-medium tracking-wider-custom uppercase text-sage-600 mb-4">
-            selling process
+            {isRental ? 'leasing process' : 'selling process'}
           </p>
           <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-normal text-charcoal lowercase mb-5">
-            {isAuction ? 'your journey to auction' : 'your journey to settlement'}
+            {isRental ? 'your journey to a great tenant' : isAuction ? 'your journey to auction' : 'your journey to settlement'}
           </h2>
           <div className="w-12 h-px bg-sage mx-auto mb-5" />
           <p className="text-charcoal-400 font-sans text-lg font-light max-w-xl mx-auto">
-            {isAuction
+            {isRental
+              ? 'a structured process to lease your property quickly and to a quality, well-screened tenant'
+              : isAuction
               ? 'a structured 4-week campaign, building competitive tension toward auction day'
               : 'a proven process, refined over decades, to achieve the best outcome for you'}
           </p>

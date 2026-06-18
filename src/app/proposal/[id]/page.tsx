@@ -42,7 +42,7 @@ export async function generateMetadata({ params }: ProposalPageProps) {
 
   return {
     title: `${proposal.propertyAddress} — Grant's Proposal`,
-    description: `Property sale proposal for ${proposal.propertyAddress}`,
+    description: `Property ${proposal.proposalType === 'rental' ? 'rental' : 'sale'} proposal for ${proposal.propertyAddress}`,
   }
 }
 
@@ -87,34 +87,35 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
         <MarketingStrategy
           approach={proposal.marketingApproach}
           propertyAddress={proposal.propertyAddress}
+          proposalType={proposal.proposalType}
         />
 
-        {/* Method of sale explainer */}
-        <MethodExplainer method={proposal.methodOfSale} />
+        {/* Method of sale explainer — sale proposals only */}
+        {proposal.proposalType !== 'rental' && <MethodExplainer method={proposal.methodOfSale} />}
 
         {/* Area analysis - local market conditions */}
-        <AreaAnalysis analysis={proposal.areaAnalysis} />
+        <AreaAnalysis analysis={proposal.areaAnalysis} proposalType={proposal.proposalType} />
 
-        {/* Recent comparable sales */}
-        <RecentSales sales={proposal.recentSales} />
+        {/* Recent comparable sales / rentals */}
+        <RecentSales sales={proposal.recentSales} proposalType={proposal.proposalType} />
 
         {/* On-market comparable listings */}
-        <OnMarketListings listings={proposal.onMarketListings || []} />
+        <OnMarketListings listings={proposal.onMarketListings || []} proposalType={proposal.proposalType} />
 
         {/* VIP buyers, database, internet access */}
-        <VIPBuyers />
+        <VIPBuyers proposalType={proposal.proposalType} />
 
         {/* Internet presence - listing platforms */}
-        <InternetPresence listings={proposal.internetListings} />
+        <InternetPresence listings={proposal.internetListings} proposalType={proposal.proposalType} />
 
         {/* Our team across offices */}
-        <TeamShowcase agency={proposal.agency} />
+        <TeamShowcase agency={proposal.agency} proposalType={proposal.proposalType} />
 
         {/* Visual process journey */}
-        <ProcessJourney steps={proposal.saleProcess} methodOfSale={proposal.methodOfSale} />
+        <ProcessJourney steps={proposal.saleProcess} methodOfSale={proposal.methodOfSale} proposalType={proposal.proposalType} />
 
         {/* Marketing showcase - channels */}
-        <MarketingShowcase items={proposal.marketingPlan} />
+        <MarketingShowcase items={proposal.marketingPlan} proposalType={proposal.proposalType} />
 
         {/* Advertising schedule - 4-week campaign with costs */}
         <AdvertisingSchedule
@@ -198,7 +199,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
         )}
 
         {/* Fee structure */}
-        <FeeStructureVisual fees={proposal.fees} showCommission={proposal.showCommission !== false} methodOfSale={proposal.methodOfSale} />
+        <FeeStructureVisual fees={proposal.fees} showCommission={proposal.showCommission !== false} methodOfSale={proposal.methodOfSale} proposalType={proposal.proposalType} managementFee={proposal.managementFee} lettingFee={proposal.lettingFee} />
 
         {/* Personal closing statement */}
         <ClosingStatement

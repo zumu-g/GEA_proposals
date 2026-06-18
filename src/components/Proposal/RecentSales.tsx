@@ -7,6 +7,7 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 
 interface RecentSalesProps {
   sales: PropertySale[]
+  proposalType?: 'sale' | 'rental'
 }
 
 type SortOption = 'distance' | 'price' | 'date'
@@ -18,11 +19,20 @@ const TIER_META: Record<NonNullable<PropertySale['tier']>, { label: string; cls:
   above: { label: 'Above', cls: 'bg-amber-500/90 text-white' },
 }
 
-export function RecentSales({ sales }: RecentSalesProps) {
+export function RecentSales({ sales, proposalType }: RecentSalesProps) {
   const [sortBy, setSortBy] = useState<SortOption>('distance')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set())
   const prefersReducedMotion = useReducedMotion()
+
+  const isRental = proposalType === 'rental'
+  const overline = isRental ? 'comparable rentals' : 'comparable sales'
+  const emptyCopy = isRental
+    ? 'no comparable rental data available for this area at this time'
+    : 'no comparable sales data available for this area at this time'
+  const subCopy = isRental
+    ? 'properties leased in your area to help guide pricing'
+    : 'properties sold in your area to help guide pricing'
 
   if (!sales || sales.length === 0) {
     return (
@@ -35,13 +45,13 @@ export function RecentSales({ sales }: RecentSalesProps) {
             transition={{ duration: 0.5 }}
           >
             <p className="text-sage font-sans text-xs tracking-[0.3em] uppercase mb-3">
-              comparable sales
+              {overline}
             </p>
             <h2 className="font-display text-3xl sm:text-4xl font-normal text-charcoal lowercase mb-3">
               recent results nearby
             </h2>
             <p className="text-charcoal-400 font-sans text-lg font-light">
-              no comparable sales data available for this area at this time
+              {emptyCopy}
             </p>
           </motion.div>
         </div>
@@ -84,13 +94,13 @@ export function RecentSales({ sales }: RecentSalesProps) {
             <div>
               {/* Overline label treatment — distinct from gold-accent-line */}
               <p className="text-sage font-sans text-xs tracking-[0.3em] uppercase mb-3">
-                comparable sales
+                {overline}
               </p>
               <h2 className="font-display text-3xl sm:text-4xl font-normal text-charcoal lowercase mb-3">
                 recent results nearby
               </h2>
               <p className="text-charcoal-400 font-sans text-lg font-light">
-                properties sold in your area to help guide pricing
+                {subCopy}
               </p>
             </div>
 

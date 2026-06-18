@@ -24,6 +24,14 @@ export function BrandStatement({ proposal }: BrandStatementProps) {
       maximumFractionDigits: 0,
     }).format(amount)
 
+  const isRental = proposal.proposalType === 'rental'
+  // Rental proposals lead with the weekly asking rent and lease type, not the
+  // sale price guide / method of sale.
+  const showRent = isRental && proposal.askingRent && proposal.showPriceRange !== false
+  const showPriceGuide = !isRental && proposal.priceGuide && proposal.showPriceRange !== false
+  const secondaryLabel = isRental ? 'lease type' : 'recommended method'
+  const secondaryValue = isRental ? proposal.leaseType : proposal.methodOfSale
+
   return (
     <section className="bg-white py-20 sm:py-28 lg:py-32 relative overflow-hidden">
       {/* Sage accent — vertical bar left side */}
@@ -45,9 +53,25 @@ export function BrandStatement({ proposal }: BrandStatementProps) {
           </p>
         </motion.div>
 
-        {/* Price guide and method of sale */}
+        {/* Price guide / asking rent and method / lease type */}
         <div className="flex flex-col sm:flex-row gap-8 sm:gap-16">
-          {proposal.priceGuide && proposal.showPriceRange !== false && (
+          {showRent && (
+            <motion.div
+              initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-80px' }}
+              transition={{ duration: 0.5, delay: 0.08 }}
+            >
+              <p className="font-sans text-xs tracking-[0.2em] uppercase text-charcoal-400 mb-3">
+                asking rent
+              </p>
+              <p className="font-display text-xl sm:text-2xl md:text-3xl font-normal text-forest lowercase">
+                {formatAUD(proposal.askingRent!)} per week
+              </p>
+            </motion.div>
+          )}
+
+          {showPriceGuide && (
             <motion.div
               initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -58,12 +82,12 @@ export function BrandStatement({ proposal }: BrandStatementProps) {
                 price guide
               </p>
               <p className="font-display text-xl sm:text-2xl md:text-3xl font-normal text-forest lowercase">
-                {formatAUD(proposal.priceGuide.min)} &ndash; {formatAUD(proposal.priceGuide.max)}
+                {formatAUD(proposal.priceGuide!.min)} &ndash; {formatAUD(proposal.priceGuide!.max)}
               </p>
             </motion.div>
           )}
 
-          {proposal.methodOfSale && (
+          {secondaryValue && (
             <motion.div
               initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -71,17 +95,17 @@ export function BrandStatement({ proposal }: BrandStatementProps) {
               transition={{ duration: 0.5, delay: 0.16 }}
             >
               <p className="font-sans text-xs tracking-[0.2em] uppercase text-charcoal-400 mb-3">
-                recommended method
+                {secondaryLabel}
               </p>
               <p className="font-display text-xl sm:text-2xl md:text-3xl font-normal text-forest lowercase">
-                {proposal.methodOfSale}
+                {secondaryValue}
               </p>
             </motion.div>
           )}
         </div>
 
         {/* Sage divider at bottom */}
-        {(proposal.priceGuide || proposal.methodOfSale) && (
+        {(showRent || showPriceGuide || secondaryValue) && (
           <motion.div
             initial={prefersReducedMotion ? false : { scaleX: 0 }}
             whileInView={{ scaleX: 1 }}

@@ -18,6 +18,7 @@ export function ApprovalSection({ proposal }: ApprovalSectionProps) {
   const agentName = proposal.agency?.agentName
   const agentPhone = proposal.agency?.agentPhone
   const agencyName = (proposal.agency?.name || 'us').toLowerCase()
+  const isRental = proposal.proposalType === 'rental'
 
   const handleApprove = async () => {
     setIsApproving(true)
@@ -103,7 +104,7 @@ export function ApprovalSection({ proposal }: ApprovalSectionProps) {
               ready to begin?
             </h2>
             <p className="text-charcoal-400 font-sans text-lg font-light mb-12 max-w-md mx-auto">
-              express your interest to start the selling journey with {agencyName}.
+              express your interest to start the {isRental ? 'leasing' : 'selling'} journey with {agencyName}.
             </p>
 
             <motion.button
@@ -161,7 +162,7 @@ export function ApprovalSection({ proposal }: ApprovalSectionProps) {
                 confirm your interest
               </h3>
               <p className="text-charcoal-400 font-sans font-light mb-2 leading-relaxed">
-                by proceeding, you&rsquo;re expressing your interest in engaging {agencyName} to market your property. this is not a binding contract.
+                by proceeding, you&rsquo;re expressing your interest in engaging {agencyName} to {isRental ? 'lease and manage' : 'market'} your property. this is not a binding contract.
               </p>
               <p className="text-charcoal-400 font-sans text-sm font-light mb-6 leading-relaxed">
                 {agentName ? `${agentName} will` : `we'll`} be in touch to discuss the formal agreement and arrange next steps.
