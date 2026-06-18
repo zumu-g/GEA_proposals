@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
+import { SavedPhotoPicker, uploadHeroImage } from '@/components/Wizard/SavedPhotoPicker'
 
 interface PropertySaleStepProps {
   formData: {
@@ -96,7 +97,29 @@ export default function PropertySaleStep({
   const [isDragging, setIsDragging] = useState(false)
   const [heroPreview, setHeroPreview] = useState<string | null>(null)
   const [selectedAutoIndex, setSelectedAutoIndex] = useState(0)
+  const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Persist a chosen/uploaded photo immediately so it survives and joins the
+  // reusable library; store the durable URL as the hero (not a transient File).
+  const persistAndSetHero = useCallback(
+    async (file: File) => {
+      setIsUploading(true)
+      try {
+        const url = await uploadHeroImage(file)
+        onChange('heroImage', null)
+        onChange('heroImageUrl', url)
+        if (heroPreview) URL.revokeObjectURL(heroPreview)
+        setHeroPreview(null)
+        setUseAutoImage(false)
+      } catch {
+        onChange('heroImage', file)
+      } finally {
+        setIsUploading(false)
+      }
+    },
+    [onChange, heroPreview]
+  )
 
   const hasAutoImages = autoImages.length > 0
 
@@ -125,14 +148,13 @@ export default function PropertySaleStep({
   // Handle file drop / selection
   const handleFile = useCallback(
     (file: File) => {
-      onChange('heroImage', file)
-      // Revoke previous blob URL before creating new one
+      // Instant local preview, then persist to the durable store.
       if (heroPreview) URL.revokeObjectURL(heroPreview)
-      const url = URL.createObjectURL(file)
-      setHeroPreview(url)
+      setHeroPreview(URL.createObjectURL(file))
       setUseAutoImage(false)
+      void persistAndSetHero(file)
     },
-    [onChange, heroPreview]
+    [heroPreview, persistAndSetHero]
   )
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -382,6 +404,22 @@ export default function PropertySaleStep({
             placeholder="https://..."
           />
         </div>
+
+        {isUploading && (
+          <p className="text-xs font-sans text-gray-500 flex items-center gap-2">
+            <span className="w-3.5 h-3.5 border-2 border-gray-300 border-t-brand rounded-full animate-spin" />
+            saving photo…
+          </p>
+        )}
+
+        {/* Reuse a previously uploaded hero photo */}
+        <SavedPhotoPicker onSelect={(url) => {
+          onChange('heroImage', null)
+          onChange('heroImageUrl', url)
+          if (heroPreview) URL.revokeObjectURL(heroPreview)
+          setHeroPreview(null)
+          setUseAutoImage(false)
+        }} />
       </motion.div>
 
       {/* ─── Divider ─── */}

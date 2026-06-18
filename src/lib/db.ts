@@ -4,6 +4,15 @@ import fs from 'fs'
 
 const DB_PATH = process.env.DATABASE_PATH || path.join(process.cwd(), 'data', 'gea.db')
 
+// Uploaded hero photos live alongside the SQLite DB on the persistent volume so
+// they survive redeploys (public/ is ephemeral on Railway). Served via
+// /api/uploads/[filename].
+export function uploadsDir(): string {
+  const dir = path.join(path.dirname(DB_PATH), 'uploads')
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  return dir
+}
+
 let _db: Database.Database | null = null
 
 export function getDb(): Database.Database {
@@ -230,6 +239,17 @@ function initSchema(db: Database.Database) {
       UNIQUE(address)
     );
     CREATE INDEX IF NOT EXISTS idx_for_rent_suburb ON for_rent_properties(suburb);
+
+    CREATE TABLE IF NOT EXISTS uploaded_images (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      filename TEXT NOT NULL UNIQUE,
+      url TEXT NOT NULL,
+      original_name TEXT,
+      mime TEXT,
+      size INTEGER,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_uploaded_images_created ON uploaded_images(created_at DESC);
   `)
 
   // Add new columns for expanded proposal sections (safe to re-run)
@@ -245,6 +265,7 @@ function initSchema(db: Database.Database) {
     'ALTER TABLE proposals ADD COLUMN on_market_listings TEXT',     // JSON
     'ALTER TABLE proposals ADD COLUMN show_price_range INTEGER DEFAULT 1',
     'ALTER TABLE proposals ADD COLUMN show_commission INTEGER DEFAULT 1',
+    'ALTER TABLE proposals ADD COLUMN hidden_sections TEXT',          // JSON — sidebar page toggles excluded from the client proposal
     'ALTER TABLE proposals ADD COLUMN proposal_type TEXT DEFAULT \'sale\'',
     'ALTER TABLE proposals ADD COLUMN asking_rent INTEGER',
     'ALTER TABLE proposals ADD COLUMN lease_type TEXT',
@@ -254,6 +275,7 @@ function initSchema(db: Database.Database) {
     'ALTER TABLE sold_properties ADD COLUMN price_display TEXT',
     'ALTER TABLE sold_properties ADD COLUMN geocoded_at TEXT',       // set when lat/lng backfilled to a real address
     'ALTER TABLE leased_properties ADD COLUMN geocoded_at TEXT',     // set when lat/lng backfilled to a real address
+    'ALTER TABLE for_rent_properties ADD COLUMN geocoded_at TEXT',   // set when lat/lng backfilled to a real address
     // Nurture touchpoints — new columns for AI-generated plans
     'ALTER TABLE nurture_touchpoints ADD COLUMN day_number INTEGER NOT NULL DEFAULT 0',
     'ALTER TABLE nurture_touchpoints ADD COLUMN talking_points TEXT',

@@ -560,6 +560,61 @@ export function markLeasedGeocoded(id: number): void {
   ).run(id)
 }
 
+/** For-rent (on-market rental) rows in the given suburbs that still need geocoding. */
+export function getForRentRowsNeedingGeocode(
+  suburbs: string[],
+  limit: number,
+  primarySuburb?: string
+): { id: number; address: string }[] {
+  if (suburbs.length === 0) return []
+  const db = getDb()
+  const placeholders = suburbs.map(() => 'LOWER(?)').join(', ')
+  return db
+    .prepare(
+      `SELECT id, address FROM for_rent_properties
+       WHERE LOWER(suburb) IN (${placeholders})
+         AND geocoded_at IS NULL
+         AND (lat IS NULL OR lng IS NULL)
+         AND address GLOB '[0-9]*'
+       ORDER BY CASE WHEN LOWER(suburb) = ? THEN 0 ELSE 1 END, scraped_at DESC
+       LIMIT ?`
+    )
+    .all(...suburbs, (primarySuburb || '').toLowerCase(), limit) as { id: number; address: string }[]
+}
+
+/** Count for-rent rows in the given suburbs still awaiting geocoding. */
+export function countForRentNeedingGeocode(suburbs: string[]): number {
+  if (suburbs.length === 0) return 0
+  const db = getDb()
+  const placeholders = suburbs.map(() => 'LOWER(?)').join(', ')
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM for_rent_properties
+       WHERE LOWER(suburb) IN (${placeholders})
+         AND geocoded_at IS NULL
+         AND (lat IS NULL OR lng IS NULL)
+         AND address GLOB '[0-9]*'`
+    )
+    .get(...suburbs) as { n: number }
+  return row?.n ?? 0
+}
+
+/** Write real coordinates back to a for-rent row and mark it geocoded. */
+export function updateForRentCoords(id: number, lat: number, lng: number): void {
+  const db = getDb()
+  db.prepare(
+    `UPDATE for_rent_properties SET lat = ?, lng = ?, geocoded_at = datetime('now') WHERE id = ?`
+  ).run(lat, lng, id)
+}
+
+/** Mark a for-rent row as geocoded without changing coords (un-geocodable address). */
+export function markForRentGeocoded(id: number): void {
+  const db = getDb()
+  db.prepare(
+    `UPDATE for_rent_properties SET geocoded_at = datetime('now') WHERE id = ?`
+  ).run(id)
+}
+
 /** Get the most recent scraped_at timestamp for a suburb, or null if never scraped */
 export function getLastScrapedDate(suburb: string): string | null {
   const db = getDb()

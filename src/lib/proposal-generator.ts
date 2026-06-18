@@ -99,6 +99,7 @@ interface ProposalRow {
   database_info: string | null
   internet_listings: string | null
   on_market_listings: string | null
+  hidden_sections: string | null
   proposal_type: string | null
   asking_rent: number | null
   lease_type: string | null
@@ -148,6 +149,7 @@ function rowToProposal(row: ProposalRow): Proposal {
     databaseInfo: row.database_info || undefined,
     internetListings: row.internet_listings ? JSON.parse(row.internet_listings) : undefined,
     onMarketListings: row.on_market_listings ? JSON.parse(row.on_market_listings) : undefined,
+    hiddenSections: row.hidden_sections ? JSON.parse(row.hidden_sections) : undefined,
     proposalType: (row.proposal_type as 'sale' | 'rental') || 'sale',
     askingRent: row.asking_rent ?? undefined,
     leaseType: row.lease_type ?? undefined,
@@ -200,6 +202,7 @@ function proposalToParams(proposal: Proposal) {
     database_info: proposal.databaseInfo || null,
     internet_listings: proposal.internetListings ? JSON.stringify(proposal.internetListings) : null,
     on_market_listings: proposal.onMarketListings ? JSON.stringify(proposal.onMarketListings) : null,
+    hidden_sections: proposal.hiddenSections ? JSON.stringify(proposal.hiddenSections) : null,
     proposal_type: proposal.proposalType || 'sale',
     asking_rent: proposal.askingRent ?? null,
     lease_type: proposal.leaseType || null,
@@ -233,7 +236,7 @@ export async function saveProposal(proposal: Proposal): Promise<void> {
       hero_image, property_images, price_guide_min, price_guide_max, show_price_range, show_commission, method_of_sale,
       sale_process, marketing_plan, recent_sales, fees, agency,
       advertising_schedule, total_advertising_cost, area_analysis, team_members,
-      marketing_approach, marketing_costs, database_info, internet_listings, on_market_listings,
+      marketing_approach, marketing_costs, database_info, internet_listings, on_market_listings, hidden_sections,
       proposal_type, asking_rent, lease_type, available_date, management_fee, letting_fee,
       dual_campaign, dev_method_of_sale, dev_price_guide_min, dev_price_guide_max, dev_show_price_range,
       dev_marketing_costs, dev_marketing_plan, dev_advertising_schedule, dev_total_advertising_cost,
@@ -242,7 +245,7 @@ export async function saveProposal(proposal: Proposal): Promise<void> {
       @hero_image, @property_images, @price_guide_min, @price_guide_max, @show_price_range, @show_commission, @method_of_sale,
       @sale_process, @marketing_plan, @recent_sales, @fees, @agency,
       @advertising_schedule, @total_advertising_cost, @area_analysis, @team_members,
-      @marketing_approach, @marketing_costs, @database_info, @internet_listings, @on_market_listings,
+      @marketing_approach, @marketing_costs, @database_info, @internet_listings, @on_market_listings, @hidden_sections,
       @proposal_type, @asking_rent, @lease_type, @available_date, @management_fee, @letting_fee,
       @dual_campaign, @dev_method_of_sale, @dev_price_guide_min, @dev_price_guide_max, @dev_show_price_range,
       @dev_marketing_costs, @dev_marketing_plan, @dev_advertising_schedule, @dev_total_advertising_cost,
@@ -257,7 +260,7 @@ export async function saveProposal(proposal: Proposal): Promise<void> {
       advertising_schedule=@advertising_schedule, total_advertising_cost=@total_advertising_cost,
       area_analysis=@area_analysis, team_members=@team_members,
       marketing_approach=@marketing_approach, marketing_costs=@marketing_costs, database_info=@database_info,
-      internet_listings=@internet_listings, on_market_listings=@on_market_listings,
+      internet_listings=@internet_listings, on_market_listings=@on_market_listings, hidden_sections=@hidden_sections,
       proposal_type=@proposal_type, asking_rent=@asking_rent, lease_type=@lease_type,
       available_date=@available_date, management_fee=@management_fee, letting_fee=@letting_fee,
       dual_campaign=@dual_campaign, dev_method_of_sale=@dev_method_of_sale,

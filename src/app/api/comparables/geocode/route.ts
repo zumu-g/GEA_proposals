@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { parseAddress, NEIGHBORING_SUBURBS } from '@/lib/comparables-lookup'
-import { backfillSoldCoords, backfillLeasedCoords } from '@/lib/geocode-backfill'
+import { backfillSoldCoords, backfillLeasedCoords, backfillForRentCoords } from '@/lib/geocode-backfill'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -25,12 +25,14 @@ export async function POST(request: Request) {
   const suburb = parts.suburb.toLowerCase()
   const suburbs = [suburb, ...(NEIGHBORING_SUBURBS[suburb] || [])]
   const limit = Math.min(Number(body.limit) || 40, 80)
-  const type = body.type === 'leased' ? 'leased' : 'sold'
+  const type = body.type === 'leased' ? 'leased' : body.type === 'rent' ? 'rent' : 'sold'
 
   try {
     const result = type === 'leased'
       ? await backfillLeasedCoords(suburbs, limit, suburb)
-      : await backfillSoldCoords(suburbs, limit, suburb)
+      : type === 'rent'
+        ? await backfillForRentCoords(suburbs, limit, suburb)
+        : await backfillSoldCoords(suburbs, limit, suburb)
     return NextResponse.json({ suburb, type, ...result })
   } catch (err) {
     return NextResponse.json(

@@ -65,6 +65,8 @@ export interface Proposal {
   databaseInfo?: string;  // VIP buyers / database explanation
   internetListings?: string[];  // specific platforms
   onMarketListings?: OnMarketListing[];
+  /** Section IDs excluded from the client-facing proposal (sidebar page toggles). */
+  hiddenSections?: string[];
   proposalType?: 'sale' | 'rental';
   askingRent?: number;
   leaseType?: string;

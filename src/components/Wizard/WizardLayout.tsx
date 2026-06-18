@@ -11,12 +11,19 @@ export interface WizardStep {
   title: string
   icon: React.ReactNode
   description: string
+  /** When true, the sidebar shows an on/off toggle that includes/excludes this
+   *  page's section from the generated client proposal. */
+  toggleable?: boolean
 }
 
 interface WizardLayoutProps {
   steps: WizardStep[]
   currentStep: number
   onStepChange: (step: number) => void
+  /** IDs of toggleable steps currently switched OFF (excluded from the proposal). */
+  disabledStepIds?: Set<string>
+  /** Toggle a page on/off from the sidebar. */
+  onToggleStep?: (id: string, enabled: boolean) => void
   children: React.ReactNode
   canProceed?: boolean
   isSubmitting?: boolean
@@ -122,12 +129,17 @@ function SidebarStepItem({
   currentStep,
   highestVisited,
   onClick,
+  isOff = false,
+  onToggle,
 }: {
   step: WizardStep
   index: number
   currentStep: number
   highestVisited: number
   onClick: () => void
+  /** This toggleable step is currently switched off (excluded from the proposal). */
+  isOff?: boolean
+  onToggle?: (enabled: boolean) => void
 }) {
   const isActive = index === currentStep
   const isCompleted = index < currentStep
@@ -135,13 +147,19 @@ function SidebarStepItem({
   const isClickable = isVisited
 
   return (
+    <div
+      className={cn(
+        'w-full flex items-start gap-2 px-2 py-1 rounded-lg transition-all duration-200 group',
+        isActive && 'bg-white/10',
+        isOff && 'opacity-50'
+      )}
+    >
     <button
       type="button"
       onClick={onClick}
       disabled={!isClickable}
       className={cn(
-        'w-full flex items-start gap-3 px-4 py-3 rounded-lg text-left transition-all duration-200 group',
-        isActive && 'bg-white/10',
+        'flex-1 min-w-0 flex items-start gap-3 px-2 py-2 rounded-lg text-left transition-all duration-200',
         isClickable && !isActive && 'hover:bg-white/5 cursor-pointer',
         !isClickable && 'opacity-40 cursor-not-allowed'
       )}
@@ -191,6 +209,30 @@ function SidebarStepItem({
         </span>
       </span>
     </button>
+
+      {/* Include/exclude toggle for optional pages */}
+      {step.toggleable && onToggle && (
+        <button
+          type="button"
+          role="switch"
+          aria-checked={!isOff}
+          aria-label={`${isOff ? 'Include' : 'Exclude'} ${step.title} in the proposal`}
+          onClick={() => onToggle(isOff)}
+          title={isOff ? 'Off — excluded from the proposal' : 'On — included in the proposal'}
+          className={cn(
+            'mt-3 relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors',
+            isOff ? 'bg-white/15' : 'bg-[#C41E2A]'
+          )}
+        >
+          <span
+            className={cn(
+              'inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform',
+              isOff ? 'translate-x-1' : 'translate-x-[18px]'
+            )}
+          />
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -261,6 +303,8 @@ export function WizardLayout({
   steps,
   currentStep,
   onStepChange,
+  disabledStepIds,
+  onToggleStep,
   children,
   canProceed = true,
   isSubmitting = false,
@@ -465,6 +509,8 @@ export function WizardLayout({
                 currentStep={currentStep}
                 highestVisited={highestVisited}
                 onClick={() => goToStep(i)}
+                isOff={!!disabledStepIds?.has(step.id)}
+                onToggle={onToggleStep ? (enabled) => onToggleStep(step.id, enabled) : undefined}
               />
             ))}
           </nav>

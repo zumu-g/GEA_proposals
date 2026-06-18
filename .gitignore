@@ -43,6 +43,8 @@ next-env.d.ts
 # uploads (user-uploaded images)
 /public/uploads/*
 !/public/uploads/.gitkeep
+# durable uploads (persistent volume, served via /api/uploads)
+/data/uploads/
 
 # stocksy source images
 /2022 - stocksy/
