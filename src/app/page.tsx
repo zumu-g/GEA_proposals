@@ -96,9 +96,10 @@ const DEFAULT_HIDDEN_SECTIONS = ['leased']
 // the property's suburb (see reacomPremiereForSuburb) unless the user edits it.
 
 const DEFAULT_RENTAL_MARKETING_COSTS: MarketingCostItem[] = [
-  { category: 'Internet', description: 'Premiere Rental Listing — realestate.com.au (highlighted rental listing)', cost: 200, included: true },
-  { category: 'Photography', description: 'Standard Rental Shoot — Complete Image (10 images)', cost: 150, included: true },
-  { category: 'Signboard', description: 'Lease signboard — 3 x 7 Central sign', cost: 75, included: true },
+  // Costed line items — these form the default $425 rental package (not "included").
+  { category: 'Internet', description: 'Premiere Rental Listing — realestate.com.au (highlighted rental listing)', cost: 200, included: false },
+  { category: 'Photography', description: 'Standard Rental Shoot — Complete Image (10 images)', cost: 150, included: false },
+  { category: 'Signboard', description: 'Lease signboard — 3 x 7 Central sign', cost: 75, included: false },
   { category: 'Internet', description: 'Social Media Campaign — targeted Facebook and Instagram campaign', cost: 0, included: true },
   { category: 'Other', description: 'Open Home Inspections — weekly open for inspection sessions', cost: 0, included: true },
 ]

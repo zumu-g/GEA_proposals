@@ -174,7 +174,7 @@ export default function ForSalePropertiesStep({
   const hasSearchedRef = useRef(false)
 
   // ─── Distance filter (primary) ─────────────────────────────────────────
-  const [distanceFilter, setDistanceFilter] = useState(2)
+  const [distanceFilter, setDistanceFilter] = useState(0.5)
 
   // ─── Secondary filters ────────────────────────────────────────────────
   const [showFilters, setShowFilters] = useState(false)
