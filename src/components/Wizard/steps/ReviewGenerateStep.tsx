@@ -15,6 +15,7 @@ interface ReviewGenerateStepProps {
     heroImage: File | null
     heroImageUrl: string
     commission: string
+    proposalType?: 'sale' | 'rental'
   }
   marketingCosts: Array<{
     category: string
@@ -61,17 +62,26 @@ function formatCurrency(value: number): string {
 function generateEmailText(
   clientName: string,
   propertyAddress: string,
-  proposalUrl: string
+  proposalUrl: string,
+  proposalType?: 'sale' | 'rental'
 ): string {
   const firstName = clientName.split(' ')[0] || 'there'
   const street =
     propertyAddress.split(',')[0]?.trim() || propertyAddress
+  const isRental = proposalType === 'rental'
+
+  const opening = isRental
+    ? `Thank you for the opportunity to present our proposal to lease and manage ${street}. It was a pleasure meeting with you, and I truly appreciate the trust you've placed in Grant's Estate Agents.`
+    : `Thank you for the opportunity to present our proposal for the sale of ${street}. It was a pleasure meeting with you, and I truly appreciate the trust you've placed in Grant's Estate Agents.`
+  const second = isRental
+    ? `I've prepared a personalised proposal that outlines our recommended approach, including our marketing strategy, comparable rental data, and the leasing process designed to secure a quality, long-term tenant at the best achievable rent.`
+    : `I've prepared a personalised proposal that outlines our recommended approach, including our marketing strategy, comparable sales data, and the campaign structure designed to achieve the very best result for you.`
 
   return `Dear ${firstName},
 
-Thank you for the opportunity to present our proposal for the sale of ${street}. It was a pleasure meeting with you, and I truly appreciate the trust you've placed in Grant's Estate Agents.
+${opening}
 
-I've prepared a personalised proposal that outlines our recommended approach, including our marketing strategy, comparable sales data, and the campaign structure designed to achieve the very best result for you.
+${second}
 
 You can view your proposal here:
 ${proposalUrl}
@@ -144,11 +154,12 @@ export default function ReviewGenerateStep({
         generateEmailText(
           formData.clientName,
           formData.propertyAddress,
-          proposalUrl
+          proposalUrl,
+          formData.proposalType
         )
       )
     }
-  }, [result, formData.clientName, formData.propertyAddress])
+  }, [result, formData.clientName, formData.propertyAddress, formData.proposalType])
 
   const includedMarketing = marketingCosts.filter((i) => i.category)
   const marketingTotal = includedMarketing.reduce(

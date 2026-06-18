@@ -897,6 +897,7 @@ export default function HomePage() {
             heroImage,
             heroImageUrl,
             commission,
+            proposalType,
           }}
           marketingCosts={marketingCosts}
           soldComparables={soldComparables}
