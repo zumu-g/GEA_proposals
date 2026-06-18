@@ -38,7 +38,7 @@ export async function sendProposalEmail(
     const { error } = await getResend().emails.send({
       from: `${agencyName} <${FROM_EMAIL}>`,
       to: [proposal.clientEmail],
-      subject: `Your Property Sale Proposal — ${proposal.propertyAddress}`,
+      subject: `Your Property ${proposal.proposalType === 'rental' ? 'Rental' : 'Sale'} Proposal — ${proposal.propertyAddress}`,
       html: buildProposalEmailHtml({
         clientName: proposal.clientName,
         propertyAddress: proposal.propertyAddress,
@@ -46,6 +46,7 @@ export async function sendProposalEmail(
         proposalUrl,
         contactEmail: proposal.agency?.contactEmail,
         contactPhone: proposal.agency?.contactPhone,
+        proposalType: proposal.proposalType,
       }),
       ...(attachments && attachments.length > 0 ? { attachments } : {}),
     })
@@ -156,6 +157,7 @@ interface ProposalEmailData {
   proposalUrl: string
   contactEmail?: string
   contactPhone?: string
+  proposalType?: 'sale' | 'rental'
 }
 
 function buildProposalEmailHtml(data: ProposalEmailData): string {
@@ -165,6 +167,11 @@ function buildProposalEmailHtml(data: ProposalEmailData): string {
   const url = escapeHtml(data.proposalUrl)
   const email = data.contactEmail ? escapeHtml(data.contactEmail) : ''
   const phone = data.contactPhone ? escapeHtml(data.contactPhone) : ''
+  const isRental = data.proposalType === 'rental'
+  const docTitle = isRental ? 'Your Property Rental Proposal' : 'Your Property Sale Proposal'
+  const introLine = isRental
+    ? 'Your personalised property management proposal is ready to view. We’ve prepared a comprehensive overview including our marketing approach, the leasing process, and comparable rentals in your area.'
+    : 'Your personalised property sale proposal is ready to view. We’ve prepared a comprehensive overview including our marketing approach, the sale process, and comparable properties in your area.'
 
   return `
 <!DOCTYPE html>
@@ -172,7 +179,7 @@ function buildProposalEmailHtml(data: ProposalEmailData): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Your Property Sale Proposal</title>
+  <title>${docTitle}</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #FAFAFA; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #FAFAFA;">
@@ -208,7 +215,7 @@ function buildProposalEmailHtml(data: ProposalEmailData): string {
                 Dear ${client},
               </p>
               <p style="color: #4A4A4A; font-size: 16px; line-height: 1.7; font-weight: 300; margin: 0 0 24px 0;">
-                Your personalised property sale proposal is ready to view. We've prepared a comprehensive overview including our marketing approach, the sale process, and comparable properties in your area.
+                ${introLine}
               </p>
 
               <!-- CTA Button -->
@@ -631,6 +638,7 @@ function buildClientApprovalHtml(proposal: Proposal, proposalUrl: string, agency
   const address = escapeHtml(proposal.propertyAddress)
   const url = escapeHtml(proposalUrl)
   const agency = escapeHtml(agencyName)
+  const isRental = proposal.proposalType === 'rental'
   const method = escapeHtml(proposal.methodOfSale || 'TBC')
   const priceMin = proposal.priceGuide?.min
   const priceMax = proposal.priceGuide?.max
@@ -692,7 +700,7 @@ function buildClientApprovalHtml(proposal: Proposal, proposalUrl: string, agency
                 Dear ${client},
               </p>
               <p style="color: #4A4A4A; font-size: 16px; line-height: 1.7; font-weight: 300; margin: 0 0 24px 0;">
-                Thank you for choosing ${agency.toLowerCase()} to sell your property. We're excited to get started and will be in touch shortly to discuss next steps.
+                Thank you for choosing ${agency.toLowerCase()} to ${isRental ? 'manage the leasing of your property' : 'sell your property'}. We're excited to get started and will be in touch shortly to discuss next steps.
               </p>
               <p style="color: #4A4A4A; font-size: 16px; line-height: 1.7; font-weight: 300; margin: 0 0 32px 0;">
                 Below is a summary of what was agreed:
@@ -708,6 +716,28 @@ function buildClientApprovalHtml(proposal: Proposal, proposalUrl: string, agency
                         <td style="padding: 8px 0; color: #737373; font-size: 13px; width: 140px; vertical-align: top;">Property</td>
                         <td style="padding: 8px 0; color: #1A1A1A; font-size: 14px; font-weight: 500;">${address}</td>
                       </tr>
+                      ${isRental ? `
+                      <tr>
+                        <td style="padding: 8px 0; color: #737373; font-size: 13px; vertical-align: top;">Lease Type</td>
+                        <td style="padding: 8px 0; color: #1A1A1A; font-size: 14px;">${escapeHtml(proposal.leaseType || 'TBC')}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; color: #737373; font-size: 13px; vertical-align: top;">Asking Rent</td>
+                        <td style="padding: 8px 0; color: #1A1A1A; font-size: 14px; font-weight: 500;">${proposal.askingRent ? fmtPrice(proposal.askingRent) + ' per week' : 'TBC'}</td>
+                      </tr>
+                      ${proposal.availableDate ? `<tr>
+                        <td style="padding: 8px 0; color: #737373; font-size: 13px; vertical-align: top;">Available From</td>
+                        <td style="padding: 8px 0; color: #1A1A1A; font-size: 14px;">${escapeHtml(proposal.availableDate)}</td>
+                      </tr>` : ''}
+                      ${proposal.managementFee != null ? `<tr>
+                        <td style="padding: 8px 0; color: #737373; font-size: 13px; vertical-align: top;">Management Fee</td>
+                        <td style="padding: 8px 0; color: #1A1A1A; font-size: 14px;">${fmtPercent(proposal.managementFee)}</td>
+                      </tr>` : ''}
+                      ${proposal.lettingFee ? `<tr>
+                        <td style="padding: 8px 0; color: #737373; font-size: 13px; vertical-align: top;">Letting Fee</td>
+                        <td style="padding: 8px 0; color: #1A1A1A; font-size: 14px;">${escapeHtml(proposal.lettingFee)}</td>
+                      </tr>` : ''}
+                      ` : `
                       <tr>
                         <td style="padding: 8px 0; color: #737373; font-size: 13px; vertical-align: top;">Method of Sale</td>
                         <td style="padding: 8px 0; color: #1A1A1A; font-size: 14px;">${method}</td>
@@ -719,7 +749,7 @@ function buildClientApprovalHtml(proposal: Proposal, proposalUrl: string, agency
                       <tr>
                         <td style="padding: 8px 0; color: #737373; font-size: 13px; vertical-align: top;">Commission</td>
                         <td style="padding: 8px 0; color: #1A1A1A; font-size: 14px;">${fmtPercent(commission)}</td>
-                      </tr>
+                      </tr>`}
                       ${proposal.dualCampaign ? `<tr>
                         <td style="padding: 8px 0; color: #737373; font-size: 13px; vertical-align: top;">Development Campaign</td>
                         <td style="padding: 8px 0; color: #1A1A1A; font-size: 14px;">${escapeHtml(proposal.devMethodOfSale || 'TBC')} — advertised on realcommercial.com.au</td>

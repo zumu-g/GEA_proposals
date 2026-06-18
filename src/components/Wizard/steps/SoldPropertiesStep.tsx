@@ -493,7 +493,10 @@ export default function SoldPropertiesStep({
   useEffect(() => {
     if (propertyAddress && isCompleteAddress(propertyAddress) && !confirmedAddress) {
       setConfirmedAddress(propertyAddress)
-      if (rawComps.length === 0 && !hasSearchedRef.current) {
+      // Rentals skip the auto-search: leased comps aren't available in
+      // everypropertyAI, so searching just shows an empty list. The agent can
+      // still search or add leased comps manually, then move to For Rent.
+      if (!isRental && rawComps.length === 0 && !hasSearchedRef.current) {
         setTimeout(() => searchComparables(propertyAddress), 100)
       }
     } else if (propertyAddress && !confirmedAddress) {
@@ -951,12 +954,15 @@ export default function SoldPropertiesStep({
   useEffect(() => {
     if (confirmedAddress && confirmedAddress !== prevConfirmedRef.current) {
       prevConfirmedRef.current = confirmedAddress
-      // Reset results and auto-search for the new address
+      // Reset results, then auto-search for the new address — except rentals,
+      // which default-skip the leased search (see mount effect above).
       setCompRows([])
       setRawComps([])
       setStatusMessage('')
       hasSearchedRef.current = false
-      setTimeout(() => searchComparables(confirmedAddress), 150)
+      if (!isRental) {
+        setTimeout(() => searchComparables(confirmedAddress), 150)
+      }
     }
   }, [confirmedAddress]) // eslint-disable-line react-hooks/exhaustive-deps
 
