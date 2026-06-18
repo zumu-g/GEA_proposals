@@ -207,6 +207,37 @@ export default function ForSalePropertiesStep({
   const [manualCars, setManualCars] = useState('')
   const [manualType, setManualType] = useState('House')
 
+  // ─── Subject coordinates ───────────────────────────────────────────────
+  // Prefer the shared value from the comparables step. If it isn't set (e.g.
+  // rentals default-skip the leased search, so it never geocodes), geocode the
+  // real subject address here — so on-market distances are measured from the
+  // target property's true location, not a suburb centroid.
+  const [geoLat, setGeoLat] = useState<number | null>(null)
+  const [geoLng, setGeoLng] = useState<number | null>(null)
+  const geocodedAddrRef = useRef('')
+  const effSubjectLat = subjectLat ?? geoLat
+  const effSubjectLng = subjectLng ?? geoLng
+
+  useEffect(() => {
+    const addr = confirmedAddress || propertyAddress
+    if (!addr || (subjectLat && subjectLng)) return
+    if (geocodedAddrRef.current === addr) return
+    geocodedAddrRef.current = addr
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/geocode?address=${encodeURIComponent(addr)}`)
+        const d = await res.json()
+        if (d.lat && d.lng) { setGeoLat(d.lat); setGeoLng(d.lng); return }
+        // Fallback: suburb centroid only when the real address can't be geocoded.
+        const fb = await fetch(`/api/geocode?address=${encodeURIComponent(`${extractSuburb(addr)} VIC`)}`)
+        const fd = await fb.json()
+        if (fd.lat && fd.lng) { setGeoLat(fd.lat); setGeoLng(fd.lng) }
+      } catch {
+        // distances remain unavailable until coords resolve
+      }
+    })()
+  }, [confirmedAddress, propertyAddress, subjectLat, subjectLng])
+
   // ─── Sync internal state to parent ────────────────────────────────────
   const syncOnMarketRef = useRef(onChangeOnMarket)
   syncOnMarketRef.current = onChangeOnMarket
@@ -218,8 +249,8 @@ export default function ForSalePropertiesStep({
   // ─── Apply filters + sorting (client-side) ────────────────────────────
   const applyFilters = useCallback(
     (onMarket: any[]) => {
-      const sLat = subjectLat
-      const sLng = subjectLng
+      const sLat = effSubjectLat
+      const sLng = effSubjectLng
 
       let filteredBuy = onMarket.filter((s: any) => {
         if (removedOnMarketRef.current.has(s.address || '')) return false
@@ -304,7 +335,7 @@ export default function ForSalePropertiesStep({
         `Found ${buyCount} on-market listings${buyCount < onMarket.length ? ` (from ${onMarket.length})` : ''}`
       )
     },
-    [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, suburbFilter, daysOnMarketMax, sortBy, subjectLat, subjectLng]
+    [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, suburbFilter, daysOnMarketMax, sortBy, effSubjectLat, effSubjectLng]
   )
 
   // Re-apply filters when filter values change
@@ -312,7 +343,49 @@ export default function ForSalePropertiesStep({
     if (rawOnMarket.length > 0) {
       applyFilters(rawOnMarket)
     }
-  }, [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, suburbFilter, daysOnMarketMax, sortBy, subjectLat, subjectLng, rawOnMarket, applyFilters])
+  }, [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, suburbFilter, daysOnMarketMax, sortBy, effSubjectLat, effSubjectLng, rawOnMarket, applyFilters])
+
+  // ─── On-market rental coordinate refinement ────────────────────────────
+  // Some for-rent listings arrive without coordinates; geocode their real
+  // addresses (type=rent) so each distance is measured property-to-property,
+  // not from a suburb centroid. Runs once per confirmed address, in background.
+  const [isRefining, setIsRefining] = useState(false)
+  const refinedRentAddrRef = useRef('')
+  useEffect(() => {
+    if (!isRental) return
+    const addr = confirmedAddress
+    if (!addr || refinedRentAddrRef.current === addr) return
+    if (rawOnMarket.length === 0) return
+    if (!rawOnMarket.some((s: any) => !s.lat || !s.lng)) {
+      refinedRentAddrRef.current = addr
+      return
+    }
+    refinedRentAddrRef.current = addr
+    const suburb = extractSuburb(addr)
+    ;(async () => {
+      setIsRefining(true)
+      try {
+        for (let round = 0; round < 4; round++) {
+          const res = await fetch('/api/comparables/geocode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ address: addr, type: 'rent' }),
+          })
+          if (!res.ok) break
+          const data = await res.json()
+          if (data.updated > 0) {
+            const r = await fetch(`/api/comparables?address=${encodeURIComponent(suburb)}&type=rent`)
+            const rd = await r.json()
+            if (Array.isArray(rd.sales)) setRawOnMarket(rd.sales)
+          }
+          if (!data.remaining || data.remaining <= 0) break
+        }
+      } catch {
+        // coarse/missing distances remain
+      }
+      setIsRefining(false)
+    })()
+  }, [rawOnMarket, confirmedAddress, isRental])
 
   // ─── Search function ──────────────────────────────────────────────────
   const searchListings = useCallback(
@@ -846,6 +919,12 @@ export default function ForSalePropertiesStep({
                 {onMarketRows.length > 0 && (
                   <span className="ml-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 text-[10px] font-medium">
                     {onMarketRows.filter(r => r.included).length}/{onMarketRows.length}
+                  </span>
+                )}
+                {isRefining && (
+                  <span className="flex items-center gap-1 text-emerald-600/70 text-[10px] font-normal">
+                    <span className="w-3 h-3 border-2 border-emerald-500/30 border-t-emerald-600 rounded-full animate-spin" />
+                    refining distances…
                   </span>
                 )}
               </span>

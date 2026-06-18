@@ -18,6 +18,10 @@ import {
   countLeasedNeedingGeocode,
   updateLeasedCoords,
   markLeasedGeocoded,
+  getForRentRowsNeedingGeocode,
+  countForRentNeedingGeocode,
+  updateForRentCoords,
+  markForRentGeocoded,
 } from './property-cache'
 
 export async function backfillSoldCoords(
@@ -72,4 +76,31 @@ export async function backfillLeasedCoords(
   }
 
   return { updated, attempted: rows.length, remaining: countLeasedNeedingGeocode(suburbs) }
+}
+
+// On-market rentals (for_rent) — geocode listings missing coordinates so the
+// distance from the subject property is per-property accurate, not centroid-based.
+export async function backfillForRentCoords(
+  suburbs: string[],
+  limit: number,
+  primarySuburb?: string
+): Promise<{ updated: number; attempted: number; remaining: number }> {
+  const rows = getForRentRowsNeedingGeocode(suburbs, limit, primarySuburb)
+  let updated = 0
+
+  for (const row of rows) {
+    try {
+      const coords = await geocodeAddress(row.address) // 1 req/s, cached
+      if (coords) {
+        updateForRentCoords(row.id, coords.lat, coords.lng)
+        updated++
+      } else {
+        markForRentGeocoded(row.id)
+      }
+    } catch {
+      markForRentGeocoded(row.id)
+    }
+  }
+
+  return { updated, attempted: rows.length, remaining: countForRentNeedingGeocode(suburbs) }
 }
