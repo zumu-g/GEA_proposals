@@ -363,7 +363,12 @@ function EveryPropertyEnrich({ selectedAddress, currentPriceMin, currentPriceMax
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, selectedAddress])
 
-  const confidencePct = data?.confidence != null ? Math.round(data.confidence * 100) : null
+  // everypropertyAI may express confidence as a 0–1 fraction or a 0–100
+  // percentage — normalise both to a 0–100 display value (clamped) so a value
+  // like 69 renders "69%" rather than "6900%".
+  const confidencePct = data?.confidence != null
+    ? Math.min(100, Math.round(data.confidence <= 1 ? data.confidence * 100 : data.confidence))
+    : null
   const specs = data
     ? [
         data.bedrooms != null && `${data.bedrooms} bed`,
