@@ -63,20 +63,24 @@ function CheckCircleIcon() {
 const SALE_STEPS = [
   { id: 'client', title: 'Client Details', icon: <UserIcon />, description: 'Vendor information' },
   { id: 'property', title: 'Property & Sale', icon: <HomeIcon />, description: 'Sale method & pricing' },
-  { id: 'marketing', title: 'Marketing', icon: <MegaphoneIcon />, description: 'Advertising schedule' },
-  { id: 'sold', title: 'Sold Properties', icon: <SearchIcon />, description: 'Comparable sales' },
-  { id: 'forsale', title: 'For Sale', icon: <ListingsIcon />, description: 'On-market listings' },
+  { id: 'marketing', title: 'Marketing', icon: <MegaphoneIcon />, description: 'Advertising schedule', toggleable: true },
+  { id: 'sold', title: 'Sold Properties', icon: <SearchIcon />, description: 'Comparable sales', toggleable: true },
+  { id: 'forsale', title: 'For Sale', icon: <ListingsIcon />, description: 'On-market listings', toggleable: true },
   { id: 'review', title: 'Review & Generate', icon: <CheckCircleIcon />, description: 'Final review' },
 ]
 
 const RENTAL_STEPS = [
   { id: 'client', title: 'Client Details', icon: <UserIcon />, description: 'Landlord information' },
   { id: 'property', title: 'Property & Rental', icon: <HomeIcon />, description: 'Rental terms & fees' },
-  { id: 'marketing', title: 'Marketing', icon: <MegaphoneIcon />, description: 'Advertising schedule' },
-  { id: 'leased', title: 'Leased Properties', icon: <SearchIcon />, description: 'Comparable rentals' },
-  { id: 'forrent', title: 'For Rent', icon: <ListingsIcon />, description: 'Available rentals' },
+  { id: 'marketing', title: 'Marketing', icon: <MegaphoneIcon />, description: 'Advertising schedule', toggleable: true },
+  { id: 'leased', title: 'Leased Properties', icon: <SearchIcon />, description: 'Comparable rentals', toggleable: true },
+  { id: 'forrent', title: 'For Rent', icon: <ListingsIcon />, description: 'Available rentals', toggleable: true },
   { id: 'review', title: 'Review & Generate', icon: <CheckCircleIcon />, description: 'Final review' },
 ]
+
+// Pages excluded from the client proposal by default. Leased comparables start
+// off (data is sparse) — the agent opts in via the sidebar toggle.
+const DEFAULT_HIDDEN_SECTIONS = ['leased']
 
 // ─── Default marketing costs ──────────────────────────────────────────────
 // Figures from Grant's REA rate card (Re.Com premiere listings + Central signs
@@ -170,6 +174,11 @@ export default function HomePage() {
   const [showCommission, setShowCommission] = useState(true)
   // Dual target campaign (development site) — KTD 2c: state persists when toggled off
   const [dualCampaign, setDualCampaign] = useState(false)
+  // Sidebar page toggles — sections excluded from the generated client proposal.
+  const [hiddenSections, setHiddenSections] = useState<string[]>(DEFAULT_HIDDEN_SECTIONS)
+  const toggleSection = useCallback((id: string, enabled: boolean) => {
+    setHiddenSections(prev => enabled ? prev.filter(s => s !== id) : Array.from(new Set([...prev, id])))
+  }, [])
   const [devMethodOfSale, setDevMethodOfSale] = useState('Expressions of Interest')
   const [devPriceGuideMin, setDevPriceGuideMin] = useState('')
   const [devPriceGuideMax, setDevPriceGuideMax] = useState('')
@@ -307,8 +316,9 @@ export default function HomePage() {
     devPriceGuideMax,
     devShowPriceRange,
     devMarketingCosts,
+    hiddenSections,
     editingProposalId,
-  }), [proposalType, clientName, clientEmail, propertyAddress, methodOfSale, priceGuideMin, priceGuideMax, heroImageUrl, commission, showPriceRange, showCommission, askingRent, leaseType, availableDate, managementFee, lettingFee, marketingCosts, dualCampaign, devMethodOfSale, devPriceGuideMin, devPriceGuideMax, devShowPriceRange, devMarketingCosts, editingProposalId])
+  }), [proposalType, clientName, clientEmail, propertyAddress, methodOfSale, priceGuideMin, priceGuideMax, heroImageUrl, commission, showPriceRange, showCommission, askingRent, leaseType, availableDate, managementFee, lettingFee, marketingCosts, dualCampaign, devMethodOfSale, devPriceGuideMin, devPriceGuideMax, devShowPriceRange, devMarketingCosts, hiddenSections, editingProposalId])
 
   const handleRestoreDraft = useCallback((data: { step: number; formData: Record<string, unknown> }) => {
     const d = data.formData
@@ -329,6 +339,7 @@ export default function HomePage() {
     if (d.managementFee) setManagementFee(d.managementFee as string)
     if (d.lettingFee) setLettingFee(d.lettingFee as string)
     if (d.marketingCosts && Array.isArray(d.marketingCosts)) setMarketingCosts(d.marketingCosts as MarketingCostItem[])
+    if (Array.isArray(d.hiddenSections)) setHiddenSections(d.hiddenSections as string[])
     if (d.dualCampaign !== undefined) setDualCampaign(d.dualCampaign as boolean)
     if (d.devMethodOfSale) setDevMethodOfSale(d.devMethodOfSale as string)
     if (d.devPriceGuideMin) setDevPriceGuideMin(d.devPriceGuideMin as string)
@@ -374,6 +385,7 @@ export default function HomePage() {
       // Pre-fill dual campaign — dev items come from the persisted raw list
       // (dev_marketing_costs), never reconstructed from the schedule
       setDualCampaign(proposal.dualCampaign === true)
+      setHiddenSections(proposal.hiddenSections || DEFAULT_HIDDEN_SECTIONS)
       setDevMethodOfSale(proposal.devMethodOfSale || 'Expressions of Interest')
       setDevPriceGuideMin(proposal.devPriceGuide?.min ? String(proposal.devPriceGuide.min) : '')
       setDevPriceGuideMax(proposal.devPriceGuide?.max ? String(proposal.devPriceGuide.max) : '')
@@ -451,6 +463,7 @@ export default function HomePage() {
       setShowCommission(proposal.showCommission !== false)
 
       setDualCampaign(proposal.dualCampaign === true)
+      setHiddenSections(proposal.hiddenSections || DEFAULT_HIDDEN_SECTIONS)
       setDevMethodOfSale(proposal.devMethodOfSale || 'Expressions of Interest')
       setDevPriceGuideMin(proposal.devPriceGuide?.min ? String(proposal.devPriceGuide.min) : '')
       setDevPriceGuideMax(proposal.devPriceGuide?.max ? String(proposal.devPriceGuide.max) : '')
@@ -526,6 +539,8 @@ export default function HomePage() {
     if (commission) formData.append('commissionRate', commission)
     formData.append('showPriceRange', showPriceRange ? '1' : '0')
     formData.append('showCommission', showCommission ? '1' : '0')
+    // Sidebar page toggles — sections the agent excluded from the client proposal
+    formData.append('hiddenSections', JSON.stringify(hiddenSections))
     if (heroImageUrl) formData.append('heroImage', heroImageUrl)
     if (heroImage) formData.append('heroImageFile', heroImage)
 
@@ -649,6 +664,7 @@ export default function HomePage() {
     setManagementFee('')
     setLettingFee('')
     setMarketingCosts(DEFAULT_MARKETING_COSTS)
+    setHiddenSections(DEFAULT_HIDDEN_SECTIONS)
     setDualCampaign(false)
     setDevMethodOfSale('Expressions of Interest')
     setDevPriceGuideMin('')
@@ -764,6 +780,8 @@ export default function HomePage() {
       steps={steps}
       currentStep={currentStep}
       onStepChange={setCurrentStep}
+      disabledStepIds={new Set(hiddenSections)}
+      onToggleStep={toggleSection}
       canProceed={canProceed}
       isSubmitting={isSubmitting}
       storageKey={WIZARD_DRAFT_KEY}

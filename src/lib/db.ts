@@ -245,6 +245,7 @@ function initSchema(db: Database.Database) {
     'ALTER TABLE proposals ADD COLUMN on_market_listings TEXT',     // JSON
     'ALTER TABLE proposals ADD COLUMN show_price_range INTEGER DEFAULT 1',
     'ALTER TABLE proposals ADD COLUMN show_commission INTEGER DEFAULT 1',
+    'ALTER TABLE proposals ADD COLUMN hidden_sections TEXT',          // JSON — sidebar page toggles excluded from the client proposal
     'ALTER TABLE proposals ADD COLUMN proposal_type TEXT DEFAULT \'sale\'',
     'ALTER TABLE proposals ADD COLUMN asking_rent INTEGER',
     'ALTER TABLE proposals ADD COLUMN lease_type TEXT',

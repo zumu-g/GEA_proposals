@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
     const marketingTotalStr = formData.get('marketingTotal') as string | null
     const showPriceRange = formData.get('showPriceRange') as string | null
     const showCommission = formData.get('showCommission') as string | null
+    const hiddenSectionsJson = formData.get('hiddenSections') as string | null
     const selectedCompsJson = formData.get('selectedComps') as string | null
     const selectedOnMarketJson = formData.get('selectedOnMarket') as string | null
     const comparablesHandled = formData.get('comparablesHandled') as string | null
@@ -278,6 +279,16 @@ export async function POST(request: NextRequest) {
     // Show/hide toggles (default true for backwards compat)
     proposal.showPriceRange = showPriceRange !== '0'
     proposal.showCommission = showCommission !== '0'
+
+    // Sidebar page toggles — sections excluded from the client proposal
+    if (hiddenSectionsJson) {
+      try {
+        const parsed = JSON.parse(hiddenSectionsJson)
+        if (Array.isArray(parsed)) proposal.hiddenSections = parsed.filter((s) => typeof s === 'string')
+      } catch {
+        // ignore malformed input — defaults to showing all sections
+      }
+    }
 
     // Add on-market listings
     if (onMarketListings && onMarketListings.length > 0) {

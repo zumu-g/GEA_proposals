@@ -54,6 +54,13 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
     notFound()
   }
 
+  // Sidebar page toggles — sections the agent excluded from this proposal.
+  const hidden = new Set(proposal.hiddenSections || [])
+  const isRentalProposal = proposal.proposalType === 'rental'
+  const showComparables = !hidden.has(isRentalProposal ? 'leased' : 'sold')
+  const showOnMarket = !hidden.has(isRentalProposal ? 'forrent' : 'forsale')
+  const showMarketing = !hidden.has('marketing')
+
   return (
     <ProposalLayout>
       <ViewTracker proposalId={proposal.id} />
@@ -84,11 +91,13 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
         <StatsBar stats={proposal.agency?.stats} />
 
         {/* Marketing strategy narrative */}
-        <MarketingStrategy
-          approach={proposal.marketingApproach}
-          propertyAddress={proposal.propertyAddress}
-          proposalType={proposal.proposalType}
-        />
+        {showMarketing && (
+          <MarketingStrategy
+            approach={proposal.marketingApproach}
+            propertyAddress={proposal.propertyAddress}
+            proposalType={proposal.proposalType}
+          />
+        )}
 
         {/* Method of sale explainer — sale proposals only */}
         {proposal.proposalType !== 'rental' && <MethodExplainer method={proposal.methodOfSale} />}
@@ -97,10 +106,14 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
         <AreaAnalysis analysis={proposal.areaAnalysis} proposalType={proposal.proposalType} />
 
         {/* Recent comparable sales / rentals */}
-        <RecentSales sales={proposal.recentSales} proposalType={proposal.proposalType} />
+        {showComparables && (
+          <RecentSales sales={proposal.recentSales} proposalType={proposal.proposalType} />
+        )}
 
         {/* On-market comparable listings */}
-        <OnMarketListings listings={proposal.onMarketListings || []} proposalType={proposal.proposalType} />
+        {showOnMarket && (
+          <OnMarketListings listings={proposal.onMarketListings || []} proposalType={proposal.proposalType} />
+        )}
 
         {/* VIP buyers, database, internet access */}
         <VIPBuyers proposalType={proposal.proposalType} />
@@ -115,15 +128,19 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
         <ProcessJourney steps={proposal.saleProcess} methodOfSale={proposal.methodOfSale} proposalType={proposal.proposalType} />
 
         {/* Marketing showcase - channels */}
-        <MarketingShowcase items={proposal.marketingPlan} proposalType={proposal.proposalType} />
+        {showMarketing && (
+          <MarketingShowcase items={proposal.marketingPlan} proposalType={proposal.proposalType} />
+        )}
 
         {/* Advertising schedule - 4-week campaign with costs */}
-        <AdvertisingSchedule
-          schedule={proposal.advertisingSchedule || getDefaultProposalExtras().advertisingSchedule}
-          totalCost={proposal.totalAdvertisingCost ?? DEFAULT_TOTAL_ADVERTISING_COST}
-          methodOfSale={proposal.methodOfSale}
-          campaignLabel={proposal.dualCampaign ? 'residential campaign' : undefined}
-        />
+        {showMarketing && (
+          <AdvertisingSchedule
+            schedule={proposal.advertisingSchedule || getDefaultProposalExtras().advertisingSchedule}
+            totalCost={proposal.totalAdvertisingCost ?? DEFAULT_TOTAL_ADVERTISING_COST}
+            methodOfSale={proposal.methodOfSale}
+            campaignLabel={proposal.dualCampaign ? 'residential campaign' : undefined}
+          />
+        )}
 
         {/* ─── Development site campaign (dual target) ─── */}
         {proposal.dualCampaign && (
