@@ -4,6 +4,15 @@ import fs from 'fs'
 
 const DB_PATH = process.env.DATABASE_PATH || path.join(process.cwd(), 'data', 'gea.db')
 
+// Uploaded hero photos live alongside the SQLite DB on the persistent volume so
+// they survive redeploys (public/ is ephemeral on Railway). Served via
+// /api/uploads/[filename].
+export function uploadsDir(): string {
+  const dir = path.join(path.dirname(DB_PATH), 'uploads')
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  return dir
+}
+
 let _db: Database.Database | null = null
 
 export function getDb(): Database.Database {
@@ -230,6 +239,17 @@ function initSchema(db: Database.Database) {
       UNIQUE(address)
     );
     CREATE INDEX IF NOT EXISTS idx_for_rent_suburb ON for_rent_properties(suburb);
+
+    CREATE TABLE IF NOT EXISTS uploaded_images (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      filename TEXT NOT NULL UNIQUE,
+      url TEXT NOT NULL,
+      original_name TEXT,
+      mime TEXT,
+      size INTEGER,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_uploaded_images_created ON uploaded_images(created_at DESC);
   `)
 
   // Add new columns for expanded proposal sections (safe to re-run)
