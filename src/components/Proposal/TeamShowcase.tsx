@@ -6,9 +6,11 @@ import { AgencyConfig } from '@/types/proposal'
 
 interface TeamShowcaseProps {
   agency?: AgencyConfig
+  proposalType?: 'sale' | 'rental'
 }
 
-export function TeamShowcase({ agency }: TeamShowcaseProps) {
+export function TeamShowcase({ agency, proposalType }: TeamShowcaseProps) {
+  const isRental = proposalType === 'rental'
   const prefersReducedMotion = useReducedMotion()
   const [imageError, setImageError] = useState(false)
 
@@ -31,7 +33,7 @@ export function TeamShowcase({ agency }: TeamShowcaseProps) {
             </h2>
             <div className="w-12 h-px bg-sage mb-8" />
             <p className="font-sans text-base sm:text-lg font-light text-charcoal-400 leading-relaxed">
-              We have a sales team of 8 at our Berwick office, 6 at our Pakenham office and 5 at our Narre Warren office; this is the biggest sales team in the area. The strength of this team means for enquiry, more buyers and allows me to focus on the important facets of your sale process and also allows constant communication with you.
+              We have a team of 8 at our Berwick office, 6 at our Pakenham office and 5 at our Narre Warren office; this is the biggest team in the area. The strength of this team means more {isRental ? 'enquiry and tenant reach' : 'enquiry and more buyers'}, and allows me to focus on the important facets of your {isRental ? 'leasing process' : 'sale process'} while maintaining constant communication with you.
             </p>
           </motion.div>
 

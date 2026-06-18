@@ -5,6 +5,7 @@ import { motion, useReducedMotion } from 'framer-motion'
 
 interface InternetPresenceProps {
   listings?: string[]
+  proposalType?: 'sale' | 'rental'
 }
 
 const DEFAULT_LISTINGS = [
@@ -15,7 +16,8 @@ const DEFAULT_LISTINGS = [
   'grantsea.com.au',
 ]
 
-export function InternetPresence({ listings }: InternetPresenceProps) {
+export function InternetPresence({ listings, proposalType }: InternetPresenceProps) {
+  const isRental = proposalType === 'rental'
   const prefersReducedMotion = useReducedMotion()
   const platforms = listings && listings.length > 0 ? listings : DEFAULT_LISTINGS
 
@@ -35,11 +37,11 @@ export function InternetPresence({ listings }: InternetPresenceProps) {
               internet
             </p>
             <h2 className="font-display text-3xl sm:text-4xl font-normal text-charcoal lowercase mb-4">
-              where buyers will find you
+              where {isRental ? 'renters' : 'buyers'} will find you
             </h2>
             <div className="w-12 h-px bg-sage mb-6" />
             <p className="font-sans text-base font-light text-charcoal-400 leading-relaxed">
-              Your property will be prominently displayed on the leading local websites, giving you maximum exposure to active buyers searching in your area.
+              Your property will be prominently displayed on the leading local websites, giving you maximum exposure to active {isRental ? 'renters' : 'buyers'} searching in your area.
             </p>
           </motion.div>
 
