@@ -12,11 +12,11 @@ interface RecentSalesProps {
 
 type SortOption = 'distance' | 'price' | 'date'
 
-// Tier badge styling for comparable price bands (entry / similar / above)
-const TIER_META: Record<NonNullable<PropertySale['tier']>, { label: string; cls: string }> = {
+// Tier badge styling for comparable price bands. Only "entry" and "similar"
+// carry a badge; "above" sales intentionally render no badge.
+const TIER_META: Partial<Record<NonNullable<PropertySale['tier']>, { label: string; cls: string }>> = {
   entry: { label: 'Entry level', cls: 'bg-sage/90 text-white' },
   similar: { label: 'Similar to yours', cls: 'bg-brand/90 text-white' },
-  above: { label: 'Above', cls: 'bg-amber-500/90 text-white' },
 }
 
 export function RecentSales({ sales, proposalType }: RecentSalesProps) {
@@ -168,14 +168,18 @@ export function RecentSales({ sales, proposalType }: RecentSalesProps) {
                       {(sale.distance ?? 0).toFixed(1)} km
                     </span>
                   </div>
-                  {/* Tier badge */}
-                  {sale.tier && TIER_META[sale.tier] && (
-                    <div className={`absolute top-3 left-3 rounded-full px-3 py-1 ${TIER_META[sale.tier].cls}`}>
-                      <span className="font-sans text-xs font-semibold">
-                        {TIER_META[sale.tier].label}
-                      </span>
-                    </div>
-                  )}
+                  {/* Tier badge — only entry/similar; "above" carries none */}
+                  {(() => {
+                    const tierMeta = sale.tier ? TIER_META[sale.tier] : undefined
+                    if (!tierMeta) return null
+                    return (
+                      <div className={`absolute top-3 left-3 rounded-full px-3 py-1 ${tierMeta.cls}`}>
+                        <span className="font-sans text-xs font-semibold">
+                          {tierMeta.label}
+                        </span>
+                      </div>
+                    )
+                  })()}
                 </div>
 
                 {/* Content */}
