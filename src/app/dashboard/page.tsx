@@ -15,6 +15,7 @@ interface DashboardData {
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [setupIncomplete, setSetupIncomplete] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -28,6 +29,11 @@ export default function DashboardPage() {
       }
     }
     load()
+    // Surface a finish-setup prompt while the agent's profile is incomplete.
+    fetch('/api/profile')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d && d.profile && !d.profile.completed) setSetupIncomplete(true) })
+      .catch(() => {})
   }, [])
 
   if (error) {
@@ -69,6 +75,18 @@ export default function DashboardPage() {
             back to proposals
           </Link>
         </div>
+
+        {setupIncomplete && (
+          <Link
+            href="/onboarding"
+            className="mb-6 flex items-center justify-between gap-4 rounded-xl border border-brand/30 bg-brand/10 px-4 py-3 transition-colors hover:bg-brand/15"
+          >
+            <span className="font-sans text-sm text-white/80">
+              Finish setting up your profile so your proposals show your details and photo.
+            </span>
+            <span className="font-sans text-sm font-medium text-brand whitespace-nowrap">Finish setup →</span>
+          </Link>
+        )}
 
         <PipelineBoard
           initialProposals={data.proposals}

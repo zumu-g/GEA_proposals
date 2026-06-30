@@ -14,7 +14,22 @@ function LoginForm() {
   const searchParams = useSearchParams()
   const from = searchParams.get('from') || '/'
 
-  const go = () => {
+  const go = async () => {
+    // Route a not-yet-set-up agent into onboarding on first login; otherwise
+    // honour the original destination.
+    try {
+      const res = await fetch('/api/profile')
+      if (res.ok) {
+        const data = await res.json()
+        if (!data.profile?.completed) {
+          router.push('/onboarding')
+          router.refresh()
+          return
+        }
+      }
+    } catch {
+      // fall through to default destination
+    }
     router.push(from)
     router.refresh()
   }
