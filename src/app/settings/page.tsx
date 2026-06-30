@@ -26,6 +26,8 @@ export default function SettingsPage() {
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [form, setForm] = useState<ProfileShape>(EMPTY)
+  // Raw commission string so decimals (e.g. "1.65") type freely; parsed on save.
+  const [commissionStr, setCommissionStr] = useState('')
 
   useEffect(() => {
     ;(async () => {
@@ -33,7 +35,10 @@ export default function SettingsPage() {
         const res = await fetch('/api/profile')
         if (res.status === 401) { router.push('/login?from=/settings'); return }
         const data = await res.json()
-        if (data.profile) setForm({ ...EMPTY, ...data.profile })
+        if (data.profile) {
+          setForm({ ...EMPTY, ...data.profile })
+          setCommissionStr(data.profile.defaultCommissionRate != null ? String(data.profile.defaultCommissionRate) : '')
+        }
       } finally {
         setLoading(false)
       }
@@ -49,7 +54,12 @@ export default function SettingsPage() {
       await fetch('/api/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fields: form }),
+        body: JSON.stringify({
+          fields: {
+            ...form,
+            defaultCommissionRate: commissionStr.trim() === '' ? null : parseFloat(commissionStr),
+          },
+        }),
       })
       setSavedAt(new Date().toLocaleTimeString())
     } finally {
@@ -106,8 +116,8 @@ export default function SettingsPage() {
 
           <Field
             label="Default commission rate (%)"
-            value={form.defaultCommissionRate != null ? String(form.defaultCommissionRate) : ''}
-            onChange={(v) => set({ defaultCommissionRate: v ? parseFloat(v) : null })}
+            value={commissionStr}
+            onChange={(v) => setCommissionStr(v)}
           />
         </div>
 

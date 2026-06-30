@@ -36,6 +36,9 @@ export default function OnboardingPage() {
     agentPhoto: '', agentBio: '', defaultCommissionRate: null,
     onboardingProgress: {}, completed: false,
   })
+  // Commission is held as a raw string so decimals (e.g. "1.65") can be typed
+  // freely; it is parsed to a number only on save.
+  const [commissionStr, setCommissionStr] = useState('')
 
   // Load existing profile and resume at the first incomplete step.
   useEffect(() => {
@@ -47,6 +50,7 @@ export default function OnboardingPage() {
         const p = data.profile as ProfileShape | null
         if (p) {
           setForm({ ...form, ...p, onboardingProgress: p.onboardingProgress || {} })
+          setCommissionStr(p.defaultCommissionRate != null ? String(p.defaultCommissionRate) : '')
           setProgress(p.onboardingProgress || {})
           const firstIncomplete = STEPS.findIndex((s) => !p.onboardingProgress?.[s.key])
           setStepIndex(firstIncomplete === -1 ? STEPS.length - 1 : firstIncomplete)
@@ -66,7 +70,7 @@ export default function OnboardingPage() {
       const fields = {
         agentName: form.agentName, agentTitle: form.agentTitle, agentPhone: form.agentPhone,
         agentEmail: form.agentEmail, agentPhoto: form.agentPhoto, agentBio: form.agentBio,
-        defaultCommissionRate: form.defaultCommissionRate,
+        defaultCommissionRate: commissionStr.trim() === '' ? null : parseFloat(commissionStr),
       }
       const res = await fetch('/api/profile', {
         method: 'PUT',
@@ -138,9 +142,9 @@ export default function OnboardingPage() {
           {step.key === 'proposal-defaults' && (
             <Field
               label="Default commission rate (%)"
-              value={form.defaultCommissionRate != null ? String(form.defaultCommissionRate) : ''}
-              onChange={(v) => set({ defaultCommissionRate: v ? parseFloat(v) : null })}
-              placeholder="e.g. 1.45"
+              value={commissionStr}
+              onChange={(v) => setCommissionStr(v)}
+              placeholder="e.g. 1.65"
             />
           )}
         </div>

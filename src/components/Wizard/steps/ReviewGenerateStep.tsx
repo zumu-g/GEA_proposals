@@ -959,12 +959,12 @@ export default function ReviewGenerateStep({
                   template === t ? 'bg-[#C41E2A] text-white' : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
-                {t === 'full' ? 'Full (detailed)' : 'Simple (short)'}
+                {t === 'full' ? 'Full (detailed)' : 'Express (shorter)'}
               </button>
             ))}
           </div>
           <p className="font-sans text-xs text-gray-400 mt-2">
-            Simple shows a short, scannable page — property, price, a few comparables, fees, and the approve button.
+            Express shows a short, scannable page — property, price, a few comparables, fees, and the approve button.
           </p>
         </div>
       )}
