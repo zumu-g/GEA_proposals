@@ -148,6 +148,10 @@ const WIZARD_DRAFT_KEY = 'gea-wizard-draft'
 export default function HomePage() {
   // ── Wizard step ──────────────────────────────────────────────────────────
   const [currentStep, setCurrentStep] = useState(0)
+  // Bumped on resetForm to force step components to remount, discarding any
+  // component-local state (selected address, CRM match, everyproperty enrich)
+  // that the parent form state can't reach.
+  const [formInstanceKey, setFormInstanceKey] = useState(0)
 
   // ── Step 1: Client Details state ─────────────────────────────────────────
   const [proposalType, setProposalType] = useState<'sale' | 'rental'>('sale')
@@ -684,6 +688,11 @@ export default function HomePage() {
     setSubjectLng(null)
     setEditingProposalId(null)
     setCurrentStep(0)
+    // Clear the persisted draft on every reset path (the sidebar button also
+    // does this; the success-screen path previously did not) and remount the
+    // step tree so component-local state is discarded too.
+    clearDraft(WIZARD_DRAFT_KEY)
+    setFormInstanceKey((k) => k + 1)
     if (window.location.search.includes('edit=')) {
       window.history.replaceState({}, '', '/')
     }
@@ -798,6 +807,7 @@ export default function HomePage() {
     >
       {currentStep === 0 && (
         <ClientDetailsStep
+          key={formInstanceKey}
           formData={{
             clientName, clientEmail, propertyAddress, proposalType,
             priceGuideMin, priceGuideMax,
