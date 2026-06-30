@@ -27,10 +27,6 @@ export function MarketingPlanSheet({
   agentEmail = 'info@grantsea.com.au',
 }: MarketingPlanSheetProps) {
   const total = planTotal(items)
-  const hasPrice = priceGuide && (priceGuide.min || priceGuide.max)
-  const priceLabel = hasPrice
-    ? [priceGuide?.min, priceGuide?.max].filter(Boolean).map((n) => formatAUD(n as number)).join(' – ')
-    : null
 
   return (
     <div className="mkt-plan-sheet mx-auto w-full max-w-[800px] bg-white text-[#1A1A1A]">
@@ -46,9 +42,6 @@ export function MarketingPlanSheet({
           </h1>
           {propertyAddress && (
             <p className="mt-2 font-sans text-sm text-gray-600">{propertyAddress}</p>
-          )}
-          {priceLabel && (
-            <p className="mt-0.5 font-sans text-sm font-medium text-[#C41E2A]">{priceLabel}</p>
           )}
         </div>
       </header>

@@ -4,10 +4,10 @@ import { verifySession } from '@/lib/session'
 const COOKIE_NAME = 'gea_auth'
 
 // Page routes that require authentication
-const PROTECTED_PAGES = ['/', '/dashboard', '/edit']
+const PROTECTED_PAGES = ['/', '/dashboard', '/edit', '/onboarding', '/settings']
 
 // API routes that require authentication
-const PROTECTED_API = ['/api/dashboard', '/api/proposals', '/api/cron', '/api/poll-inbox']
+const PROTECTED_API = ['/api/dashboard', '/api/proposals', '/api/cron', '/api/poll-inbox', '/api/profile', '/api/campaigns']
 
 function isProtectedPage(pathname: string): boolean {
   return PROTECTED_PAGES.some(

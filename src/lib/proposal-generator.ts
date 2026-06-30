@@ -11,7 +11,7 @@ const AGENCY_CONFIG_PATH = path.join(DATA_DIR, 'agency-config.json')
 const AGENCY_CONFIG_FALLBACK = path.join(process.cwd(), 'data', 'agency-config.json')
 
 // Default agency config — used when file is not found (e.g. Railway volume hides it)
-const DEFAULT_AGENCY_CONFIG: AgencyConfig & { defaultInclusions?: string[] } = {
+export const DEFAULT_AGENCY_CONFIG: AgencyConfig & { defaultInclusions?: string[] } = {
   name: "Grant's Estate Agents",
   legalName: "Grant's Estate Agents Pty Ltd",
   abn: '80 595 235 807',
@@ -100,6 +100,7 @@ interface ProposalRow {
   internet_listings: string | null
   on_market_listings: string | null
   hidden_sections: string | null
+  template: string | null
   proposal_type: string | null
   asking_rent: number | null
   lease_type: string | null
@@ -150,6 +151,7 @@ function rowToProposal(row: ProposalRow): Proposal {
     internetListings: row.internet_listings ? JSON.parse(row.internet_listings) : undefined,
     onMarketListings: row.on_market_listings ? JSON.parse(row.on_market_listings) : undefined,
     hiddenSections: row.hidden_sections ? JSON.parse(row.hidden_sections) : undefined,
+    template: (row.template as 'full' | 'simple') || 'full',
     proposalType: (row.proposal_type as 'sale' | 'rental') || 'sale',
     askingRent: row.asking_rent ?? undefined,
     leaseType: row.lease_type ?? undefined,
@@ -203,6 +205,7 @@ function proposalToParams(proposal: Proposal) {
     internet_listings: proposal.internetListings ? JSON.stringify(proposal.internetListings) : null,
     on_market_listings: proposal.onMarketListings ? JSON.stringify(proposal.onMarketListings) : null,
     hidden_sections: proposal.hiddenSections ? JSON.stringify(proposal.hiddenSections) : null,
+    template: proposal.template || 'full',
     proposal_type: proposal.proposalType || 'sale',
     asking_rent: proposal.askingRent ?? null,
     lease_type: proposal.leaseType || null,
@@ -237,7 +240,7 @@ export async function saveProposal(proposal: Proposal): Promise<void> {
       sale_process, marketing_plan, recent_sales, fees, agency,
       advertising_schedule, total_advertising_cost, area_analysis, team_members,
       marketing_approach, marketing_costs, database_info, internet_listings, on_market_listings, hidden_sections,
-      proposal_type, asking_rent, lease_type, available_date, management_fee, letting_fee,
+      template, proposal_type, asking_rent, lease_type, available_date, management_fee, letting_fee,
       dual_campaign, dev_method_of_sale, dev_price_guide_min, dev_price_guide_max, dev_show_price_range,
       dev_marketing_costs, dev_marketing_plan, dev_advertising_schedule, dev_total_advertising_cost,
       status, sent_at, viewed_at, approved_at)
@@ -246,7 +249,7 @@ export async function saveProposal(proposal: Proposal): Promise<void> {
       @sale_process, @marketing_plan, @recent_sales, @fees, @agency,
       @advertising_schedule, @total_advertising_cost, @area_analysis, @team_members,
       @marketing_approach, @marketing_costs, @database_info, @internet_listings, @on_market_listings, @hidden_sections,
-      @proposal_type, @asking_rent, @lease_type, @available_date, @management_fee, @letting_fee,
+      @template, @proposal_type, @asking_rent, @lease_type, @available_date, @management_fee, @letting_fee,
       @dual_campaign, @dev_method_of_sale, @dev_price_guide_min, @dev_price_guide_max, @dev_show_price_range,
       @dev_marketing_costs, @dev_marketing_plan, @dev_advertising_schedule, @dev_total_advertising_cost,
       @status, @sent_at, @viewed_at, @approved_at)
@@ -261,7 +264,7 @@ export async function saveProposal(proposal: Proposal): Promise<void> {
       area_analysis=@area_analysis, team_members=@team_members,
       marketing_approach=@marketing_approach, marketing_costs=@marketing_costs, database_info=@database_info,
       internet_listings=@internet_listings, on_market_listings=@on_market_listings, hidden_sections=@hidden_sections,
-      proposal_type=@proposal_type, asking_rent=@asking_rent, lease_type=@lease_type,
+      template=@template, proposal_type=@proposal_type, asking_rent=@asking_rent, lease_type=@lease_type,
       available_date=@available_date, management_fee=@management_fee, letting_fee=@letting_fee,
       dual_campaign=@dual_campaign, dev_method_of_sale=@dev_method_of_sale,
       dev_price_guide_min=@dev_price_guide_min, dev_price_guide_max=@dev_price_guide_max,
@@ -320,10 +323,36 @@ export async function deleteProposal(id: string): Promise<boolean> {
   return result.changes > 0
 }
 
-export async function listProposals(): Promise<Proposal[]> {
+export async function listProposals(opts?: { ownerEmail?: string }): Promise<Proposal[]> {
   const db = getDb()
-  const rows = db.prepare('SELECT * FROM proposals ORDER BY proposal_date DESC').all() as ProposalRow[]
+  // When an ownerEmail is given (non-principal), return only that agent's
+  // proposals. NULL-owner (pre-rollout) rows belong to the principal, so they
+  // are intentionally excluded from a non-principal's list.
+  const rows = opts?.ownerEmail
+    ? (db
+        .prepare('SELECT * FROM proposals WHERE lower(owner_email) = ? ORDER BY proposal_date DESC')
+        .all(opts.ownerEmail.trim().toLowerCase()) as ProposalRow[])
+    : (db.prepare('SELECT * FROM proposals ORDER BY proposal_date DESC').all() as ProposalRow[])
   return rows.map(rowToProposal)
+}
+
+/** Owner email of a proposal, or null. Used for access checks without loading the row. */
+export function getProposalOwner(id: string): string | null {
+  if (!isValidProposalId(id)) return null
+  const db = getDb()
+  const row = db.prepare('SELECT owner_email FROM proposals WHERE id = ?').get(id) as
+    | { owner_email: string | null }
+    | undefined
+  return row?.owner_email ?? null
+}
+
+/** Stamp ownership on a proposal (set at creation, never overwritten on edit). */
+export function setProposalOwner(id: string, ownerEmail: string): void {
+  const db = getDb()
+  db.prepare('UPDATE proposals SET owner_email = ? WHERE id = ?').run(
+    ownerEmail.trim().toLowerCase(),
+    id
+  )
 }
 
 // --- Activity logging ---

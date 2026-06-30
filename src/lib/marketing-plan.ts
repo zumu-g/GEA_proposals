@@ -13,47 +13,47 @@ import type { AdvertisingWeek, MarketingCostItem } from '@/types/proposal'
 export type { MarketingCostItem }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// REA "premiere listing" (4-week) rate card — effective 1 July 2025.
+// REA "premiere listing" (4-week) rate card — effective 1 July 2026.
 // The premiere listing cost varies by the property's suburb; default to the
 // Berwick rate when the suburb is unknown.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Default REA premiere (4-week) rate (Berwick), used when suburb is unknown. */
-export const REACOM_PREMIERE_DEFAULT = 2760
+export const REACOM_PREMIERE_DEFAULT = 3019
 
 /** Suburb → REA premiere rate. Keys are lowercase suburb names. */
 const REACOM_PREMIERE_RATES: Record<string, number> = {
-  // $2760
-  'berwick': 2760,
-  'beaconsfield': 2760,
-  'narre warren': 2760,
-  'narre warren north': 2760,
-  'narre warren south': 2760,
-  'hallam': 2760,
-  'cranbourne': 2760,
-  'cranbourne north': 2760,
-  // $2540
-  'pakenham': 2540,
-  'pakenham upper': 2540,
-  'officer': 2540,
-  // $1580
-  'clyde': 1580,
-  'clyde north': 1580,
-  'cardinia': 1580,
-  // $1380
-  'nyora': 1380,
-  'tynong': 1380,
-  'tynong north': 1380,
-  'nar nar goon': 1380,
-  'nar nar goon north': 1380,
-  'maryknoll': 1380,
-  'garfield': 1380,
-  'koo wee rup': 1380,
-  // $1310
-  'drouin': 1310,
-  'drouin south': 1310,
-  'drouin east': 1310,
-  'drouin west': 1310,
+  // $3019
+  'berwick': 3019,
+  'beaconsfield': 3019,
+  'narre warren': 3019,
+  'narre warren north': 3019,
+  'narre warren south': 3019,
+  'hallam': 3019,
+  'cranbourne': 3019,
+  'cranbourne north': 3019,
+  // $2819
+  'pakenham': 2819,
+  'pakenham upper': 2819,
+  'officer': 2819,
+  // $1999
+  'clyde': 1999,
+  'clyde north': 1999,
+  'cardinia': 1999,
+  // $1519
+  'nyora': 1519,
+  'tynong': 1519,
+  'tynong north': 1519,
+  'nar nar goon': 1519,
+  'nar nar goon north': 1519,
+  'maryknoll': 1519,
+  'garfield': 1519,
+  'koo wee rup': 1519,
+  // $1439
+  'drouin': 1439,
+  'drouin south': 1439,
+  'drouin east': 1439,
+  'drouin west': 1439,
 }
 
 /** All distinct rate-card values (used to detect user-edited premiere costs). */
@@ -96,6 +96,59 @@ export function suburbLabelForPremiere(suburbOrAddress: string | undefined): str
   if (!match) return null
   return match.replace(/\b\w/g, (c) => c.toUpperCase())
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Marketing options catalog — effective 1 July 2026.
+// Agents pick a category, then a specific option that fills description + cost.
+// The Internet/Premiere category is resolved per property suburb at point of use
+// (see `premiereCatalogOption`), so it is not a fixed entry here.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface CatalogOption {
+  /** Becomes the marketing item's description. */
+  description: string
+  cost: number
+}
+
+/** Fixed, suburb-independent catalog grouped by item category. */
+export const MARKETING_CATALOG: Record<string, CatalogOption[]> = {
+  Signboard: [
+    { description: 'Central signboard — 3 x 7 (sale/lease)', cost: 60 },
+    { description: 'Central signboard — 4 x 8 sale (Stuart Stock Board)', cost: 100 },
+    { description: 'Central photo board — 4 x 8 (Auction, Stuart provides artwork)', cost: 380 },
+  ],
+  Auctioneer: [
+    { description: 'Aleisha — professional auctioneer', cost: 700 },
+  ],
+  Photography: [
+    { description: 'Complete Image — Standard Rental Shoot (10 images, web only)', cost: 150 },
+    { description: 'Complete Image — Sales Day Shoot (10 images)', cost: 205 },
+    { description: 'Complete Image — Sales Day Shoot (20 images)', cost: 255 },
+    { description: 'Complete Image — Drone photos only with overlays (5–6 images)', cost: 390 },
+    { description: 'Complete Image — Sales Day Shoot (20) & 2D floor plan & site plan', cost: 370 },
+    { description: 'Complete Image — Sales Day Shoot (20) & 2D FP & SP & drone', cost: 550 },
+    { description: 'Complete Image — Sales Twilight & 2D FP & SP', cost: 505 },
+    { description: 'Complete Image — Sales Twilight & 2D FP & SP & drone', cost: 685 },
+    { description: 'Complete Image — Floor Plan & Site Plan (2D)', cost: 130 },
+    { description: 'Complete Image — Floor Plan redraw', cost: 77 },
+  ],
+}
+
+/**
+ * The premiere-listing catalog option for a given property suburb/address.
+ * Priced from the suburb rate card so it always reflects the right suburb.
+ */
+export function premiereCatalogOption(suburbOrAddress: string | undefined): CatalogOption {
+  const cost = reacomPremiereForSuburb(suburbOrAddress)
+  const suburb = suburbLabelForPremiere(suburbOrAddress)
+  return {
+    description: `Premiere Listing — realestate.com.au (4 week premiere${suburb ? ` — ${suburb}` : ''})`,
+    cost,
+  }
+}
+
+/** Categories that have catalog options (fixed catalog + premiere via Internet). */
+export const CATALOG_CATEGORIES = Object.keys(MARKETING_CATALOG)
 
 /** Sum of costs for items NOT marked as included (i.e. the vendor's spend). */
 export function planTotal(items: MarketingCostItem[]): number {

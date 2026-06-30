@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { getProposal, getDefaultProposalExtras, DEFAULT_TOTAL_ADVERTISING_COST } from '@/lib/proposal-generator'
 import { ProposalLayout } from '@/components/Layout/ProposalLayout'
 import { FullHero } from '@/components/Proposal/FullHero'
+import { SimpleProposal } from '@/components/Proposal/SimpleProposal'
 import { BrandStatement } from '@/components/Proposal/BrandStatement'
 import { AgentProfile } from '@/components/Proposal/AgentProfile'
 import { StatsBar } from '@/components/Proposal/StatsBar'
@@ -66,6 +67,9 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
       <ViewTracker proposalId={proposal.id} />
       <PdfButton />
 
+      {proposal.template === 'simple' ? (
+        <SimpleProposal proposal={proposal} />
+      ) : (
       <div className="min-h-screen">
         {/* Full-viewport cinematic hero */}
         <FullHero proposal={proposal} />
@@ -231,6 +235,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
         {/* Footer */}
         <Footer agency={proposal.agency} />
       </div>
+      )}
     </ProposalLayout>
   )
 }

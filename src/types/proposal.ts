@@ -68,6 +68,8 @@ export interface Proposal {
   /** Section IDs excluded from the client-facing proposal (sidebar page toggles). */
   hiddenSections?: string[];
   proposalType?: 'sale' | 'rental';
+  /** Client-facing layout: 'full' (default, detailed) or 'simple' (short, approve-focused). */
+  template?: 'full' | 'simple';
   askingRent?: number;
   leaseType?: string;
   availableDate?: string;

@@ -26,8 +26,6 @@ const DEFAULT_MARKETING_COSTS: MarketingCostItem[] = [
 
 export default function MarketingPlanBuilderPage() {
   const [propertyAddress, setPropertyAddress] = useState('')
-  const [priceGuideMin, setPriceGuideMin] = useState('')
-  const [priceGuideMax, setPriceGuideMax] = useState('')
   const [marketingCosts, setMarketingCosts] = useState<MarketingCostItem[]>(DEFAULT_MARKETING_COSTS)
 
   // Auto-adjust the REA premiere listing cost to the property's suburb, unless
@@ -66,32 +64,6 @@ export default function MarketingPlanBuilderPage() {
         {/* Property context (optional) */}
         <div className="mb-8 rounded-xl border border-gray-200 bg-white p-5">
           <AddressAutocomplete value={propertyAddress} onChange={setPropertyAddress} />
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-sans font-medium text-gray-700 mb-1.5 lowercase">
-                price guide min (optional)
-              </label>
-              <input
-                type="number"
-                value={priceGuideMin}
-                onChange={(e) => setPriceGuideMin(e.target.value)}
-                placeholder="1200000"
-                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 font-sans placeholder-gray-400 focus:ring-2 focus:ring-[#C41E2A] focus:border-[#C41E2A] text-base transition-all"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-sans font-medium text-gray-700 mb-1.5 lowercase">
-                price guide max (optional)
-              </label>
-              <input
-                type="number"
-                value={priceGuideMax}
-                onChange={(e) => setPriceGuideMax(e.target.value)}
-                placeholder="1300000"
-                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 font-sans placeholder-gray-400 focus:ring-2 focus:ring-[#C41E2A] focus:border-[#C41E2A] text-base transition-all"
-              />
-            </div>
-          </div>
         </div>
 
         {/* Marketing items editor (reused from the wizard). Its built-in
@@ -100,8 +72,6 @@ export default function MarketingPlanBuilderPage() {
           marketingCosts={marketingCosts}
           onChange={setMarketingCosts}
           propertyAddress={propertyAddress}
-          priceGuideMin={priceGuideMin}
-          priceGuideMax={priceGuideMax}
         />
       </div>
     </div>

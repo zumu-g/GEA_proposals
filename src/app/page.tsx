@@ -173,6 +173,8 @@ export default function HomePage() {
   const [commission, setCommission] = useState('')
   const [showPriceRange, setShowPriceRange] = useState(true)
   const [showCommission, setShowCommission] = useState(true)
+  // Client-facing proposal layout: 'full' (default) or 'simple' (short, approve-focused)
+  const [template, setTemplate] = useState<'full' | 'simple'>('full')
   // Dual target campaign (development site) — KTD 2c: state persists when toggled off
   const [dualCampaign, setDualCampaign] = useState(false)
   // Sidebar page toggles — sections excluded from the generated client proposal.
@@ -376,6 +378,7 @@ export default function HomePage() {
       setCommission(proposal.fees?.commissionRate ? String(proposal.fees.commissionRate) : '')
       setShowPriceRange(proposal.showPriceRange !== false)
       setShowCommission(proposal.showCommission !== false)
+      setTemplate((proposal.template as 'full' | 'simple') || 'full')
       if (proposal.askingRent) setAskingRent(String(proposal.askingRent))
       if (proposal.leaseType) setLeaseType(proposal.leaseType)
       if (proposal.availableDate) setAvailableDate(proposal.availableDate)
@@ -462,6 +465,7 @@ export default function HomePage() {
       setCommission(proposal.fees?.commissionRate ? String(proposal.fees.commissionRate) : '')
       setShowPriceRange(proposal.showPriceRange !== false)
       setShowCommission(proposal.showCommission !== false)
+      setTemplate((proposal.template as 'full' | 'simple') || 'full')
 
       setDualCampaign(proposal.dualCampaign === true)
       setHiddenSections(proposal.hiddenSections || DEFAULT_HIDDEN_SECTIONS)
@@ -522,6 +526,7 @@ export default function HomePage() {
 
     // Step 1 fields
     formData.append('proposalType', proposalType)
+    formData.append('template', template)
     formData.append('clientName', clientName)
     formData.append('clientEmail', clientEmail)
     formData.append('propertyAddress', propertyAddress)
@@ -904,6 +909,8 @@ export default function HomePage() {
           onMarketListings={onMarketListings}
           autoImages={autoImageUrls}
           editingId={editingProposalId}
+          template={template}
+          onTemplateChange={setTemplate}
           onSubmit={handleSubmit}
           onGoToStep={setCurrentStep}
           isSubmitting={isSubmitting}

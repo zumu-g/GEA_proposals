@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
 import { startCron, getCronStatus } from '@/lib/cron'
+import { getCurrentUser } from '@/lib/current-user'
 
 interface ProposalRow {
   id: string
@@ -72,15 +73,22 @@ export async function GET() {
   if (!getCronStatus().running) startCron()
   try {
     const db = getDb()
+    const user = await getCurrentUser()
 
-    const proposals = db
-      .prepare(
-        `SELECT id, client_name, client_email, property_address, proposal_date,
+    // Scope the pipeline to the acting user: principal sees the whole team,
+    // others see only their own proposals.
+    const scoped = !!(user && !user.isPrincipal)
+    const baseSelect = `SELECT id, client_name, client_email, property_address, proposal_date,
                 price_guide_min, price_guide_max, method_of_sale, status,
                 sent_at, viewed_at, approved_at, created_at, updated_at
-         FROM proposals ORDER BY updated_at DESC`
-      )
-      .all() as ProposalRow[]
+         FROM proposals`
+    const proposals = (
+      scoped
+        ? db
+            .prepare(`${baseSelect} WHERE lower(owner_email) = ? ORDER BY updated_at DESC`)
+            .all(user!.email)
+        : db.prepare(`${baseSelect} ORDER BY updated_at DESC`).all()
+    ) as ProposalRow[]
 
     // Get activity counts and last activity per proposal in one query
     const activityStats = db

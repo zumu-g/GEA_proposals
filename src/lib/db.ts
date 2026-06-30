@@ -4,6 +4,12 @@ import fs from 'fs'
 
 const DB_PATH = process.env.DATABASE_PATH || path.join(process.cwd(), 'data', 'gea.db')
 
+// The principal account — sees the whole team's pipeline, and owns all pre-rollout
+// proposals + the legacy hardcoded agency/agent profile. Overridable via env.
+export const PRINCIPAL_EMAIL = (process.env.PRINCIPAL_EMAIL || 'stuart_grant@me.com')
+  .trim()
+  .toLowerCase()
+
 // Uploaded hero photos live alongside the SQLite DB on the persistent volume so
 // they survive redeploys (public/ is ephemeral on Railway). Served via
 // /api/uploads/[filename].
@@ -64,6 +70,31 @@ function initSchema(db: Database.Database) {
       password_hash TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS user_profiles (
+      email TEXT PRIMARY KEY,              -- FK to users.email (lowercase)
+      agent_name TEXT,
+      agent_title TEXT,
+      agent_phone TEXT,
+      agent_email TEXT,
+      agent_photo TEXT,
+      agent_bio TEXT,
+      default_commission_rate REAL,
+      branding TEXT,                       -- JSON: per-agent format/branding preference overrides
+      onboarding_progress TEXT,            -- JSON: { stepKey: true, ... }
+      completed INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS saved_campaigns (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_email TEXT NOT NULL,            -- owning agent (lowercase)
+      name TEXT NOT NULL,
+      items TEXT NOT NULL,                  -- JSON array of MarketingCostItem
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_saved_campaigns_owner ON saved_campaigns(owner_email);
 
     CREATE TABLE IF NOT EXISTS activities (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -289,6 +320,11 @@ function initSchema(db: Database.Database) {
     'ALTER TABLE proposals ADD COLUMN dev_marketing_plan TEXT',       // JSON — email/display channel rows
     'ALTER TABLE proposals ADD COLUMN dev_advertising_schedule TEXT', // JSON
     'ALTER TABLE proposals ADD COLUMN dev_total_advertising_cost REAL',
+    // Simple/full client-facing proposal template
+    "ALTER TABLE proposals ADD COLUMN template TEXT DEFAULT 'full'",
+    // Multi-tenant rollout: proposal ownership + principal role
+    'ALTER TABLE proposals ADD COLUMN owner_email TEXT',
+    'ALTER TABLE users ADD COLUMN is_principal INTEGER NOT NULL DEFAULT 0',
   ]
 
   for (const sql of newColumns) {
@@ -297,5 +333,16 @@ function initSchema(db: Database.Database) {
     } catch {
       // Column already exists — ignore
     }
+  }
+
+  // Idempotent rollout backfill: assign pre-existing proposals to the principal,
+  // and mark the principal account. Safe to re-run — guarded by NULL / value checks.
+  try {
+    db.prepare('UPDATE proposals SET owner_email = ? WHERE owner_email IS NULL')
+      .run(PRINCIPAL_EMAIL)
+    db.prepare('UPDATE users SET is_principal = 1 WHERE lower(email) = ?')
+      .run(PRINCIPAL_EMAIL)
+  } catch {
+    // Columns may not exist yet on a partially-migrated DB mid-deploy — next init retries.
   }
 }

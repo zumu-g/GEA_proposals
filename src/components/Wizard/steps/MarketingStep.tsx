@@ -2,6 +2,14 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
+import { MARKETING_CATALOG, premiereCatalogOption, type CatalogOption } from '@/lib/marketing-plan';
+
+/** Catalog options for an item's category, including suburb-priced premiere
+ *  options under the Internet category. */
+function catalogOptionsFor(category: string, propertyAddress?: string): CatalogOption[] {
+  if (category === 'Internet') return [premiereCatalogOption(propertyAddress)];
+  return MARKETING_CATALOG[category] || [];
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -306,6 +314,43 @@ export default function MarketingStep({ marketingCosts, onChange, propertyAddres
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Saved campaigns (per-agent reusable marketing sets) ──────────────────
+  const [campaigns, setCampaigns] = useState<{ id: number; name: string; items: MarketingCostItem[] }[]>([]);
+  useEffect(() => {
+    fetch('/api/campaigns')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.campaigns) setCampaigns(d.campaigns); })
+      .catch(() => {});
+  }, []);
+
+  const saveCurrentCampaign = useCallback(async () => {
+    const name = typeof window !== 'undefined' ? window.prompt('Save this campaign as:') : null;
+    if (!name) return;
+    const res = await fetch('/api/campaigns', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, items: marketingCosts }),
+    });
+    if (res.ok) {
+      const d = await res.json();
+      if (d?.campaign) setCampaigns((prev) => [d.campaign, ...prev]);
+    }
+  }, [marketingCosts]);
+
+  const loadCampaign = useCallback((id: number) => {
+    const c = campaigns.find((x) => x.id === id);
+    if (!c) return;
+    // Re-resolve the premiere line to the current property's suburb; copy the rest verbatim.
+    const repriced = c.items.map((it) => {
+      if (it.category === 'Internet' && /premiere/i.test(it.description || '')) {
+        const opt = premiereCatalogOption(propertyAddress);
+        return { ...it, id: generateItemId(), description: opt.description, cost: opt.cost };
+      }
+      return { ...it, id: generateItemId() };
+    });
+    onChange(repriced);
+  }, [campaigns, propertyAddress, onChange]);
+
   const totalCost = marketingCosts
     .filter((item) => !item.included)
     .reduce((sum, item) => sum + (item.cost || 0), 0);
@@ -402,6 +447,33 @@ export default function MarketingStep({ marketingCosts, onChange, propertyAddres
         <p className="mt-2 text-gray-500 font-sans text-sm">
           Build the vendor&apos;s advertising schedule and costs
         </p>
+      </div>
+
+      {/* ── Saved campaigns toolbar ─────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-2">
+        {campaigns.length > 0 && (
+          <select
+            value=""
+            onChange={(e) => { const id = Number(e.target.value); if (id) loadCampaign(id); }}
+            className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-600 font-sans text-sm outline-none focus:ring-1 focus:ring-[#C41E2A]/40"
+          >
+            <option value="">load a saved campaign…</option>
+            {campaigns.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        )}
+        <button
+          type="button"
+          onClick={saveCurrentCampaign}
+          disabled={marketingCosts.length === 0}
+          className="px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-600 hover:text-gray-900 hover:border-gray-400 disabled:opacity-40 font-sans text-sm transition-colors"
+        >
+          Save current as campaign
+        </button>
+        {propertyAddress && campaigns.length > 0 && (
+          <span className="font-sans text-xs text-gray-400">Premiere reprices to this property&rsquo;s suburb on load.</span>
+        )}
       </div>
 
       {/* ── Quick Templates (only when empty) ──────────────────────────── */}
@@ -563,8 +635,8 @@ export default function MarketingStep({ marketingCosts, onChange, propertyAddres
                     </AnimatePresence>
                   </div>
 
-                  {/* Description */}
-                  <div className="col-span-4">
+                  {/* Description + catalog picker */}
+                  <div className="col-span-4 space-y-1">
                     <input
                       type="text"
                       value={item.description}
@@ -572,6 +644,25 @@ export default function MarketingStep({ marketingCosts, onChange, propertyAddres
                       className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 font-sans text-sm placeholder-gray-400 focus:ring-1 focus:ring-[#C41E2A]/50 focus:border-[#C41E2A]/50 transition-all duration-200 outline-none"
                       placeholder="Description"
                     />
+                    {catalogOptionsFor(item.category, propertyAddress).length > 0 && (
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          const opt = catalogOptionsFor(item.category, propertyAddress)[Number(e.target.value)];
+                          if (opt) {
+                            const updated = [...marketingCosts];
+                            updated[index] = { ...updated[index], description: opt.description, cost: opt.cost };
+                            onChange(updated);
+                          }
+                        }}
+                        className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-500 font-sans text-xs outline-none focus:ring-1 focus:ring-[#C41E2A]/40"
+                      >
+                        <option value="">choose from catalog…</option>
+                        {catalogOptionsFor(item.category, propertyAddress).map((opt, oi) => (
+                          <option key={oi} value={oi}>{opt.description} — ${opt.cost.toLocaleString()}</option>
+                        ))}
+                      </select>
+                    )}
                   </div>
 
                   {/* Cost */}

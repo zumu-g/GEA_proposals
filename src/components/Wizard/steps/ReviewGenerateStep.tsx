@@ -42,6 +42,8 @@ interface ReviewGenerateStepProps {
   }>
   autoImages: string[]
   editingId: string | null
+  template?: 'full' | 'simple'
+  onTemplateChange?: (t: 'full' | 'simple') => void
   onSubmit: () => Promise<void>
   onGoToStep: (step: number) => void
   isSubmitting: boolean
@@ -109,6 +111,8 @@ export default function ReviewGenerateStep({
   onMarketListings,
   autoImages,
   editingId,
+  template = 'full',
+  onTemplateChange,
   onSubmit,
   onGoToStep,
   isSubmitting,
@@ -939,6 +943,30 @@ export default function ReviewGenerateStep({
             <p className="text-red-600 font-sans text-xs font-light">{error}</p>
           </div>
         </motion.div>
+      )}
+
+      {/* Proposal template choice */}
+      {onTemplateChange && (
+        <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4">
+          <p className="font-sans text-sm font-medium text-gray-700 mb-2">Proposal layout</p>
+          <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 gap-1">
+            {(['full', 'simple'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => onTemplateChange(t)}
+                className={`px-4 py-2 rounded-md font-sans text-sm transition-colors ${
+                  template === t ? 'bg-[#C41E2A] text-white' : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {t === 'full' ? 'Full (detailed)' : 'Simple (short)'}
+              </button>
+            ))}
+          </div>
+          <p className="font-sans text-xs text-gray-400 mt-2">
+            Simple shows a short, scannable page — property, price, a few comparables, fees, and the approve button.
+          </p>
+        </div>
       )}
 
       {/* Generate button */}

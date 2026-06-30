@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createProposal, parseCSV, parseExcel } from '@/lib/spreadsheet-parser'
-import { saveProposal, getProposal, getAgencyConfig, listProposals, deleteProposal } from '@/lib/proposal-generator'
+import { saveProposal, getProposal, getAgencyConfig, listProposals, deleteProposal, setProposalOwner, getProposalOwner } from '@/lib/proposal-generator'
 import { lookupComparables, lookupOnMarket } from '@/lib/comparables-lookup'
+import { getCurrentUser } from '@/lib/current-user'
+import { getEffectiveConfig } from '@/lib/user-profile'
 
 interface WizardMarketingItem {
   id?: string; category: string; description: string; cost: number; included: boolean
@@ -73,6 +75,7 @@ export async function POST(request: NextRequest) {
     const selectedOnMarketJson = formData.get('selectedOnMarket') as string | null
     const comparablesHandled = formData.get('comparablesHandled') as string | null
     const proposalType = (formData.get('proposalType') as string | null) || 'sale'
+    const template = (formData.get('template') as string | null) === 'simple' ? 'simple' : 'full'
     const askingRentStr = formData.get('askingRent') as string | null
     const leaseType = formData.get('leaseType') as string | null
     const availableDate = formData.get('availableDate') as string | null
@@ -130,7 +133,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const agencyConfig = await getAgencyConfig()
+    // Build with the logged-in agent's effective config (their overrides over
+    // shared agency identity), falling back to the bare agency config if somehow
+    // unauthenticated. The route is auth-protected by middleware.
+    const currentUser = await getCurrentUser()
+    const agencyConfig = currentUser
+      ? await getEffectiveConfig(currentUser.email)
+      : await getAgencyConfig()
 
     const parsedRate = commissionRate ? parseFloat(commissionRate) : NaN
     const rate = Number.isFinite(parsedRate) && parsedRate >= 0 && parsedRate <= 100
@@ -198,6 +207,9 @@ export async function POST(request: NextRequest) {
       },
       agency: agencyConfig,
     })
+
+    // Client-facing template choice
+    proposal.template = template
 
     // Rental fields
     proposal.proposalType = proposalType as 'sale' | 'rental'
@@ -352,6 +364,11 @@ export async function POST(request: NextRequest) {
 
     await saveProposal(proposal)
 
+    // Stamp ownership on creation only — never reassign an existing proposal on edit.
+    if (!editProposalId && currentUser) {
+      setProposalOwner(proposal.id, currentUser.email)
+    }
+
     return NextResponse.json({
       success: true,
       proposal: {
@@ -372,6 +389,7 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const id = searchParams.get('id')
+    const user = await getCurrentUser()
 
     if (id) {
       const { getProposal, getActivities } = await import('@/lib/proposal-generator')
@@ -384,6 +402,16 @@ export async function GET(request: NextRequest) {
         )
       }
 
+      // Non-principals may only open their own proposals. NULL-owner (pre-rollout)
+      // proposals belong to the principal. Respond 404 (not 403) to avoid leaking
+      // existence of another agent's proposal.
+      if (user && !user.isPrincipal) {
+        const owner = getProposalOwner(id)
+        if ((owner ?? '').toLowerCase() !== user.email) {
+          return NextResponse.json({ error: 'Proposal not found' }, { status: 404 })
+        }
+      }
+
       const includeActivities = searchParams.get('activities') === 'true'
       if (includeActivities) {
         const activities = getActivities(id)
@@ -393,8 +421,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(proposal)
     }
 
-    // List all proposals
-    const proposals = await listProposals()
+    // List proposals scoped to the acting user: principal sees all, others see own.
+    const proposals = await listProposals(
+      user && !user.isPrincipal ? { ownerEmail: user.email } : undefined
+    )
     return NextResponse.json({ proposals })
   } catch (error) {
     console.error('Error fetching proposal:', error)
