@@ -809,6 +809,8 @@ export default function HomePage() {
           onLoadProposal={(p) => handleEdit(p.id)}
           onDeleteProposal={handleDeleteProposal}
           onDuplicateProposal={(p) => handleDuplicate(p.id)}
+          template={template}
+          onTemplateChange={setTemplate}
         />
       )}
 

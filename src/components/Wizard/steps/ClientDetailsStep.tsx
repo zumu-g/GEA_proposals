@@ -20,6 +20,8 @@ interface ClientDetailsStepProps {
   onLoadProposal: (proposal: any) => void
   onDeleteProposal: (id: string) => void
   onDuplicateProposal: (proposal: any) => void
+  template?: 'full' | 'simple'
+  onTemplateChange?: (t: 'full' | 'simple') => void
 }
 
 const DRAFT_KEY = 'gea-wizard-draft'
@@ -27,16 +29,20 @@ const DRAFT_KEY = 'gea-wizard-draft'
 export function validateClientDetails(
   data: ClientDetailsStepProps['formData']
 ): string | null {
-  if (!data.clientName.trim()) return 'Client name is required'
-  if (!data.clientEmail.trim()) return 'Client email is required'
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  if (!emailRegex.test(data.clientEmail.trim()))
-    return 'Please enter a valid email address'
+  // Owner/client details are optional to advance — only the target property
+  // address is required. (Sending the proposal email still requires an email,
+  // enforced separately at send time.)
   if (!data.propertyAddress.trim()) return 'Property address is required'
   // Check address has at least 2 words (street + suburb minimum)
   const words = data.propertyAddress.trim().split(/\s+/)
   if (words.length < 2)
     return 'Please enter the full address including suburb'
+  // If an email was entered, it must be valid.
+  if (data.clientEmail.trim()) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(data.clientEmail.trim()))
+      return 'Please enter a valid email address'
+  }
   return null
 }
 
@@ -471,6 +477,151 @@ function EveryPropertyEnrich({ selectedAddress, currentPriceMin, currentPriceMax
   )
 }
 
+// ─── GEA_CRM lookup ───────────────────────────────────────────────────────────
+// On a confirmed address, look the property up in GEA_CRM. A single match
+// pre-fills the owner (and price guide if present); multiple matches let the
+// agent pick; no match offers an "Add to CRM" deep link. Failures stay silent —
+// the everypropertyAI panel still enriches property facts regardless.
+
+interface CrmPropertyLite {
+  id: string
+  address: string
+  ownerName: string | null
+  ownerEmail: string | null
+  priceGuide: string | null
+  crmUrl: string | null
+}
+
+function CrmLookup({
+  selectedAddress,
+  currentPriceMin,
+  currentPriceMax,
+  onChange,
+}: {
+  selectedAddress: string
+  currentPriceMin: string
+  currentPriceMax: string
+  onChange: (field: string, value: any) => void
+}) {
+  const [state, setState] = useState<'idle' | 'searching' | 'matched' | 'choose' | 'none'>('idle')
+  const [candidates, setCandidates] = useState<CrmPropertyLite[]>([])
+  const [matched, setMatched] = useState<CrmPropertyLite | null>(null)
+  const [addUrl, setAddUrl] = useState<string | null>(null)
+  const lastRef = useRef('')
+
+  function applyOwner(p: CrmPropertyLite) {
+    if (p.ownerName) onChange('clientName', p.ownerName)
+    if (p.ownerEmail) onChange('clientEmail', p.ownerEmail)
+    // Seed price guide from the CRM range string only when the fields are empty.
+    if (p.priceGuide && !currentPriceMin && !currentPriceMax) {
+      const nums = (p.priceGuide.match(/[\d,]+/g) || [])
+        .map((n) => Number(n.replace(/,/g, '')))
+        .filter((n) => n > 0)
+      if (nums.length >= 2) {
+        onChange('priceGuideMin', String(nums[0]))
+        onChange('priceGuideMax', String(nums[1]))
+      } else if (nums.length === 1) {
+        onChange('priceGuideMin', String(nums[0]))
+        onChange('priceGuideMax', String(nums[0]))
+      }
+    }
+    setMatched(p)
+    setState('matched')
+  }
+
+  useEffect(() => {
+    const address = selectedAddress.trim()
+    if (!address || address === lastRef.current) return
+    lastRef.current = address
+    setState('searching'); setCandidates([]); setMatched(null); setAddUrl(null)
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/gea-crm?address=${encodeURIComponent(address)}`)
+        const json = await res.json()
+        if (json?.error || !json?.found || (json?.count ?? 0) === 0) {
+          setAddUrl(json?.addPropertyUrl ?? null)
+          setState('none')
+          return
+        }
+        const props: CrmPropertyLite[] = json.properties || []
+        if (props.length === 1) {
+          applyOwner(props[0])
+        } else {
+          setCandidates(props)
+          setState('choose')
+        }
+      } catch {
+        setState('idle') // silent — everypropertyAI still runs
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAddress])
+
+  if (state === 'idle') return null
+
+  return (
+    <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50/60 px-4 py-3">
+      {state === 'searching' && (
+        <div className="flex items-center gap-3 text-sm font-sans text-gray-500">
+          <div className="w-4 h-4 border-2 border-gray-300 border-t-[#C41E2A] rounded-full animate-spin" />
+          checking GEA CRM…
+        </div>
+      )}
+
+      {state === 'matched' && matched && (
+        <p className="text-sm font-sans text-gray-700">
+          <span className="text-[#8B9F82] font-medium">✓ matched in GEA CRM</span>
+          {matched.ownerName ? ` — owner ${matched.ownerName} pre-filled` : ' — no owner on record'}
+          {matched.crmUrl && (
+            <>
+              {' · '}
+              <a href={matched.crmUrl} target="_blank" rel="noreferrer" className="text-[#C41E2A] underline">
+                view in CRM
+              </a>
+            </>
+          )}
+        </p>
+      )}
+
+      {state === 'choose' && (
+        <div>
+          <p className="text-sm font-sans text-gray-700 mb-2">
+            {candidates.length} CRM matches — pick the right property:
+          </p>
+          <div className="space-y-1.5">
+            {candidates.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => applyOwner(p)}
+                className="block w-full text-left px-3 py-2 rounded-lg border border-gray-200 bg-white hover:border-[#C41E2A]/40 font-sans text-sm text-gray-700"
+              >
+                {p.address}{p.ownerName ? ` — ${p.ownerName}` : ''}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {state === 'none' && (
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm font-sans text-gray-600">Not in GEA CRM yet.</span>
+          {addUrl && (
+            <a
+              href={addUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="px-3 py-1.5 rounded-lg bg-[#C41E2A] text-white font-sans text-sm font-medium hover:bg-[#a81823] transition-colors"
+            >
+              Add to CRM
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ClientDetailsStep({
@@ -481,6 +632,8 @@ export default function ClientDetailsStep({
   onLoadProposal,
   onDeleteProposal,
   onDuplicateProposal,
+  template = 'full',
+  onTemplateChange,
 }: ClientDetailsStepProps) {
   const [hasDraft, setHasDraft] = useState(false)
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
@@ -694,23 +847,75 @@ export default function ClientDetailsStep({
         </div>
       </motion.div>
 
-      {/* Form fields */}
+      {/* Proposal layout (Full / Express) */}
+      {onTemplateChange && (
+        <motion.div
+          {...motionProps}
+          transition={{ duration: 0.4, ease: 'easeOut', delay: 0.07 }}
+          className="mb-8"
+        >
+          <p className="text-gray-500 font-sans text-xs tracking-wider uppercase mb-3">
+            proposal layout
+          </p>
+          <div className="inline-flex rounded-xl border border-gray-200 bg-gray-100 p-1 gap-1">
+            {(['full', 'simple'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => onTemplateChange(t)}
+                className={`px-6 py-2.5 rounded-lg font-sans text-sm font-medium transition-all duration-200 min-h-[40px] ${
+                  template === t
+                    ? 'bg-white shadow-sm text-gray-900 border border-gray-200'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {t === 'full' ? 'full (detailed)' : 'express (shorter)'}
+              </button>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Form fields — target property address first, then optional owner */}
       <motion.div
         {...motionProps}
         transition={{ duration: 0.4, ease: 'easeOut', delay: 0.1 }}
       >
-        <div className="mb-6">
+        <AddressAutocomplete
+          value={formData.propertyAddress}
+          onChange={(val) => onChange('propertyAddress', val)}
+          onSelect={setSelectedAddress}
+        />
+
+        {/* GEA CRM lookup — owner auto-populate / add-to-CRM */}
+        <CrmLookup
+          selectedAddress={selectedAddress}
+          currentPriceMin={formData.priceGuideMin ?? ''}
+          currentPriceMax={formData.priceGuideMax ?? ''}
+          onChange={onChange}
+        />
+
+        {/* everypropertyAI enrichment — property facts + photos */}
+        <EveryPropertyEnrich
+          selectedAddress={selectedAddress}
+          currentPriceMin={formData.priceGuideMin ?? ''}
+          currentPriceMax={formData.priceGuideMax ?? ''}
+          hasHeroImage={!!formData.hasHeroImage}
+          onChange={onChange}
+          isRental={formData.proposalType === 'rental'}
+        />
+
+        <div className="mt-6 mb-6">
           <label
             htmlFor="clientName"
             className="block text-sm font-sans font-medium text-gray-700 mb-1.5 lowercase"
           >
-            client name
+            client name <span className="text-gray-400 normal-case">(optional)</span>
           </label>
           <input
             type="text"
             id="clientName"
             name="clientName"
-            required
             value={formData.clientName}
             onChange={(e) => onChange('clientName', e.target.value)}
             className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 font-sans placeholder-gray-400 focus:ring-2 focus:ring-[#C41E2A] focus:border-[#C41E2A] text-base touch-manipulation transition-all"
@@ -723,34 +928,18 @@ export default function ClientDetailsStep({
             htmlFor="clientEmail"
             className="block text-sm font-sans font-medium text-gray-700 mb-1.5 lowercase"
           >
-            client email
+            client email <span className="text-gray-400 normal-case">(optional — required to send)</span>
           </label>
           <input
             type="email"
             id="clientEmail"
             name="clientEmail"
-            required
             value={formData.clientEmail}
             onChange={(e) => onChange('clientEmail', e.target.value)}
             className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 font-sans placeholder-gray-400 focus:ring-2 focus:ring-[#C41E2A] focus:border-[#C41E2A] text-base touch-manipulation transition-all"
             placeholder="john.smith@example.com"
           />
         </div>
-
-        <AddressAutocomplete
-          value={formData.propertyAddress}
-          onChange={(val) => onChange('propertyAddress', val)}
-          onSelect={setSelectedAddress}
-        />
-
-        <EveryPropertyEnrich
-          selectedAddress={selectedAddress}
-          currentPriceMin={formData.priceGuideMin ?? ''}
-          currentPriceMax={formData.priceGuideMax ?? ''}
-          hasHeroImage={!!formData.hasHeroImage}
-          onChange={onChange}
-          isRental={formData.proposalType === 'rental'}
-        />
       </motion.div>
 
       {/* Recent proposals */}
