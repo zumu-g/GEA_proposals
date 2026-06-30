@@ -2,12 +2,15 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
-import { MARKETING_CATALOG, premiereCatalogOption, type CatalogOption } from '@/lib/marketing-plan';
+import { MARKETING_CATALOG, premiereCatalogOption, luxeCatalogOption, type CatalogOption } from '@/lib/marketing-plan';
 
-/** Catalog options for an item's category, including suburb-priced premiere
- *  options under the Internet category. */
+/** Catalog options for an item's category, including suburb-priced premiere and
+ *  luxe listing options under the Internet category. */
 function catalogOptionsFor(category: string, propertyAddress?: string): CatalogOption[] {
-  if (category === 'Internet') return [premiereCatalogOption(propertyAddress)];
+  if (category === 'Internet') {
+    const luxe = luxeCatalogOption(propertyAddress);
+    return [premiereCatalogOption(propertyAddress), ...(luxe ? [luxe] : [])];
+  }
   return MARKETING_CATALOG[category] || [];
 }
 
@@ -345,6 +348,10 @@ export default function MarketingStep({ marketingCosts, onChange, propertyAddres
       if (it.category === 'Internet' && /premiere/i.test(it.description || '')) {
         const opt = premiereCatalogOption(propertyAddress);
         return { ...it, id: generateItemId(), description: opt.description, cost: opt.cost };
+      }
+      if (it.category === 'Internet' && /luxe/i.test(it.description || '')) {
+        const opt = luxeCatalogOption(propertyAddress);
+        if (opt) return { ...it, id: generateItemId(), description: opt.description, cost: opt.cost };
       }
       return { ...it, id: generateItemId() };
     });
