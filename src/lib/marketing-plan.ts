@@ -40,6 +40,7 @@ const REACOM_PREMIERE_RATES: Record<string, number> = {
   'clyde': 1999,
   'clyde north': 1999,
   'cardinia': 1999,
+  'officer south': 1999,
   // $1519
   'nyora': 1519,
   'tynong': 1519,
@@ -143,6 +144,36 @@ export function premiereCatalogOption(suburbOrAddress: string | undefined): Cata
   const suburb = suburbLabelForPremiere(suburbOrAddress)
   return {
     description: `Premiere Listing — realestate.com.au (4 week premiere${suburb ? ` — ${suburb}` : ''})`,
+    cost,
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REA "Luxe" listing tier — FY27 rate card. Luxe is a lower-cost listing upgrade
+// offered alongside Premiere, priced by the same suburb tiers. Mapped off the
+// premiere rate so the two stay in lock-step:
+//   Premiere $3019 → Luxe $2500 | $2819 → $2350 | $1999 → $1650
+// Tiers not present on the FY27 card (premiere $1519 / $1439) have no Luxe price,
+// so no Luxe option is offered for those suburbs rather than inventing one.
+// ─────────────────────────────────────────────────────────────────────────────
+const REACOM_LUXE_BY_PREMIERE: Record<number, number> = {
+  3019: 2500,
+  2819: 2350,
+  1999: 1650,
+}
+
+/** Resolve the REA Luxe rate for a suburb/address, or null when the tier has no Luxe price. */
+export function reacomLuxeForSuburb(suburbOrAddress: string | undefined): number | null {
+  return REACOM_LUXE_BY_PREMIERE[reacomPremiereForSuburb(suburbOrAddress)] ?? null
+}
+
+/** The Luxe-listing catalog option for a suburb/address, or null if unavailable. */
+export function luxeCatalogOption(suburbOrAddress: string | undefined): CatalogOption | null {
+  const cost = reacomLuxeForSuburb(suburbOrAddress)
+  if (cost == null) return null
+  const suburb = suburbLabelForPremiere(suburbOrAddress)
+  return {
+    description: `Luxe Listing — realestate.com.au (4 week luxe${suburb ? ` — ${suburb}` : ''})`,
     cost,
   }
 }
