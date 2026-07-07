@@ -60,7 +60,8 @@ export function validatePropertySale(
   if (!data.methodOfSale && data.methodOfSale !== '') {
     // methodOfSale can be empty string (n/a) but must be explicitly set
   }
-  if (!data.priceGuideMin && !data.priceGuideMax) {
+  // Price guide is only required when it will be shown on the proposal
+  if (data.showPriceRange !== false && !data.priceGuideMin && !data.priceGuideMax) {
     return 'at least one price guide value is required'
   }
   if (!data.commission) {
