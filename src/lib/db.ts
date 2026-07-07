@@ -322,6 +322,8 @@ function initSchema(db: Database.Database) {
     'ALTER TABLE proposals ADD COLUMN dev_total_advertising_cost REAL',
     // Simple/full client-facing proposal template
     "ALTER TABLE proposals ADD COLUMN template TEXT DEFAULT 'full'",
+    // Subject property type (house/land/unit/apartment/development/commercial)
+    "ALTER TABLE proposals ADD COLUMN property_type TEXT DEFAULT 'house'",
     // Multi-tenant rollout: proposal ownership + principal role
     'ALTER TABLE proposals ADD COLUMN owner_email TEXT',
     'ALTER TABLE users ADD COLUMN is_principal INTEGER NOT NULL DEFAULT 0',

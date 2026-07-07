@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getProposal, updateProposal, deleteProposal, logActivity } from '@/lib/proposal-generator'
+import { PROPERTY_TYPES, type PropertyType } from '@/types/proposal'
 
 export async function GET(
   request: NextRequest,
@@ -49,6 +50,11 @@ export async function PUT(
     if (body.clientEmail !== undefined) updates.clientEmail = body.clientEmail
     if (body.propertyAddress !== undefined) updates.propertyAddress = body.propertyAddress
     if (body.methodOfSale !== undefined) updates.methodOfSale = body.methodOfSale
+
+    // Subject property type (whitelisted values only; invalid values ignored)
+    if (body.propertyType !== undefined && PROPERTY_TYPES.includes(body.propertyType)) {
+      updates.propertyType = body.propertyType as PropertyType
+    }
 
     // Price guide
     if (body.priceGuide !== undefined) {

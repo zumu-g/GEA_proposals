@@ -4,6 +4,7 @@ import { saveProposal, getProposal, getAgencyConfig, listProposals, deletePropos
 import { lookupComparables, lookupOnMarket } from '@/lib/comparables-lookup'
 import { getCurrentUser } from '@/lib/current-user'
 import { getEffectiveConfig } from '@/lib/user-profile'
+import { PROPERTY_TYPES, type PropertyType } from '@/types/proposal'
 
 interface WizardMarketingItem {
   id?: string; category: string; description: string; cost: number; included: boolean
@@ -76,6 +77,10 @@ export async function POST(request: NextRequest) {
     const comparablesHandled = formData.get('comparablesHandled') as string | null
     const proposalType = (formData.get('proposalType') as string | null) || 'sale'
     const template = (formData.get('template') as string | null) === 'simple' ? 'simple' : 'full'
+    const propertyTypeRaw = formData.get('propertyType') as string | null
+    const propertyType = PROPERTY_TYPES.includes(propertyTypeRaw as PropertyType)
+      ? (propertyTypeRaw as PropertyType)
+      : 'house'
     const askingRentStr = formData.get('askingRent') as string | null
     const leaseType = formData.get('leaseType') as string | null
     const availableDate = formData.get('availableDate') as string | null
@@ -210,6 +215,11 @@ export async function POST(request: NextRequest) {
 
     // Client-facing template choice
     proposal.template = template
+
+    // Subject property type — sale proposals only (rental keeps the default; stray values not persisted)
+    if (proposalType !== 'rental') {
+      proposal.propertyType = propertyType
+    }
 
     // Rental fields
     proposal.proposalType = proposalType as 'sale' | 'rental'
