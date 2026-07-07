@@ -26,6 +26,14 @@ import { Footer } from '@/components/Proposal/Footer'
 import { PdfButton } from '@/components/Proposal/PdfButton'
 import { ViewTracker } from '@/components/Proposal/ViewTracker'
 
+// Proposal dates are stored in mixed formats (ISO timestamps, plain dates) —
+// render a clean day-month-year for the print footer, falling back to raw
+function formatPrintDate(value: string): string {
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return value
+  return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
 interface ProposalPageProps {
   params: Promise<{
     id: string
@@ -67,7 +75,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
   const typeContent = getPropertyTypeContent(isRentalProposal ? undefined : proposal.propertyType)
 
   return (
-    <ProposalLayout>
+    <ProposalLayout printFooter={`${proposal.propertyAddress} — ${formatPrintDate(proposal.proposalDate)}`}>
       <ViewTracker proposalId={proposal.id} />
       <PdfButton />
 

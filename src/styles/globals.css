@@ -89,10 +89,19 @@
   }
 }
 
-/* Print / PDF styles */
+/* Screen: the print footer never shows */
+.proposal-print-footer {
+  display: none;
+}
+
+/* Print / PDF styles — A4 landscape report (docs/plans/2026-07-07-002) */
 @media print {
+  /* Framed report pages with a full-bleed cover */
   @page {
     size: A4 landscape;
+    margin: 10mm;
+  }
+  @page :first {
     margin: 0;
   }
 
@@ -100,6 +109,14 @@
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     color-adjust: exact !important;
+    background: #fff !important;
+  }
+
+  /* Global scale compression: Tailwind sizes are rem-based, so shrinking the
+     root scales the whole screen-designed layout to landscape-page proportions
+     (16px -> 12px ≈ 9pt body floor) */
+  html {
+    font-size: 12px;
   }
 
   .print\:hidden {
@@ -140,21 +157,113 @@
     transition-delay: 0s !important;
   }
 
+  /* Neutralise framer-motion inline styles: unviewed whileInView sections
+     otherwise print at their initial state (opacity 0 / translated) — the
+     root cause of blank printed pages. !important beats inline styles. */
+  .proposal-print-root *,
+  .proposal-print-root *::before,
+  .proposal-print-root *::after {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /* Viewport-height layouts don't fit a landscape page */
+  .proposal-print-root .min-h-screen,
+  .proposal-print-root .h-screen {
+    min-height: 0 !important;
+    height: auto !important;
+  }
+
+  /* One section per page: every top-level section (full template, Express,
+     and the inline dual-campaign sections) is a direct child of the template
+     wrapper div. Sections may break internally (continuation pages) — leaf
+     blocks below opt out individually. */
+  .proposal-print-root main > div > section {
+    break-before: page;
+    page-break-before: always;
+    break-inside: auto;
+    page-break-inside: auto;
+    min-height: 0 !important;
+    padding-top: 8mm !important;
+    padding-bottom: 8mm !important;
+  }
+  /* The hero is the cover — no break before the first page, and it fills the
+     full-bleed first page exactly (A4 landscape = 297x210mm; margin 0) */
+  .proposal-print-root main > div > section:first-child {
+    break-before: auto;
+    page-break-before: auto;
+    height: 209mm !important;
+    max-height: 209mm !important;
+    padding: 0 !important;
+    overflow: hidden;
+  }
+  /* Opt-out: small sections that share a page with the previous one */
+  .proposal-print-root main > div > section.print-page-continue {
+    break-before: auto;
+    page-break-before: auto;
+  }
+
   /* Ensure backgrounds print */
   section {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
-  /* Page breaks */
-  section {
+  /* Leaf blocks never split across pages */
+  .proposal-print-root tr {
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+  .print-tile-list > * {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .print-tile-list {
+    /* compress the tall on-screen rhythm between tiles */
+    row-gap: 1.5rem !important;
+  }
+  .print-tile-list > * + * {
+    margin-top: 1.5rem !important;
   }
 
   /* Ensure images print */
   img {
     max-width: 100% !important;
     page-break-inside: avoid;
+  }
+
+  /* Running identifier: fixed elements repeat on every printed page in Chrome.
+     Top-anchored — bottom-anchored fixed elements overflow the smaller content
+     box of margin'd pages and wrap onto the next page's top. Subtle grey —
+     legible on framed pages, unobtrusive over the dark cover (per-page
+     suppression isn't possible in pure CSS). */
+  .proposal-print-footer {
+    display: block !important;
+    position: fixed;
+    top: 2mm;
+    /* generous slack: Chrome resolves fixed offsets against the unmargined
+       page box, and margin'd pages clip anything inside the right margin */
+    right: 26mm;
+    font-size: 7.5pt;
+    letter-spacing: 0.05em;
+    color: #9ca3af;
+    z-index: 100;
+  }
+
+  /* A single oversized image must not force a section to split image/text
+     across two pages */
+  .proposal-print-root img {
+    max-height: 110mm;
+    object-fit: cover;
+  }
+  .proposal-print-root main > div > section:first-child img {
+    max-height: none; /* the cover hero fills its page */
+  }
+
+  /* Empty page remainders print clean white, not tinted off-white */
+  .proposal-print-root,
+  .proposal-print-root > main,
+  .proposal-print-root main > div {
+    background: #fff !important;
   }
 }

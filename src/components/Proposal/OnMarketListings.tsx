@@ -66,7 +66,7 @@ export function OnMarketListings({ listings, proposalType, showBedsBaths = true 
           </div>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 print:grid-cols-4 gap-6 lg:gap-8 print:gap-4">
           {listings.map((listing, index) => (
             <motion.div
               key={`${listing.address}-${index}`}
@@ -74,7 +74,7 @@ export function OnMarketListings({ listings, proposalType, showBedsBaths = true 
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4, delay: prefersReducedMotion ? 0 : index * 0.07 }}
-              className="group"
+              className="group print:break-inside-avoid"
             >
               <div className="bg-charcoal-50/30 rounded-xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 h-full flex flex-col">
                 {/* Image */}

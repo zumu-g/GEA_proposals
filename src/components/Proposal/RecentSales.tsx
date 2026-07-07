@@ -107,7 +107,7 @@ export function RecentSales({ sales, proposalType, showBedsBaths = true }: Recen
             </div>
 
             {/* Pill-style sort controls */}
-            <div className="flex items-center gap-2 mt-6 sm:mt-0">
+            <div className="flex items-center gap-2 mt-6 sm:mt-0 print:hidden">
               <span className="text-sm font-sans font-medium text-charcoal-400 mr-1">sort</span>
               <div className="flex items-center bg-white rounded-full shadow-sm p-1">
                 {sortOptions.map((option) => (
@@ -135,7 +135,7 @@ export function RecentSales({ sales, proposalType, showBedsBaths = true }: Recen
           </div>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 print:grid-cols-4 gap-6 lg:gap-8 print:gap-4">
           {sortedSales.map((sale, index) => (
             <motion.div
               key={`${sale.address}-${index}`}
@@ -143,7 +143,7 @@ export function RecentSales({ sales, proposalType, showBedsBaths = true }: Recen
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4, delay: prefersReducedMotion ? 0 : index * 0.07 }}
-              className="group"
+              className="group print:break-inside-avoid"
             >
               <div className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 h-full flex flex-col">
                 {/* Image */}

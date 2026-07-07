@@ -72,7 +72,7 @@ export function ProcessJourney({ steps, methodOfSale, proposalType, intro }: Pro
         </motion.div>
 
         {/* Steps — alternating left/right */}
-        <div className="space-y-20 sm:space-y-28 lg:space-y-36">
+        <div className="space-y-20 sm:space-y-28 lg:space-y-36 print-tile-list">
           {steps.map((step, index) => {
             const isEven = index % 2 === 0
             const theme = stepThemes[index % stepThemes.length]

@@ -27,7 +27,7 @@ export function FullHero({ proposal }: FullHeroProps) {
   const streetName = proposal.propertyAddress.split(',')[0].trim()
 
   return (
-    <section className="relative h-screen min-h-[600px] max-h-[1200px] bg-charcoal text-white overflow-hidden print:h-auto print:min-h-0 print:max-h-none print:py-20">
+    <section className="relative h-screen min-h-[600px] max-h-[1200px] bg-charcoal text-white overflow-hidden">
       {/* Gold accent line at top */}
       <div className="w-full h-1 bg-gold relative z-10" />
 
