@@ -1,7 +1,7 @@
 ---
 title: "feat: Property-type-tailored full and Express proposals"
 type: feat
-status: active
+status: completed
 date: 2026-07-07
 ---
 
