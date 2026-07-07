@@ -1,4 +1,5 @@
 import type { Proposal } from '@/types/proposal'
+import { getPropertyTypeContent } from '@/lib/property-type-content'
 import { FullHero } from '@/components/Proposal/FullHero'
 import { BrandStatement } from '@/components/Proposal/BrandStatement'
 import { AgentProfile } from '@/components/Proposal/AgentProfile'
@@ -17,13 +18,16 @@ export function SimpleProposal({ proposal }: { proposal: Proposal }) {
   // Trim comparables to the most relevant few for a short page.
   const trimmedSales = (proposal.recentSales || []).slice(0, 4)
 
+  // Property-type copy/visibility — rentals resolve to the house baseline.
+  const typeContent = getPropertyTypeContent(proposal.proposalType === 'rental' ? undefined : proposal.propertyType)
+
   return (
     <div className="min-h-screen">
       {/* Hero: property + address */}
       <FullHero proposal={proposal} />
 
       {/* Price guide + method of sale (respects showPriceRange) */}
-      <BrandStatement proposal={proposal} />
+      <BrandStatement proposal={proposal} statementOverride={typeContent.copy.brandStatement} />
 
       {/* Who the agent is */}
       <AgentProfile
@@ -41,7 +45,7 @@ export function SimpleProposal({ proposal }: { proposal: Proposal }) {
 
       {/* A few comparable sales to justify the price */}
       {trimmedSales.length > 0 && (
-        <RecentSales sales={trimmedSales} proposalType={proposal.proposalType} />
+        <RecentSales sales={trimmedSales} proposalType={proposal.proposalType} showBedsBaths={typeContent.showsBedsBaths} />
       )}
 
       {/* Fees + marketing cost (respects showCommission) */}

@@ -7,17 +7,19 @@ interface MarketingStrategyProps {
   approach?: string
   propertyAddress: string
   proposalType?: 'sale' | 'rental'
+  /** Property-type default copy — used only when the agent writes no approach. */
+  defaultApproach?: string
 }
 
 const DEFAULT_APPROACH = `We are currently seeing above average levels of buyer enquiry, and multiple bidders on most homes that come to market. The advertising campaign will target buyers both locally and also out of area buyers currently looking for this specific area. The majority of purchasers in this price bracket will be looking on realestate.com.au and domain.com.au, the campaign will be approved by you prior to launch and the results reviewed with you each week. This provides you with extra prominence in the marketplace and is a cost effective, structured campaign.`
 
 const DEFAULT_RENTAL_APPROACH = `We are currently seeing strong levels of tenant enquiry, with quality applicants actively seeking well-presented homes in this area. The advertising campaign will target prospective tenants both locally and from out of area, with your property prominently listed on realestate.com.au and domain.com.au. The campaign is approved by you prior to launch and the results reviewed with you each week, helping us secure a quality, long-term tenant at the best achievable rent.`
 
-export function MarketingStrategy({ approach, propertyAddress, proposalType }: MarketingStrategyProps) {
+export function MarketingStrategy({ approach, propertyAddress, proposalType, defaultApproach }: MarketingStrategyProps) {
   const prefersReducedMotion = useReducedMotion()
   const [imageError, setImageError] = useState(false)
 
-  const text = approach || (proposalType === 'rental' ? DEFAULT_RENTAL_APPROACH : DEFAULT_APPROACH)
+  const text = approach || defaultApproach || (proposalType === 'rental' ? DEFAULT_RENTAL_APPROACH : DEFAULT_APPROACH)
 
   return (
     <section className="py-20 sm:py-28 lg:py-32 bg-white relative overflow-hidden">

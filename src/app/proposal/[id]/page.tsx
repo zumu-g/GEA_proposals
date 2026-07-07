@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { getProposal, getDefaultProposalExtras, DEFAULT_TOTAL_ADVERTISING_COST } from '@/lib/proposal-generator'
+import { getPropertyTypeContent } from '@/lib/property-type-content'
 import { ProposalLayout } from '@/components/Layout/ProposalLayout'
 import { FullHero } from '@/components/Proposal/FullHero'
 import { SimpleProposal } from '@/components/Proposal/SimpleProposal'
@@ -62,6 +63,9 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
   const showOnMarket = !hidden.has(isRentalProposal ? 'forrent' : 'forsale')
   const showMarketing = !hidden.has('marketing')
 
+  // Property-type copy/visibility — rentals resolve to the house baseline.
+  const typeContent = getPropertyTypeContent(isRentalProposal ? undefined : proposal.propertyType)
+
   return (
     <ProposalLayout>
       <ViewTracker proposalId={proposal.id} />
@@ -75,7 +79,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
         <FullHero proposal={proposal} />
 
         {/* Brand statement - price guide, method of sale */}
-        <BrandStatement proposal={proposal} />
+        <BrandStatement proposal={proposal} statementOverride={typeContent.copy.brandStatement} />
 
         {/* Agent profile - intro + buyer database info */}
         <AgentProfile
@@ -100,6 +104,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
             approach={proposal.marketingApproach}
             propertyAddress={proposal.propertyAddress}
             proposalType={proposal.proposalType}
+            defaultApproach={typeContent.copy.marketingApproach}
           />
         )}
 
@@ -111,16 +116,16 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
 
         {/* Recent comparable sales / rentals */}
         {showComparables && (
-          <RecentSales sales={proposal.recentSales} proposalType={proposal.proposalType} />
+          <RecentSales sales={proposal.recentSales} proposalType={proposal.proposalType} showBedsBaths={typeContent.showsBedsBaths} />
         )}
 
         {/* On-market comparable listings */}
         {showOnMarket && (
-          <OnMarketListings listings={proposal.onMarketListings || []} proposalType={proposal.proposalType} />
+          <OnMarketListings listings={proposal.onMarketListings || []} proposalType={proposal.proposalType} showBedsBaths={typeContent.showsBedsBaths} />
         )}
 
         {/* VIP buyers, database, internet access */}
-        <VIPBuyers proposalType={proposal.proposalType} />
+        {typeContent.showsVipBuyers && <VIPBuyers proposalType={proposal.proposalType} />}
 
         {/* Internet presence - listing platforms */}
         <InternetPresence listings={proposal.internetListings} proposalType={proposal.proposalType} />
@@ -129,7 +134,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
         <TeamShowcase agency={proposal.agency} proposalType={proposal.proposalType} />
 
         {/* Visual process journey */}
-        <ProcessJourney steps={proposal.saleProcess} methodOfSale={proposal.methodOfSale} proposalType={proposal.proposalType} />
+        <ProcessJourney steps={proposal.saleProcess} methodOfSale={proposal.methodOfSale} proposalType={proposal.proposalType} intro={typeContent.copy.processIntro} />
 
         {/* Marketing showcase - channels */}
         {showMarketing && (
@@ -227,6 +232,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
           agentName={proposal.agency?.agentName}
           agentTitle={proposal.agency?.agentTitle}
           agentPhoto={proposal.agency?.agentPhoto}
+          statementOverride={typeContent.copy.closingStatement}
         />
 
         {/* Approval CTA */}

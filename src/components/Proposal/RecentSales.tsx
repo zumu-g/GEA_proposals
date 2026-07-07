@@ -8,6 +8,8 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 interface RecentSalesProps {
   sales: PropertySale[]
   proposalType?: 'sale' | 'rental'
+  /** Hide bed/bath/size chips for property types where they don't apply (e.g. land). */
+  showBedsBaths?: boolean
 }
 
 type SortOption = 'distance' | 'price' | 'date'
@@ -19,7 +21,7 @@ const TIER_META: Partial<Record<NonNullable<PropertySale['tier']>, { label: stri
   similar: { label: 'Similar to yours', cls: 'bg-brand/90 text-white' },
 }
 
-export function RecentSales({ sales, proposalType }: RecentSalesProps) {
+export function RecentSales({ sales, proposalType, showBedsBaths = true }: RecentSalesProps) {
   const [sortBy, setSortBy] = useState<SortOption>('distance')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set())
@@ -192,17 +194,19 @@ export function RecentSales({ sales, proposalType }: RecentSalesProps) {
                     {formatCurrency(sale.price)}
                   </p>
 
-                  <div className="flex flex-wrap gap-3 mb-4">
-                    <span className="inline-flex items-center px-3 py-1 rounded-full bg-charcoal-50 text-charcoal font-sans text-xs font-medium">
-                      {sale.bedrooms} bed
-                    </span>
-                    <span className="inline-flex items-center px-3 py-1 rounded-full bg-charcoal-50 text-charcoal font-sans text-xs font-medium">
-                      {sale.bathrooms} bath
-                    </span>
-                    <span className="inline-flex items-center px-3 py-1 rounded-full bg-charcoal-50 text-charcoal font-sans text-xs font-medium">
-                      {(sale.sqft ?? 0).toLocaleString()} sqm
-                    </span>
-                  </div>
+                  {showBedsBaths && (
+                    <div className="flex flex-wrap gap-3 mb-4">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-charcoal-50 text-charcoal font-sans text-xs font-medium">
+                        {sale.bedrooms} bed
+                      </span>
+                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-charcoal-50 text-charcoal font-sans text-xs font-medium">
+                        {sale.bathrooms} bath
+                      </span>
+                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-charcoal-50 text-charcoal font-sans text-xs font-medium">
+                        {(sale.sqft ?? 0).toLocaleString()} sqm
+                      </span>
+                    </div>
+                  )}
 
                   <div className="flex items-center justify-between text-sm font-sans mt-auto pt-4">
                     <span className="text-charcoal-400">
