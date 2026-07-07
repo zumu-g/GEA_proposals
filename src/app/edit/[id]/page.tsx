@@ -61,6 +61,7 @@ interface ProposalData {
   proposalDate: string
   priceGuide?: PriceGuide
   methodOfSale?: string
+  propertyType?: string
   fees?: FeeInfo
   totalAdvertisingCost?: number
   marketingApproach?: string
@@ -160,6 +161,7 @@ export default function EditProposalPage() {
   const [priceGuideMin, setPriceGuideMin] = useState('')
   const [priceGuideMax, setPriceGuideMax] = useState('')
   const [methodOfSale, setMethodOfSale] = useState('')
+  const [propertyType, setPropertyType] = useState('house')
   const [commissionRate, setCommissionRate] = useState('')
   const [marketingBudget, setMarketingBudget] = useState('')
   const [agentNotes, setAgentNotes] = useState('')
@@ -190,6 +192,7 @@ export default function EditProposalPage() {
       setPriceGuideMin(data.priceGuide?.min?.toString() || '')
       setPriceGuideMax(data.priceGuide?.max?.toString() || '')
       setMethodOfSale(data.methodOfSale || '')
+      setPropertyType(data.propertyType || 'house')
       setCommissionRate(data.fees?.commissionRate?.toString() || '')
       setMarketingBudget(data.totalAdvertisingCost?.toString() || '')
       setAgentNotes(data.marketingApproach || '')
@@ -233,6 +236,7 @@ export default function EditProposalPage() {
         clientEmail,
         propertyAddress,
         methodOfSale: methodOfSale || undefined,
+        propertyType,
         priceGuide: priceGuideMin && priceGuideMax
           ? { min: parseInt(priceGuideMin), max: parseInt(priceGuideMax) }
           : null,
@@ -644,6 +648,21 @@ export default function EditProposalPage() {
                       className={`${inputClasses} pl-8`}
                     />
                   </div>
+                </div>
+                <div>
+                  <label className={labelClasses}>property type</label>
+                  <select
+                    value={propertyType}
+                    onChange={(e) => { setPropertyType(e.target.value); markChanged() }}
+                    className={`${inputClasses} cursor-pointer`}
+                  >
+                    {Object.values(PROPERTY_TYPE_CONTENT).map(c => (
+                      <option key={c.type} value={c.type} className="bg-[#1A1A1A]">{c.label}</option>
+                    ))}
+                  </select>
+                  <p className="text-white/30 font-sans text-xs mt-1">
+                    changing the type here updates copy on the proposal page; process steps are only regenerated via the full wizard edit
+                  </p>
                 </div>
                 <div>
                   <label className={labelClasses}>method of sale</label>
