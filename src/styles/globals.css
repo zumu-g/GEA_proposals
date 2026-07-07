@@ -232,17 +232,38 @@
     page-break-inside: avoid;
   }
 
-  /* Running footer: fixed elements repeat on every printed page in Chrome.
-     Subtle grey — legible on framed pages, unobtrusive over the dark cover
-     (per-page suppression isn't possible in pure CSS). */
+  /* Running identifier: fixed elements repeat on every printed page in Chrome.
+     Top-anchored — bottom-anchored fixed elements overflow the smaller content
+     box of margin'd pages and wrap onto the next page's top. Subtle grey —
+     legible on framed pages, unobtrusive over the dark cover (per-page
+     suppression isn't possible in pure CSS). */
   .proposal-print-footer {
     display: block !important;
     position: fixed;
-    bottom: 3mm;
-    right: 10mm;
+    top: 2mm;
+    /* generous slack: Chrome resolves fixed offsets against the unmargined
+       page box, and margin'd pages clip anything inside the right margin */
+    right: 26mm;
     font-size: 7.5pt;
     letter-spacing: 0.05em;
     color: #9ca3af;
     z-index: 100;
+  }
+
+  /* A single oversized image must not force a section to split image/text
+     across two pages */
+  .proposal-print-root img {
+    max-height: 110mm;
+    object-fit: cover;
+  }
+  .proposal-print-root main > div > section:first-child img {
+    max-height: none; /* the cover hero fills its page */
+  }
+
+  /* Empty page remainders print clean white, not tinted off-white */
+  .proposal-print-root,
+  .proposal-print-root > main,
+  .proposal-print-root main > div {
+    background: #fff !important;
   }
 }

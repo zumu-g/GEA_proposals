@@ -32,7 +32,7 @@ export function MarketingStrategy({ approach, propertyAddress, proposalType, def
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
           >
-            <div className="aspect-[4/3] rounded-2xl overflow-hidden shadow-lg relative">
+            <div className="aspect-[4/3] rounded-2xl overflow-hidden shadow-lg relative print:max-h-[100mm] print:aspect-auto print:h-[100mm]">
               {!imageError ? (
                 <img
                   src="/images/stocksy/marketing-strategy.jpg"
