@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getProposal, updateProposal, deleteProposal, logActivity } from '@/lib/proposal-generator'
+import { getProposal, updateProposal, deleteProposal, logActivity, DEFAULT_DATABASE_INFO } from '@/lib/proposal-generator'
 import { PROPERTY_TYPES, type PropertyType } from '@/types/proposal'
+import { PROPERTY_TYPE_CONTENT, getPropertyTypeContent, resolveSaleProcess } from '@/lib/property-type-content'
 
 export async function GET(
   request: NextRequest,
@@ -51,9 +52,30 @@ export async function PUT(
     if (body.propertyAddress !== undefined) updates.propertyAddress = body.propertyAddress
     if (body.methodOfSale !== undefined) updates.methodOfSale = body.methodOfSale
 
-    // Subject property type (whitelisted values only; invalid values ignored)
-    if (body.propertyType !== undefined && PROPERTY_TYPES.includes(body.propertyType)) {
-      updates.propertyType = body.propertyType as PropertyType
+    // Subject property type (whitelisted values only; invalid values ignored;
+    // rental proposals never carry a type — mirrors the POST guard)
+    if (
+      body.propertyType !== undefined &&
+      PROPERTY_TYPES.includes(body.propertyType) &&
+      existing.proposalType !== 'rental'
+    ) {
+      const newType = body.propertyType as PropertyType
+      updates.propertyType = newType
+      // Keep the proposal internally consistent on a type change: regenerate the
+      // persisted sale-process steps, and swap the databaseInfo default only when
+      // the stored text IS a type default (agent-authored copy is never touched)
+      if (newType !== (existing.propertyType || 'house')) {
+        const method = body.methodOfSale !== undefined ? body.methodOfSale : existing.methodOfSale
+        updates.saleProcess = resolveSaleProcess(newType, method)
+        const typeDefaults = [
+          DEFAULT_DATABASE_INFO,
+          ...Object.values(PROPERTY_TYPE_CONTENT).map(c => c.copy.databaseInfo).filter(Boolean),
+        ]
+        if (!existing.databaseInfo || typeDefaults.includes(existing.databaseInfo)) {
+          updates.databaseInfo =
+            getPropertyTypeContent(newType).copy.databaseInfo || DEFAULT_DATABASE_INFO
+        }
+      }
     }
 
     // Price guide

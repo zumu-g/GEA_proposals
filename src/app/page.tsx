@@ -185,6 +185,10 @@ export default function HomePage() {
   const [propertyType, setPropertyType] = useState<PropertyType>('house')
   // Transient notice shown when a type switch re-defaults the sale method
   const [typeChangeNotice, setTypeChangeNotice] = useState('')
+  // Mirror for reading the current method inside handleFieldChange (empty deps)
+  // without side effects inside a state updater
+  const methodOfSaleRef = useRef('')
+  useEffect(() => { methodOfSaleRef.current = methodOfSale }, [methodOfSale])
   // Dual target campaign (development site) — KTD 2c: state persists when toggled off
   const [dualCampaign, setDualCampaign] = useState(false)
   // Sidebar page toggles — sections excluded from the generated client proposal.
@@ -337,6 +341,7 @@ export default function HomePage() {
 
   const handleRestoreDraft = useCallback((data: { step: number; formData: Record<string, unknown> }) => {
     const d = data.formData
+    setTypeChangeNotice('')
     if (d.proposalType) setProposalType(d.proposalType as 'sale' | 'rental')
     if (d.clientName) setClientName(d.clientName as string)
     if (d.clientEmail) setClientEmail(d.clientEmail as string)
@@ -382,6 +387,7 @@ export default function HomePage() {
       setEditingProposalId(proposalId)
       setResult(null)
       setCurrentStep(0)
+      setTypeChangeNotice('')
 
       // Pre-fill all state
       setProposalType((proposal.proposalType as 'sale' | 'rental') || 'sale')
@@ -471,6 +477,7 @@ export default function HomePage() {
       setEditingProposalId(null)
       setResult(null)
       setCurrentStep(0)
+      setTypeChangeNotice('')
 
       // Pre-fill but clear identity fields for new proposal
       setClientName('')
@@ -773,23 +780,23 @@ export default function HomePage() {
         const next = value as PropertyType
         setPropertyType(next)
         // Re-default derived state only on agent action (this handler), never on
-        // programmatic sets in handleEdit/handleRestoreDraft.
+        // programmatic sets in handleEdit/handleRestoreDraft. Read the current
+        // method from the ref so the state updaters stay pure.
         const content = getPropertyTypeContent(next)
-        setMethodOfSale(prev => {
-          if (prev === '' || content.saleMethods.some(m => m.value === prev)) {
-            setTypeChangeNotice('')
-            return prev
-          }
+        const current = methodOfSaleRef.current
+        if (current === '' || content.saleMethods.some(m => m.value === current)) {
+          setTypeChangeNotice('')
+        } else {
           const fallback = content.saleMethods[0]?.value ?? ''
+          setMethodOfSale(fallback)
           setTypeChangeNotice(`sale method reset to ${fallback || 'n/a'} for ${content.label}`)
-          return fallback
-        })
+        }
         break
       }
       case 'clientName': setClientName(value); break
       case 'clientEmail': setClientEmail(value); break
       case 'propertyAddress': setPropertyAddress(value); break
-      case 'methodOfSale': setMethodOfSale(value); break
+      case 'methodOfSale': setMethodOfSale(value); setTypeChangeNotice(''); break
       case 'priceGuideMin': setPriceGuideMin(value); break
       case 'priceGuideMax': setPriceGuideMax(value); break
       case 'heroImage': setHeroImage(value); break

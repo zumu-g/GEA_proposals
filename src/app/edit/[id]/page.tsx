@@ -62,6 +62,7 @@ interface ProposalData {
   priceGuide?: PriceGuide
   methodOfSale?: string
   propertyType?: string
+  proposalType?: 'sale' | 'rental'
   fees?: FeeInfo
   totalAdvertisingCost?: number
   marketingApproach?: string
@@ -162,6 +163,7 @@ export default function EditProposalPage() {
   const [priceGuideMax, setPriceGuideMax] = useState('')
   const [methodOfSale, setMethodOfSale] = useState('')
   const [propertyType, setPropertyType] = useState('house')
+  const [isRentalProposal, setIsRentalProposal] = useState(false)
   const [commissionRate, setCommissionRate] = useState('')
   const [marketingBudget, setMarketingBudget] = useState('')
   const [agentNotes, setAgentNotes] = useState('')
@@ -193,6 +195,7 @@ export default function EditProposalPage() {
       setPriceGuideMax(data.priceGuide?.max?.toString() || '')
       setMethodOfSale(data.methodOfSale || '')
       setPropertyType(data.propertyType || 'house')
+      setIsRentalProposal(data.proposalType === 'rental')
       setCommissionRate(data.fees?.commissionRate?.toString() || '')
       setMarketingBudget(data.totalAdvertisingCost?.toString() || '')
       setAgentNotes(data.marketingApproach || '')
@@ -649,6 +652,7 @@ export default function EditProposalPage() {
                     />
                   </div>
                 </div>
+                {!isRentalProposal && (
                 <div>
                   <label className={labelClasses}>property type</label>
                   <select
@@ -661,9 +665,10 @@ export default function EditProposalPage() {
                     ))}
                   </select>
                   <p className="text-white/30 font-sans text-xs mt-1">
-                    changing the type here updates copy on the proposal page; process steps are only regenerated via the full wizard edit
+                    changing the type updates proposal copy and regenerates the sale-process steps
                   </p>
                 </div>
+                )}
                 <div>
                   <label className={labelClasses}>method of sale</label>
                   <select

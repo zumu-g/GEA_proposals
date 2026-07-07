@@ -55,7 +55,19 @@ assert.equal(resolveSaleProcess('house', 'Tender'), PROPERTY_TYPE_CONTENT.house.
 assert.equal(resolveSaleProcess('commercial-property', 'Expressions of Interest'),
   PROPERTY_TYPE_CONTENT['commercial-property'].saleProcessSteps['expressions of interest'])
 assert.equal(resolveSaleProcess('commercial-property', 'Auction'),
-  PROPERTY_TYPE_CONTENT['commercial-property'].saleProcessSteps.default)
+  PROPERTY_TYPE_CONTENT['commercial-property'].saleProcessSteps.auction,
+  'commercial auction must resolve to auction steps, not EOI default')
 assert.equal(resolveSaleProcess('unknown-type', 'Auction'), PROPERTY_TYPE_CONTENT.house.saleProcessSteps.auction)
+
+// Every offered sale method resolves to a complete 6-step process for its type
+for (const type of PROPERTY_TYPES) {
+  for (const m of PROPERTY_TYPE_CONTENT[type].saleMethods) {
+    const steps = resolveSaleProcess(type, m.value)
+    assert(Array.isArray(steps) && steps.length === 6, `${type} + '${m.value || 'n/a'}' must resolve to 6 steps`)
+  }
+}
+
+// House keeps the pre-feature comparables default (no type filter)
+assert.equal(PROPERTY_TYPE_CONTENT.house.comparablesFilter, null, 'house must not pre-filter comparables')
 
 console.log('property-type-content: all checks passed')

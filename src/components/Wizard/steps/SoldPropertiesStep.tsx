@@ -685,8 +685,12 @@ export default function SoldPropertiesStep({
       // Auto-select the most relevant comps on a fresh search: the list is
       // already distance-sorted (closest first) and time-filtered (recent), so
       // the top N are the best comps. Only runs once per search and never when
-      // the user has already made a manual selection.
-      if (!hasAutoSelectedRef.current && includedAddrRef.current.size === 0) {
+      // the user has already made a manual selection. Skipped for subject types
+      // with no expected local data (land/dev/commercial) — the search returns
+      // residential rows there, and silently pre-ticking them would ship wrong
+      // comps on a proposal the waived ≥1-comp rule no longer gates.
+      const autoSelectEnabled = isRental || getPropertyTypeContent(subjectPropertyType).requiresComparables
+      if (autoSelectEnabled && !hasAutoSelectedRef.current && includedAddrRef.current.size === 0) {
         for (const s of filteredSold.slice(0, AUTO_SELECT_COUNT)) {
           if (s.address) includedAddrRef.current.add(s.address)
         }
@@ -750,7 +754,7 @@ export default function SoldPropertiesStep({
         )
       }
     },
-    [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, suburbFilter, soldWithin, dateFrom, dateTo, sortBy, subjectLat, subjectLng, confirmedAddress]
+    [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, suburbFilter, soldWithin, dateFrom, dateTo, sortBy, subjectLat, subjectLng, confirmedAddress, isRental, subjectPropertyType]
   )
 
   // Re-apply filters when filter values change

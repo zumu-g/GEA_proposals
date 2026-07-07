@@ -24,12 +24,8 @@ export interface PropertyTypeCopy {
   brandStatement?: string
   /** MarketingStrategy fallback text (used when the agent writes no approach). */
   marketingApproach?: string
-  /** AreaAnalysis framing line. */
-  areaAnalysisIntro?: string
   /** ProcessJourney intro line. */
   processIntro?: string
-  /** FeeStructureVisual framing line. */
-  feeFraming?: string
   /** ClosingStatement body override. */
   closingStatement?: string
   /** Persisted databaseInfo default (buyer database explanation). */
@@ -66,15 +62,8 @@ const RESIDENTIAL_METHODS: readonly SaleMethodOption[] = [
   { value: '', label: 'n/a', description: 'method to be confirmed' },
 ] as const
 
-const DEVELOPMENT_METHODS: readonly SaleMethodOption[] = [
-  { value: 'Expressions of Interest', description: 'written offers by a closing date' },
-  { value: 'Tender', description: 'sealed offers by a deadline' },
-  { value: 'Auction', description: 'competitive bidding on auction day' },
-  { value: 'Private Sale', description: 'offers accepted directly by the vendor' },
-  { value: '', label: 'n/a', description: 'method to be confirmed' },
-] as const
-
-const COMMERCIAL_METHODS: readonly SaleMethodOption[] = [
+// Shared by development-site and commercial types — EOI-first ordering
+const EOI_FIRST_METHODS: readonly SaleMethodOption[] = [
   { value: 'Expressions of Interest', description: 'written offers by a closing date' },
   { value: 'Tender', description: 'sealed offers by a deadline' },
   { value: 'Auction', description: 'competitive bidding on auction day' },
@@ -87,7 +76,7 @@ const COMMERCIAL_METHODS: readonly SaleMethodOption[] = [
 // auction steps from src/app/api/proposals/route.ts, default steps from
 // DEFAULT_SALE_PROCESS in src/lib/spreadsheet-parser.ts.
 
-const HOUSE_DEFAULT_STEPS: SaleStep[] = [
+export const HOUSE_DEFAULT_STEPS: SaleStep[] = [
   {
     step: 1,
     title: 'Initial Consultation',
@@ -312,6 +301,54 @@ const DEVELOPMENT_DEFAULT_STEPS: SaleStep[] = [
   },
 ]
 
+// Commercial auction steps — LAND_AUCTION_STEPS adapted for commercial assets,
+// so a commercial proposal with method 'Auction' never renders EOI steps under
+// an auction heading
+const COMMERCIAL_AUCTION_STEPS: SaleStep[] = [
+  {
+    step: 1,
+    title: 'Auction Strategy Meeting',
+    description: 'We meet to discuss your auction strategy, reserve price, and campaign plan for the property, and set a clear path to auction day.',
+    duration: '1–2 hours',
+    imageUrl: '/images/stocksy/consultation.jpg',
+  },
+  {
+    step: 2,
+    title: 'Information Preparation',
+    description: 'Photography, the information memorandum, and all marketing materials are produced and signed off before the campaign goes live.',
+    duration: '5–7 days',
+    imageUrl: '/images/stocksy/marketing-prep.jpg',
+  },
+  {
+    step: 3,
+    title: 'Campaign Launch',
+    description: 'Your property goes live across the major commercial platforms and directly to our database of qualified buyers. Maximum exposure from day one.',
+    duration: 'Week 1',
+    imageUrl: '/images/stocksy/launch.jpg',
+  },
+  {
+    step: 4,
+    title: 'Inspections & Buyer Management',
+    description: 'Private inspections throughout the campaign. We qualify serious buyers, manage due-diligence enquiries, and build competitive tension heading into auction day.',
+    duration: 'Weeks 1–3',
+    imageUrl: '/images/stocksy/viewings.jpg',
+  },
+  {
+    step: 5,
+    title: 'Auction Day',
+    description: 'Competitive bidding in a transparent, public forum. Buyers compete openly — the highest bid above reserve secures the property and contracts are exchanged on the day.',
+    duration: 'Week 4',
+    imageUrl: '/images/stocksy/completion.jpg',
+  },
+  {
+    step: 6,
+    title: 'Post-Auction & Settlement',
+    description: 'If sold under the hammer, contracts are exchanged immediately. If passed in, we negotiate directly with the highest bidder. We manage the full process through to settlement.',
+    duration: '30–60 days',
+    imageUrl: '/images/stocksy/valuation.jpg',
+  },
+]
+
 const COMMERCIAL_DEFAULT_STEPS: SaleStep[] = [
   {
     step: 1,
@@ -362,9 +399,7 @@ const COMMERCIAL_DEFAULT_STEPS: SaleStep[] = [
 const LAND_COPY: PropertyTypeCopy = {
   brandStatement: 'land is the one thing they aren\'t making more of. Selling yours well means reaching the builders, developers, and owner-builders competing for blocks in this corridor — and making them compete for yours.',
   marketingApproach: 'We are currently seeing consistent demand for land from builders, developers, and owner-builders across this corridor. The advertising campaign will target these buyers locally and out of area, with the majority searching on realestate.com.au and domain.com.au. The campaign is approved by you prior to launch and the results reviewed with you each week — a cost-effective, structured campaign that puts your land in front of every active land buyer in the market.',
-  areaAnalysisIntro: 'Recent land sales in the area set the benchmark for your block.',
   processIntro: 'a clear, structured path from appraisal to settlement, built for land.',
-  feeFraming: 'a single success fee, payable only when your land sells.',
   closingStatement: 'Your land deserves a campaign that shows buyers what it could become. We\'d be proud to run it.',
   databaseInfo: 'Our database gives your land instant exposure to active buyers the moment it is listed. Builders, developers, and owner-builders specifically seeking land in your area will be notified immediately.',
 }
@@ -372,9 +407,7 @@ const LAND_COPY: PropertyTypeCopy = {
 const DEVELOPMENT_COPY: PropertyTypeCopy = {
   brandStatement: 'development sites trade on potential — zoning, yield, and position. Selling yours well means presenting that potential professionally and putting it in front of every developer and builder active in this corridor.',
   marketingApproach: 'Developer and builder demand for well-positioned sites remains strong across this corridor. The campaign presents your site\'s development potential professionally — zoning, dimensions, and yield — and targets developers, builders, and investors directly through our database alongside the major platforms. The campaign is approved by you prior to launch and the results reviewed with you each week, driving all interested parties toward a competitive closing date.',
-  areaAnalysisIntro: 'Recent site and land transactions in the area set the benchmark for your property.',
   processIntro: 'a structured campaign built to make developers compete — from information pack to closing date.',
-  feeFraming: 'a single success fee, payable only when your site sells.',
   closingStatement: 'Your site\'s value lies in what can be built on it. We\'d be proud to run the campaign that makes developers compete for that opportunity.',
   databaseInfo: 'Our database gives your site instant exposure to active developers, builders, and investors the moment it is listed. Parties specifically seeking development opportunities in your area will be notified immediately.',
 }
@@ -382,9 +415,7 @@ const DEVELOPMENT_COPY: PropertyTypeCopy = {
 const COMMERCIAL_PROPERTY_COPY: PropertyTypeCopy = {
   brandStatement: 'commercial property is bought on numbers and sold on confidence. A professional campaign — clear information, qualified buyers, competitive tension — is what turns a good asset into a strong result.',
   marketingApproach: 'We are seeing steady demand from investors and owner-occupiers for well-positioned commercial property in this area. The campaign presents your property professionally — income, lease terms, and position — through a detailed information memorandum, marketed across the major commercial platforms and directly to our database of qualified buyers. The campaign is approved by you prior to launch and the results reviewed with you each week.',
-  areaAnalysisIntro: 'Recent commercial transactions in the area provide context for your property\'s value.',
   processIntro: 'a professional commercial campaign — information memorandum, qualified buyers, competitive closing.',
-  feeFraming: 'a single success fee, payable only when your property sells.',
   closingStatement: 'Your asset deserves a campaign run with the same rigour a buyer will apply to it. We\'d be proud to deliver that.',
   databaseInfo: 'Our database gives your property instant exposure to qualified commercial buyers the moment it is listed. Investors and owner-occupiers specifically seeking commercial property in your area will be notified immediately.',
 }
@@ -392,9 +423,7 @@ const COMMERCIAL_PROPERTY_COPY: PropertyTypeCopy = {
 const COMMERCIAL_LAND_COPY: PropertyTypeCopy = {
   brandStatement: 'commercial land trades on zoning, position, and possibility. Selling yours well means reaching the developers, investors, and owner-occupiers who can see what it could become.',
   marketingApproach: 'Demand for well-zoned commercial land remains steady from developers, investors, and owner-occupiers planning their next move. The campaign presents your land\'s zoning, dimensions, and potential professionally, marketed across the major commercial platforms and directly to our database of qualified buyers. The campaign is approved by you prior to launch and the results reviewed with you each week.',
-  areaAnalysisIntro: 'Recent commercial land transactions in the area provide context for your property\'s value.',
   processIntro: 'a professional commercial campaign — clear information, qualified buyers, competitive closing.',
-  feeFraming: 'a single success fee, payable only when your land sells.',
   closingStatement: 'Your land\'s value lies in what it makes possible. We\'d be proud to run the campaign that proves it.',
   databaseInfo: 'Our database gives your land instant exposure to qualified commercial buyers the moment it is listed. Developers, investors, and owner-occupiers seeking commercial land in your area will be notified immediately.',
 }
@@ -406,7 +435,9 @@ export const PROPERTY_TYPE_CONTENT: Record<PropertyType, PropertyTypeContent> = 
     copy: {}, // house is the baseline — components render their existing copy
     saleMethods: RESIDENTIAL_METHODS,
     saleProcessSteps: { default: HOUSE_DEFAULT_STEPS, auction: HOUSE_AUCTION_STEPS },
-    comparablesFilter: ['house'],
+    // null keeps the pre-feature "Any" default — filtering typed-but-varied local
+    // rows to 'house' would change which comps house subjects see and auto-select
+    comparablesFilter: null,
     requiresComparables: true,
     showsVipBuyers: true,
     includesOpenHomes: true,
@@ -460,7 +491,7 @@ export const PROPERTY_TYPE_CONTENT: Record<PropertyType, PropertyTypeContent> = 
     label: 'development site',
     helper: 'land or property marketed for its development potential',
     copy: DEVELOPMENT_COPY,
-    saleMethods: DEVELOPMENT_METHODS,
+    saleMethods: EOI_FIRST_METHODS,
     saleProcessSteps: {
       default: DEVELOPMENT_DEFAULT_STEPS,
       'expressions of interest': DEVELOPMENT_DEFAULT_STEPS,
@@ -478,11 +509,12 @@ export const PROPERTY_TYPE_CONTENT: Record<PropertyType, PropertyTypeContent> = 
     label: 'commercial property',
     helper: 'offices, retail, industrial, or mixed-use buildings',
     copy: COMMERCIAL_PROPERTY_COPY,
-    saleMethods: COMMERCIAL_METHODS,
+    saleMethods: EOI_FIRST_METHODS,
     saleProcessSteps: {
       default: COMMERCIAL_DEFAULT_STEPS,
       'expressions of interest': COMMERCIAL_DEFAULT_STEPS,
       tender: COMMERCIAL_DEFAULT_STEPS,
+      auction: COMMERCIAL_AUCTION_STEPS,
     },
     comparablesFilter: null, // no local commercial data
     requiresComparables: false,
@@ -495,11 +527,12 @@ export const PROPERTY_TYPE_CONTENT: Record<PropertyType, PropertyTypeContent> = 
     label: 'commercial land',
     helper: 'vacant land zoned for commercial or industrial use',
     copy: COMMERCIAL_LAND_COPY,
-    saleMethods: COMMERCIAL_METHODS,
+    saleMethods: EOI_FIRST_METHODS,
     saleProcessSteps: {
       default: COMMERCIAL_DEFAULT_STEPS,
       'expressions of interest': COMMERCIAL_DEFAULT_STEPS,
       tender: COMMERCIAL_DEFAULT_STEPS,
+      auction: COMMERCIAL_AUCTION_STEPS,
     },
     comparablesFilter: null,
     requiresComparables: false,

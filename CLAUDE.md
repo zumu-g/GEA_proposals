@@ -14,7 +14,7 @@ Estate agency proposal system for Grant's Estate Agents. Creates shareable luxur
 - CDN cache bypass: middleware sets `Cache-Control: private, no-store` on protected pages
 
 ## Wizard Steps
-1. **Client Details** — name, email, property address (VIC autocomplete)
+1. **Client Details** — name, email, property address (VIC autocomplete), property type selector (sale only), Express/full layout toggle
 2. **Property & Sale** — hero image (auto-fetched from REA), method of sale, price guide, commission, visibility toggles (show/hide price range & commission on proposal)
 3. **Marketing** — campaign items with costs
 4. **Sold Properties** — auto-searches comparable sales by suburb + neighbors, distance filtering, same-street priority
@@ -124,6 +124,7 @@ EVERYPROPERTY_API_TOKEN=epai_...    # everypropertyAI bearer token (server-side 
 - `/src/lib/proposal-generator.ts` — CRUD + agency config with hardcoded fallback
 - `/src/lib/email.ts` — Resend emails: proposal, nurture, approval (agent + client)
 - `/src/lib/email-intake.ts` — AgentMail polling + proposal creation
+- `/src/lib/property-type-content.ts` — per-property-type copy, sale methods, process steps, visibility flags
 - `/src/lib/comparables-lookup.ts` — sold data lookup, address parser, 42 suburb neighbor map
 - `/src/lib/firecrawl-scraper.ts` — Firecrawl REA scraper (sold + on-market, bed/bath extraction)
 - `/src/lib/property-cache.ts` — SQLite cache layer + sold_properties CRUD
@@ -137,6 +138,11 @@ EVERYPROPERTY_API_TOKEN=epai_...    # everypropertyAI bearer token (server-side 
 - `/src/components/Wizard/` — multi-step proposal wizard
 - `/src/components/Proposal/` — proposal page components
 - `/src/components/Dashboard/` — pipeline dashboard components
+
+## Property Types
+- `property_type` (TEXT, default `house`) on `proposals` — 7 values: house, unit, apartment, land, residential-development, commercial-property, commercial-land. Legacy rows read as `house`; rentals never carry a type (POST + PUT guards).
+- `src/lib/property-type-content.ts` is the single source of truth: per-type copy overrides (house = empty baseline), sale-method lists, sale-process steps by (type, method) with case-insensitive lookup + per-type default fallback, comparables filter mapping (house = null → "Any"), `requiresComparables` waiver (false for land/dev/commercial), `showsVipBuyers` / `includesOpenHomes` / `showsBedsBaths` flags.
+- Verification: `npx tsx scripts/check-property-type-content.ts` (library invariants) and `npx tsx scripts/check-property-type-migration.ts <db-copy>` (migration round-trip against a COPY of gea.db).
 
 ## Proposal Visibility Controls
 - `show_price_range` (INTEGER, default 1) — toggle in wizard step 2 to show/hide price guide on client-facing proposal
