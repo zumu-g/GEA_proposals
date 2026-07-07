@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { getPropertyTypeContent } from '@/lib/property-type-content'
+import type { PropertyType } from '@/types/proposal'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -30,6 +32,8 @@ interface SoldPropertiesStepProps {
   onChangeSold: (rows: ComparableRow[]) => void
   onConfirmAddress?: (address: string, lat: number | null, lng: number | null) => void
   proposalType?: 'sale' | 'rental'
+  /** Subject property's type — pre-sets the comparables type filter (distinct from each comparable's own propertyType). */
+  subjectPropertyType?: PropertyType
   priceGuideMin?: string
   priceGuideMax?: string
   askingRent?: string
@@ -236,6 +240,7 @@ export default function SoldPropertiesStep({
   onChangeSold,
   onConfirmAddress,
   proposalType = 'sale',
+  subjectPropertyType = 'house',
   priceGuideMin,
   priceGuideMax,
   askingRent,
@@ -336,7 +341,13 @@ export default function SoldPropertiesStep({
   const [priceMax, setPriceMax] = useState('')
   const [bedsMin, setBedsMin] = useState('')
   const [bathsMin, setBathsMin] = useState('')
-  const [propType, setPropType] = useState('')
+  // Type filter pre-set from the subject property's type (rental keeps no default);
+  // comma-separated tokens match any (e.g. 'unit,apartment')
+  const subjectTypeFilter = isRental ? '' : (getPropertyTypeContent(subjectPropertyType).comparablesFilter?.join(',') ?? '')
+  const [propType, setPropType] = useState(subjectTypeFilter)
+  // Re-sync when the agent changes the subject type mid-wizard (state only
+  // defaults on first mount otherwise)
+  useEffect(() => { setPropType(subjectTypeFilter) }, [subjectTypeFilter])
   const [suburbFilter, setSuburbFilter] = useState('')
   const [soldWithin, setSoldWithin] = useState('12')
   const [dateFrom, setDateFrom] = useState('')
@@ -602,7 +613,7 @@ export default function SoldPropertiesStep({
         if (
           propType &&
           s.propertyType &&
-          !s.propertyType.toLowerCase().includes(propType.toLowerCase())
+          !propType.toLowerCase().split(',').some(t => s.propertyType.toLowerCase().includes(t.trim()))
         )
           return false
         if (soldWithin && s.date) {
@@ -1247,6 +1258,18 @@ export default function SoldPropertiesStep({
         </div>
       )}
 
+      {/* No-local-data note for types without residential sold data */}
+      {!isRental && getPropertyTypeContent(subjectPropertyType).comparablesFilter === null && (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 flex items-start gap-3">
+          <svg className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+          </svg>
+          <p className="text-gray-500 font-sans text-sm">
+            Local sold data covers residential property only — commercial comparables won&apos;t appear in search. Add them manually below, or skip this step; comparables are optional for this property type.
+          </p>
+        </div>
+      )}
+
       {/* ═══════ STEP A: ADDRESS CONFIRMATION ═══════ */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-visible">
         <div className="p-5">
@@ -1569,6 +1592,7 @@ export default function SoldPropertiesStep({
                             <option value="">Any</option>
                             <option value="house">House</option>
                             <option value="unit">Unit</option>
+                            <option value="unit,apartment">Unit / Apartment</option>
                             <option value="townhouse">Townhouse</option>
                             <option value="land">Land</option>
                           </select>

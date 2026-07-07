@@ -745,6 +745,8 @@ export default function HomePage() {
         return true
       case 3:
         if (proposalType === 'rental') return true // leased comparables are optional
+        // Types with no local sold data (land, dev sites, commercial) never hard-block
+        if (!getPropertyTypeContent(propertyType).requiresComparables) return true
         return !validateSoldProperties(soldComparables)
       case 4:
         return true // on-market is optional
@@ -753,7 +755,7 @@ export default function HomePage() {
       default:
         return true
     }
-  }, [currentStep, proposalType, clientName, clientEmail, propertyAddress, methodOfSale, priceGuideMin, priceGuideMax, heroImage, heroImageUrl, commission, askingRent, leaseType, availableDate, managementFee, lettingFee, marketingCosts, soldComparables, dualCampaign, devMethodOfSale, devPriceGuideMin, devPriceGuideMax, devShowPriceRange, devMarketingCosts])
+  }, [currentStep, proposalType, propertyType, clientName, clientEmail, propertyAddress, methodOfSale, priceGuideMin, priceGuideMax, heroImage, heroImageUrl, commission, askingRent, leaseType, availableDate, managementFee, lettingFee, marketingCosts, soldComparables, dualCampaign, devMethodOfSale, devPriceGuideMin, devPriceGuideMax, devShowPriceRange, devMarketingCosts])
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Step field change handler (for ClientDetailsStep and PropertySaleStep)
@@ -922,6 +924,7 @@ export default function HomePage() {
           onChangeSold={setSoldComparables}
           onConfirmAddress={handleConfirmAddress}
           proposalType={proposalType}
+          subjectPropertyType={propertyType}
           priceGuideMin={priceGuideMin}
           priceGuideMax={priceGuideMax}
           askingRent={askingRent}
@@ -937,6 +940,7 @@ export default function HomePage() {
           onMarketListings={onMarketListings}
           onChangeOnMarket={setOnMarketListings}
           proposalType={proposalType}
+          subjectPropertyType={propertyType}
         />
       )}
 

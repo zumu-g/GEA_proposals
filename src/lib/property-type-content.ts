@@ -421,7 +421,7 @@ export const PROPERTY_TYPE_CONTENT: Record<PropertyType, PropertyTypeContent> = 
     },
     saleMethods: RESIDENTIAL_METHODS,
     saleProcessSteps: { default: HOUSE_DEFAULT_STEPS, auction: HOUSE_AUCTION_STEPS },
-    comparablesFilter: ['unit', 'apartment', 'townhouse'],
+    comparablesFilter: ['unit', 'apartment'],
     requiresComparables: true,
     showsVipBuyers: true,
     includesOpenHomes: true,
