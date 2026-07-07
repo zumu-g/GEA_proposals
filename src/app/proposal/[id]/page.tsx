@@ -67,7 +67,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
   const typeContent = getPropertyTypeContent(isRentalProposal ? undefined : proposal.propertyType)
 
   return (
-    <ProposalLayout>
+    <ProposalLayout printFooter={`${proposal.propertyAddress} — ${proposal.proposalDate}`}>
       <ViewTracker proposalId={proposal.id} />
       <PdfButton />
 

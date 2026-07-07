@@ -74,7 +74,7 @@ export function AdvertisingSchedule({ schedule, totalCost, methodOfSale, campaig
                 duration: 0.4,
                 delay: prefersReducedMotion ? 0 : index * 0.1,
               }}
-              className={`rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 border overflow-hidden ${isAuctionWeek(week) ? 'bg-brand/[0.03] border-brand/20' : 'bg-white border-charcoal-50/60'}`}
+              className={`rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 border overflow-hidden print:break-inside-avoid ${isAuctionWeek(week) ? 'bg-brand/[0.03] border-brand/20' : 'bg-white border-charcoal-50/60'}`}
             >
               {/* Week header */}
               <div className={`flex items-center justify-between px-6 py-4 border-b ${isAuctionWeek(week) ? 'border-brand/15 bg-brand/5' : 'border-charcoal-50/60'}`}>
