@@ -3,6 +3,8 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useEffect, useState, useRef, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { PROPERTY_TYPES, type PropertyType } from '@/types/proposal'
+import { PROPERTY_TYPE_CONTENT } from '@/lib/property-type-content'
 
 interface ClientDetailsStepProps {
   formData: {
@@ -22,6 +24,9 @@ interface ClientDetailsStepProps {
   onDuplicateProposal: (proposal: any) => void
   template?: 'full' | 'simple'
   onTemplateChange?: (t: 'full' | 'simple') => void
+  propertyType?: PropertyType
+  /** Transient notice when a type switch re-defaulted the sale method. */
+  typeChangeNotice?: string
 }
 
 const DRAFT_KEY = 'gea-wizard-draft'
@@ -634,6 +639,8 @@ export default function ClientDetailsStep({
   onDuplicateProposal,
   template = 'full',
   onTemplateChange,
+  propertyType = 'house',
+  typeChangeNotice = '',
 }: ClientDetailsStepProps) {
   const [hasDraft, setHasDraft] = useState(false)
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
@@ -873,6 +880,42 @@ export default function ClientDetailsStep({
               </button>
             ))}
           </div>
+        </motion.div>
+      )}
+
+      {/* Property type (sale proposals only) */}
+      {formData.proposalType !== 'rental' && (
+        <motion.div
+          {...motionProps}
+          transition={{ duration: 0.4, ease: 'easeOut', delay: 0.08 }}
+          className="mb-8"
+        >
+          <p className="text-gray-500 font-sans text-xs tracking-wider uppercase mb-3">
+            property type
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {PROPERTY_TYPES.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => onChange('propertyType', t)}
+                title={PROPERTY_TYPE_CONTENT[t].helper}
+                className={`px-4 py-2.5 rounded-lg border font-sans text-sm font-medium transition-all duration-200 min-h-[44px] ${
+                  propertyType === t
+                    ? 'bg-white shadow-sm text-gray-900 border-gray-300'
+                    : 'bg-gray-100 text-gray-500 border-gray-200 hover:text-gray-700'
+                }`}
+              >
+                {PROPERTY_TYPE_CONTENT[t].label}
+              </button>
+            ))}
+          </div>
+          <p className="text-gray-400 font-sans text-xs mt-2">
+            {PROPERTY_TYPE_CONTENT[propertyType]?.helper || 'standard residential home'}
+          </p>
+          {typeChangeNotice && (
+            <p className="text-amber-600 font-sans text-xs mt-1">{typeChangeNotice}</p>
+          )}
         </motion.div>
       )}
 
