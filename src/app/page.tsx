@@ -898,6 +898,7 @@ export default function HomePage() {
           }}
           autoImages={autoImageUrls}
           onChange={handleFieldChange}
+          propertyType={propertyType}
         />
       )}
 

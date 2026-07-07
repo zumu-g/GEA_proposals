@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
+import { PROPERTY_TYPE_CONTENT } from '@/lib/property-type-content'
 
 interface PriceGuide {
   min: number
@@ -72,11 +73,16 @@ interface ProposalData {
   approvedAt?: string
 }
 
+// All sale methods across property types, sourced from the content library
 const SALE_METHODS = [
   { value: '', label: 'select method...' },
-  { value: 'Auction', label: 'auction' },
-  { value: 'Private Sale', label: 'private sale' },
-  { value: 'Expressions of Interest', label: 'expressions of interest' },
+  ...Array.from(
+    new Set(
+      Object.values(PROPERTY_TYPE_CONTENT).flatMap(c =>
+        c.saleMethods.filter(m => m.value).map(m => m.value)
+      )
+    )
+  ).map(v => ({ value: v, label: v.toLowerCase() })),
   { value: 'N/A', label: 'n/a' },
 ]
 

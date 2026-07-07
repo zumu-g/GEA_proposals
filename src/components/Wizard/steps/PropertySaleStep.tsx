@@ -3,6 +3,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { SavedPhotoPicker, uploadHeroImage } from '@/components/Wizard/SavedPhotoPicker'
+import { getPropertyTypeContent } from '@/lib/property-type-content'
+import type { PropertyType } from '@/types/proposal'
 
 interface PropertySaleStepProps {
   formData: {
@@ -23,27 +25,11 @@ interface PropertySaleStepProps {
   }
   autoImages: string[]
   onChange: (field: string, value: any) => void
+  propertyType?: PropertyType
 }
 
-const METHODS_OF_SALE = [
-  {
-    value: 'Auction',
-    description: 'competitive bidding on auction day',
-  },
-  {
-    value: 'Private Sale',
-    description: 'offers accepted directly by the vendor',
-  },
-  {
-    value: 'Expressions of Interest',
-    description: 'written offers by a closing date',
-  },
-  {
-    value: '',
-    label: 'n/a',
-    description: 'method to be confirmed',
-  },
-] as const
+// Subject-property sale methods come from the property-type content library
+// (getPropertyTypeContent(propertyType).saleMethods) — see render.
 
 // Methods offered for the development campaign — only methods with
 // MethodExplainer content (never fall back to residential auction copy)
@@ -74,8 +60,10 @@ export default function PropertySaleStep({
   formData,
   autoImages,
   onChange,
+  propertyType = 'house',
 }: PropertySaleStepProps) {
   const prefersReducedMotion = useReducedMotion()
+  const methodsOfSale = getPropertyTypeContent(propertyType).saleMethods
 
   const fadeUp = prefersReducedMotion
     ? {}
@@ -437,7 +425,7 @@ export default function PropertySaleStep({
         </label>
 
         <div className="grid grid-cols-2 gap-3">
-          {METHODS_OF_SALE.map((method, i) => {
+          {methodsOfSale.map((method, i) => {
             const isSelected = formData.methodOfSale === method.value
             const label = ('label' in method ? method.label : null) || method.value.toLowerCase()
 
