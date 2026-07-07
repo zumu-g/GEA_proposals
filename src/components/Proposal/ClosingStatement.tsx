@@ -7,9 +7,11 @@ interface ClosingStatementProps {
   agentName?: string
   agentTitle?: string
   agentPhoto?: string
+  /** Property-type copy override for the closing body paragraph. */
+  statementOverride?: string
 }
 
-export function ClosingStatement({ agentName, agentTitle, agentPhoto }: ClosingStatementProps) {
+export function ClosingStatement({ agentName, agentTitle, agentPhoto, statementOverride }: ClosingStatementProps) {
   const prefersReducedMotion = useReducedMotion()
   const [imageError, setImageError] = useState(false)
 
@@ -71,7 +73,7 @@ export function ClosingStatement({ agentName, agentTitle, agentPhoto }: ClosingS
             <div className="w-12 h-px bg-brand mb-8" />
 
             <p className="font-sans text-base sm:text-lg font-light text-charcoal-400 leading-relaxed mb-10">
-              I look forward to getting underway with the campaign. Please call me if you need any further information or have any questions. I am committed to achieving the very best outcome for you and your family.
+              {statementOverride ?? 'I look forward to getting underway with the campaign. Please call me if you need any further information or have any questions. I am committed to achieving the very best outcome for you and your family.'}
             </p>
 
             <div className="border-t border-charcoal-100 pt-8">

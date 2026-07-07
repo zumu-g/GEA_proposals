@@ -12,6 +12,8 @@ import type { ComparableRow } from '@/components/Wizard/steps/SoldPropertiesStep
 import ForSalePropertiesStep from '@/components/Wizard/steps/ForSalePropertiesStep'
 import ReviewGenerateStep from '@/components/Wizard/steps/ReviewGenerateStep'
 import { reacomPremiereForSuburb, suburbLabelForPremiere, REACOM_PREMIERE_RATE_VALUES } from '@/lib/marketing-plan'
+import { getPropertyTypeContent } from '@/lib/property-type-content'
+import { PROPERTY_TYPES, type PropertyType } from '@/types/proposal'
 
 // ─── Step icon SVGs (inline, no library) ───────────────────────────────────
 
@@ -179,6 +181,14 @@ export default function HomePage() {
   const [showCommission, setShowCommission] = useState(true)
   // Client-facing proposal layout: 'full' (default) or 'simple' (short, approve-focused)
   const [template, setTemplate] = useState<'full' | 'simple'>('full')
+  // Subject property type — drives per-type copy, sale methods, comparables defaults
+  const [propertyType, setPropertyType] = useState<PropertyType>('house')
+  // Transient notice shown when a type switch re-defaults the sale method
+  const [typeChangeNotice, setTypeChangeNotice] = useState('')
+  // Mirror for reading the current method inside handleFieldChange (empty deps)
+  // without side effects inside a state updater
+  const methodOfSaleRef = useRef('')
+  useEffect(() => { methodOfSaleRef.current = methodOfSale }, [methodOfSale])
   // Dual target campaign (development site) — KTD 2c: state persists when toggled off
   const [dualCampaign, setDualCampaign] = useState(false)
   // Sidebar page toggles — sections excluded from the generated client proposal.
@@ -311,6 +321,8 @@ export default function HomePage() {
     commission,
     showPriceRange,
     showCommission,
+    template,
+    propertyType,
     askingRent,
     leaseType,
     availableDate,
@@ -325,10 +337,11 @@ export default function HomePage() {
     devMarketingCosts,
     hiddenSections,
     editingProposalId,
-  }), [proposalType, clientName, clientEmail, propertyAddress, methodOfSale, priceGuideMin, priceGuideMax, heroImageUrl, commission, showPriceRange, showCommission, askingRent, leaseType, availableDate, managementFee, lettingFee, marketingCosts, dualCampaign, devMethodOfSale, devPriceGuideMin, devPriceGuideMax, devShowPriceRange, devMarketingCosts, hiddenSections, editingProposalId])
+  }), [proposalType, clientName, clientEmail, propertyAddress, methodOfSale, priceGuideMin, priceGuideMax, heroImageUrl, commission, showPriceRange, showCommission, template, propertyType, askingRent, leaseType, availableDate, managementFee, lettingFee, marketingCosts, dualCampaign, devMethodOfSale, devPriceGuideMin, devPriceGuideMax, devShowPriceRange, devMarketingCosts, hiddenSections, editingProposalId])
 
   const handleRestoreDraft = useCallback((data: { step: number; formData: Record<string, unknown> }) => {
     const d = data.formData
+    setTypeChangeNotice('')
     if (d.proposalType) setProposalType(d.proposalType as 'sale' | 'rental')
     if (d.clientName) setClientName(d.clientName as string)
     if (d.clientEmail) setClientEmail(d.clientEmail as string)
@@ -340,6 +353,10 @@ export default function HomePage() {
     if (d.commission) setCommission(d.commission as string)
     if (d.showPriceRange !== undefined) setShowPriceRange(d.showPriceRange as boolean)
     if (d.showCommission !== undefined) setShowCommission(d.showCommission as boolean)
+    if (d.template === 'full' || d.template === 'simple') setTemplate(d.template)
+    if (typeof d.propertyType === 'string' && (PROPERTY_TYPES as readonly string[]).includes(d.propertyType)) {
+      setPropertyType(d.propertyType as PropertyType)
+    }
     if (d.askingRent) setAskingRent(d.askingRent as string)
     if (d.leaseType) setLeaseType(d.leaseType as string)
     if (d.availableDate) setAvailableDate(d.availableDate as string)
@@ -370,6 +387,7 @@ export default function HomePage() {
       setEditingProposalId(proposalId)
       setResult(null)
       setCurrentStep(0)
+      setTypeChangeNotice('')
 
       // Pre-fill all state
       setProposalType((proposal.proposalType as 'sale' | 'rental') || 'sale')
@@ -383,6 +401,7 @@ export default function HomePage() {
       setShowPriceRange(proposal.showPriceRange !== false)
       setShowCommission(proposal.showCommission !== false)
       setTemplate((proposal.template as 'full' | 'simple') || 'full')
+      setPropertyType((proposal.propertyType as PropertyType) || 'house')
       if (proposal.askingRent) setAskingRent(String(proposal.askingRent))
       if (proposal.leaseType) setLeaseType(proposal.leaseType)
       if (proposal.availableDate) setAvailableDate(proposal.availableDate)
@@ -458,6 +477,7 @@ export default function HomePage() {
       setEditingProposalId(null)
       setResult(null)
       setCurrentStep(0)
+      setTypeChangeNotice('')
 
       // Pre-fill but clear identity fields for new proposal
       setClientName('')
@@ -470,6 +490,7 @@ export default function HomePage() {
       setShowPriceRange(proposal.showPriceRange !== false)
       setShowCommission(proposal.showCommission !== false)
       setTemplate((proposal.template as 'full' | 'simple') || 'full')
+      setPropertyType((proposal.propertyType as PropertyType) || 'house')
 
       setDualCampaign(proposal.dualCampaign === true)
       setHiddenSections(proposal.hiddenSections || DEFAULT_HIDDEN_SECTIONS)
@@ -531,6 +552,7 @@ export default function HomePage() {
     // Step 1 fields
     formData.append('proposalType', proposalType)
     formData.append('template', template)
+    if (proposalType !== 'rental') formData.append('propertyType', propertyType)
     formData.append('clientName', clientName)
     formData.append('clientEmail', clientEmail)
     formData.append('propertyAddress', propertyAddress)
@@ -666,6 +688,9 @@ export default function HomePage() {
     setCommission('')
     setShowPriceRange(true)
     setShowCommission(true)
+    setTemplate('full')
+    setPropertyType('house')
+    setTypeChangeNotice('')
     setPropertyImages(null)
     setSelectedAutoImageUrl('')
     setAskingRent('')
@@ -727,6 +752,8 @@ export default function HomePage() {
         return true
       case 3:
         if (proposalType === 'rental') return true // leased comparables are optional
+        // Types with no local sold data (land, dev sites, commercial) never hard-block
+        if (!getPropertyTypeContent(propertyType).requiresComparables) return true
         return !validateSoldProperties(soldComparables)
       case 4:
         return true // on-market is optional
@@ -735,7 +762,7 @@ export default function HomePage() {
       default:
         return true
     }
-  }, [currentStep, proposalType, clientName, clientEmail, propertyAddress, methodOfSale, priceGuideMin, priceGuideMax, heroImage, heroImageUrl, commission, askingRent, leaseType, availableDate, managementFee, lettingFee, marketingCosts, soldComparables, dualCampaign, devMethodOfSale, devPriceGuideMin, devPriceGuideMax, devShowPriceRange, devMarketingCosts])
+  }, [currentStep, proposalType, propertyType, clientName, clientEmail, propertyAddress, methodOfSale, priceGuideMin, priceGuideMax, heroImage, heroImageUrl, commission, askingRent, leaseType, availableDate, managementFee, lettingFee, marketingCosts, soldComparables, dualCampaign, devMethodOfSale, devPriceGuideMin, devPriceGuideMax, devShowPriceRange, devMarketingCosts])
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Step field change handler (for ClientDetailsStep and PropertySaleStep)
@@ -749,10 +776,27 @@ export default function HomePage() {
         setSoldComparables([])
         setOnMarketListings([])
         break
+      case 'propertyType': {
+        const next = value as PropertyType
+        setPropertyType(next)
+        // Re-default derived state only on agent action (this handler), never on
+        // programmatic sets in handleEdit/handleRestoreDraft. Read the current
+        // method from the ref so the state updaters stay pure.
+        const content = getPropertyTypeContent(next)
+        const current = methodOfSaleRef.current
+        if (current === '' || content.saleMethods.some(m => m.value === current)) {
+          setTypeChangeNotice('')
+        } else {
+          const fallback = content.saleMethods[0]?.value ?? ''
+          setMethodOfSale(fallback)
+          setTypeChangeNotice(`sale method reset to ${fallback || 'n/a'} for ${content.label}`)
+        }
+        break
+      }
       case 'clientName': setClientName(value); break
       case 'clientEmail': setClientEmail(value); break
       case 'propertyAddress': setPropertyAddress(value); break
-      case 'methodOfSale': setMethodOfSale(value); break
+      case 'methodOfSale': setMethodOfSale(value); setTypeChangeNotice(''); break
       case 'priceGuideMin': setPriceGuideMin(value); break
       case 'priceGuideMax': setPriceGuideMax(value); break
       case 'heroImage': setHeroImage(value); break
@@ -821,6 +865,8 @@ export default function HomePage() {
           onDuplicateProposal={(p) => handleDuplicate(p.id)}
           template={template}
           onTemplateChange={setTemplate}
+          propertyType={propertyType}
+          typeChangeNotice={typeChangeNotice}
         />
       )}
 
@@ -861,6 +907,7 @@ export default function HomePage() {
           }}
           autoImages={autoImageUrls}
           onChange={handleFieldChange}
+          propertyType={propertyType}
         />
       )}
 
@@ -884,6 +931,7 @@ export default function HomePage() {
           onChangeSold={setSoldComparables}
           onConfirmAddress={handleConfirmAddress}
           proposalType={proposalType}
+          subjectPropertyType={propertyType}
           priceGuideMin={priceGuideMin}
           priceGuideMax={priceGuideMax}
           askingRent={askingRent}
@@ -899,6 +947,7 @@ export default function HomePage() {
           onMarketListings={onMarketListings}
           onChangeOnMarket={setOnMarketListings}
           proposalType={proposalType}
+          subjectPropertyType={propertyType}
         />
       )}
 
@@ -922,6 +971,7 @@ export default function HomePage() {
           autoImages={autoImageUrls}
           editingId={editingProposalId}
           template={template}
+          propertyTypeLabel={proposalType !== 'rental' ? getPropertyTypeContent(propertyType).label : undefined}
           onTemplateChange={setTemplate}
           onSubmit={handleSubmit}
           onGoToStep={setCurrentStep}

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
+import { PROPERTY_TYPE_CONTENT } from '@/lib/property-type-content'
 
 interface PriceGuide {
   min: number
@@ -60,6 +61,8 @@ interface ProposalData {
   proposalDate: string
   priceGuide?: PriceGuide
   methodOfSale?: string
+  propertyType?: string
+  proposalType?: 'sale' | 'rental'
   fees?: FeeInfo
   totalAdvertisingCost?: number
   marketingApproach?: string
@@ -72,11 +75,16 @@ interface ProposalData {
   approvedAt?: string
 }
 
+// All sale methods across property types, sourced from the content library
 const SALE_METHODS = [
   { value: '', label: 'select method...' },
-  { value: 'Auction', label: 'auction' },
-  { value: 'Private Sale', label: 'private sale' },
-  { value: 'Expressions of Interest', label: 'expressions of interest' },
+  ...Array.from(
+    new Set(
+      Object.values(PROPERTY_TYPE_CONTENT).flatMap(c =>
+        c.saleMethods.filter(m => m.value).map(m => m.value)
+      )
+    )
+  ).map(v => ({ value: v, label: v.toLowerCase() })),
   { value: 'N/A', label: 'n/a' },
 ]
 
@@ -154,6 +162,8 @@ export default function EditProposalPage() {
   const [priceGuideMin, setPriceGuideMin] = useState('')
   const [priceGuideMax, setPriceGuideMax] = useState('')
   const [methodOfSale, setMethodOfSale] = useState('')
+  const [propertyType, setPropertyType] = useState('house')
+  const [isRentalProposal, setIsRentalProposal] = useState(false)
   const [commissionRate, setCommissionRate] = useState('')
   const [marketingBudget, setMarketingBudget] = useState('')
   const [agentNotes, setAgentNotes] = useState('')
@@ -184,6 +194,8 @@ export default function EditProposalPage() {
       setPriceGuideMin(data.priceGuide?.min?.toString() || '')
       setPriceGuideMax(data.priceGuide?.max?.toString() || '')
       setMethodOfSale(data.methodOfSale || '')
+      setPropertyType(data.propertyType || 'house')
+      setIsRentalProposal(data.proposalType === 'rental')
       setCommissionRate(data.fees?.commissionRate?.toString() || '')
       setMarketingBudget(data.totalAdvertisingCost?.toString() || '')
       setAgentNotes(data.marketingApproach || '')
@@ -227,6 +239,7 @@ export default function EditProposalPage() {
         clientEmail,
         propertyAddress,
         methodOfSale: methodOfSale || undefined,
+        propertyType,
         priceGuide: priceGuideMin && priceGuideMax
           ? { min: parseInt(priceGuideMin), max: parseInt(priceGuideMax) }
           : null,
@@ -639,6 +652,23 @@ export default function EditProposalPage() {
                     />
                   </div>
                 </div>
+                {!isRentalProposal && (
+                <div>
+                  <label className={labelClasses}>property type</label>
+                  <select
+                    value={propertyType}
+                    onChange={(e) => { setPropertyType(e.target.value); markChanged() }}
+                    className={`${inputClasses} cursor-pointer`}
+                  >
+                    {Object.values(PROPERTY_TYPE_CONTENT).map(c => (
+                      <option key={c.type} value={c.type} className="bg-[#1A1A1A]">{c.label}</option>
+                    ))}
+                  </select>
+                  <p className="text-white/30 font-sans text-xs mt-1">
+                    changing the type updates proposal copy and regenerates the sale-process steps
+                  </p>
+                </div>
+                )}
                 <div>
                   <label className={labelClasses}>method of sale</label>
                   <select

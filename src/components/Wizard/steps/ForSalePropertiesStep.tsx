@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { ComparableRow } from './SoldPropertiesStep'
+import { getPropertyTypeContent } from '@/lib/property-type-content'
+import type { PropertyType } from '@/types/proposal'
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -14,6 +16,8 @@ interface ForSalePropertiesStepProps {
   onMarketListings: ComparableRow[]
   onChangeOnMarket: (rows: ComparableRow[]) => void
   proposalType?: 'sale' | 'rental'
+  /** Subject property's type — pre-sets the listings type filter (distinct from each listing's own propertyType). */
+  subjectPropertyType?: PropertyType
 }
 
 // ─── Internal row type ───────────────────────────────────────────────────────
@@ -147,6 +151,7 @@ export default function ForSalePropertiesStep({
   onMarketListings,
   onChangeOnMarket,
   proposalType = 'sale',
+  subjectPropertyType = 'house',
 }: ForSalePropertiesStepProps) {
   const isRental = proposalType === 'rental'
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
@@ -182,7 +187,10 @@ export default function ForSalePropertiesStep({
   const [priceMax, setPriceMax] = useState('')
   const [bedsMin, setBedsMin] = useState('')
   const [bathsMin, setBathsMin] = useState('')
-  const [propType, setPropType] = useState('')
+  // Type filter pre-set from the subject property's type; comma tokens match any
+  const subjectTypeFilter = isRental ? '' : (getPropertyTypeContent(subjectPropertyType).comparablesFilter?.join(',') ?? '')
+  const [propType, setPropType] = useState(subjectTypeFilter)
+  useEffect(() => { setPropType(subjectTypeFilter) }, [subjectTypeFilter])
   const [suburbFilter, setSuburbFilter] = useState('')
   const [daysOnMarketMax, setDaysOnMarketMax] = useState('')
   const [sortBy, setSortBy] = useState('distance-asc')
@@ -269,7 +277,7 @@ export default function ForSalePropertiesStep({
         if (
           propType &&
           s.propertyType &&
-          !s.propertyType.toLowerCase().includes(propType.toLowerCase())
+          !propType.toLowerCase().split(',').some(t => s.propertyType.toLowerCase().includes(t.trim()))
         )
           return false
         if (suburbFilter) {
@@ -582,6 +590,18 @@ export default function ForSalePropertiesStep({
         </p>
       </div>
 
+      {/* No-local-data note for types without residential listing data */}
+      {!isRental && getPropertyTypeContent(subjectPropertyType).comparablesFilter === null && (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 flex items-start gap-3">
+          <svg className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+          </svg>
+          <p className="text-gray-500 font-sans text-sm">
+            Local listing data covers residential property only — commercial listings won&apos;t appear in search. Add them manually below, or skip this step.
+          </p>
+        </div>
+      )}
+
       {/* ═══════ CONFIRMED ADDRESS (read-only from previous step) ═══════ */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-visible">
         <div className="p-5">
@@ -831,6 +851,7 @@ export default function ForSalePropertiesStep({
                           <option value="">Any</option>
                           <option value="house">House</option>
                           <option value="unit">Unit</option>
+                          <option value="unit,apartment">Unit / Apartment</option>
                           <option value="townhouse">Townhouse</option>
                           <option value="land">Land</option>
                         </select>

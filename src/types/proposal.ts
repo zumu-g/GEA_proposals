@@ -1,3 +1,15 @@
+/** Subject property types selectable in the wizard. Legacy proposals without a value read as 'house'. */
+export const PROPERTY_TYPES = [
+  'house',
+  'unit',
+  'apartment',
+  'land',
+  'residential-development',
+  'commercial-property',
+  'commercial-land',
+] as const;
+export type PropertyType = (typeof PROPERTY_TYPES)[number];
+
 export interface AgencyOffice {
   name: string;
   address: string;
@@ -70,6 +82,8 @@ export interface Proposal {
   proposalType?: 'sale' | 'rental';
   /** Client-facing layout: 'full' (default, detailed) or 'simple' (short, approve-focused). */
   template?: 'full' | 'simple';
+  /** Subject property type — drives per-type copy, sale methods, and section visibility. */
+  propertyType?: PropertyType;
   askingRent?: number;
   leaseType?: string;
   availableDate?: string;

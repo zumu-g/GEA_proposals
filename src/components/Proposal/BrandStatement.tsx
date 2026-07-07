@@ -7,9 +7,11 @@ import { formatCurrency } from '@/lib/utils'
 
 interface BrandStatementProps {
   proposal: Proposal
+  /** Property-type copy override for the main brand statement line. */
+  statementOverride?: string
 }
 
-export function BrandStatement({ proposal }: BrandStatementProps) {
+export function BrandStatement({ proposal, statementOverride }: BrandStatementProps) {
   const prefersReducedMotion = useReducedMotion()
 
   // Extract street name (first part before comma)
@@ -49,7 +51,7 @@ export function BrandStatement({ proposal }: BrandStatementProps) {
           transition={{ duration: 0.5 }}
         >
           <p className="font-display text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-normal text-charcoal lowercase leading-snug text-balance mb-12">
-            {streetName} deserves more than ordinary.
+            {statementOverride ?? <>{streetName} deserves more than ordinary.</>}
           </p>
         </motion.div>
 

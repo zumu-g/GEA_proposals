@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx'
 import { Proposal, PropertySale, SaleStep, MarketingItem, FeeInfo, AgencyConfig } from '@/types/proposal'
 import { getDefaultProposalExtras } from '@/lib/proposal-generator'
 import { generateId } from './utils'
+import { HOUSE_DEFAULT_STEPS } from '@/lib/property-type-content'
 
 export interface SpreadsheetRow {
   [key: string]: string | number | undefined
@@ -20,51 +21,8 @@ export interface ParsedSpreadsheetData {
   imageUrl?: string
 }
 
-const DEFAULT_SALE_PROCESS: SaleStep[] = [
-  {
-    step: 1,
-    title: 'Initial Consultation',
-    description: "We'll visit your property to assess its condition and market value.",
-    duration: '1-2 hours',
-    imageUrl: '/images/stocksy/consultation.jpg',
-  },
-  {
-    step: 2,
-    title: 'Property Valuation',
-    description: 'Comprehensive market analysis to determine the optimal listing price.',
-    duration: '2-3 days',
-    imageUrl: '/images/stocksy/valuation.jpg',
-  },
-  {
-    step: 3,
-    title: 'Marketing Preparation',
-    description: 'Professional photography, floor plans, and marketing materials creation.',
-    duration: '5-7 days',
-    imageUrl: '/images/stocksy/marketing-prep.jpg',
-  },
-  {
-    step: 4,
-    title: 'Launch & Promotion',
-    description: 'Your property goes live across all major platforms with targeted marketing.',
-    duration: 'Ongoing',
-    imageUrl: '/images/stocksy/launch.jpg',
-  },
-  {
-    step: 5,
-    title: 'Viewings & Offers',
-    description: 'We arrange and conduct viewings, managing all inquiries and negotiations.',
-    duration: '2-8 weeks',
-    imageUrl: '/images/stocksy/viewings.jpg',
-  },
-  {
-    step: 6,
-    title: 'Sale Completion',
-    description: 'Once an offer is accepted, we manage the entire process through to completion.',
-    duration: '8-12 weeks',
-    imageUrl: '/images/stocksy/completion.jpg',
-  },
-]
-
+// House default sale-process steps now live in the property-type content library
+const DEFAULT_SALE_PROCESS: SaleStep[] = HOUSE_DEFAULT_STEPS
 const DEFAULT_MARKETING_PLAN: MarketingItem[] = [
   {
     channel: 'Online Listings',

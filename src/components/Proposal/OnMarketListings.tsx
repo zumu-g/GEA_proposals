@@ -7,9 +7,11 @@ import { OnMarketListing } from '@/types/proposal'
 interface OnMarketListingsProps {
   listings: OnMarketListing[]
   proposalType?: 'sale' | 'rental'
+  /** Hide bed/bath/car chips for property types where they don't apply (e.g. land). */
+  showBedsBaths?: boolean
 }
 
-export function OnMarketListings({ listings, proposalType }: OnMarketListingsProps) {
+export function OnMarketListings({ listings, proposalType, showBedsBaths = true }: OnMarketListingsProps) {
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set())
   const prefersReducedMotion = useReducedMotion()
   const isRental = proposalType === 'rental'
@@ -118,19 +120,21 @@ export function OnMarketListings({ listings, proposalType }: OnMarketListingsPro
                     {listing.askingPrice}
                   </p>
 
-                  <div className="flex flex-wrap gap-3 mb-4">
-                    <span className="inline-flex items-center px-3 py-1 rounded-full bg-charcoal-50 text-charcoal font-sans text-xs font-medium">
-                      {listing.bedrooms} bed
-                    </span>
-                    <span className="inline-flex items-center px-3 py-1 rounded-full bg-charcoal-50 text-charcoal font-sans text-xs font-medium">
-                      {listing.bathrooms} bath
-                    </span>
-                    {listing.cars > 0 && (
+                  {showBedsBaths && (
+                    <div className="flex flex-wrap gap-3 mb-4">
                       <span className="inline-flex items-center px-3 py-1 rounded-full bg-charcoal-50 text-charcoal font-sans text-xs font-medium">
-                        {listing.cars} car
+                        {listing.bedrooms} bed
                       </span>
-                    )}
-                  </div>
+                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-charcoal-50 text-charcoal font-sans text-xs font-medium">
+                        {listing.bathrooms} bath
+                      </span>
+                      {listing.cars > 0 && (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full bg-charcoal-50 text-charcoal font-sans text-xs font-medium">
+                          {listing.cars} car
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   {listing.daysOnMarket !== undefined && (
                     <div className="flex items-center text-sm font-sans mt-auto pt-4">

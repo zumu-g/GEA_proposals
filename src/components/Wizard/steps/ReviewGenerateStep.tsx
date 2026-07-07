@@ -43,6 +43,7 @@ interface ReviewGenerateStepProps {
   autoImages: string[]
   editingId: string | null
   template?: 'full' | 'simple'
+  propertyTypeLabel?: string
   onTemplateChange?: (t: 'full' | 'simple') => void
   onSubmit: () => Promise<void>
   onGoToStep: (step: number) => void
@@ -112,6 +113,7 @@ export default function ReviewGenerateStep({
   autoImages,
   editingId,
   template = 'full',
+  propertyTypeLabel,
   onTemplateChange,
   onSubmit,
   onGoToStep,
@@ -948,6 +950,11 @@ export default function ReviewGenerateStep({
       {/* Proposal template choice */}
       {onTemplateChange && (
         <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4">
+          {propertyTypeLabel && (
+            <p className="font-sans text-xs text-gray-400 mb-2">
+              property type: <span className="text-gray-600">{propertyTypeLabel}</span>
+            </p>
+          )}
           <p className="font-sans text-sm font-medium text-gray-700 mb-2">Proposal layout</p>
           <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 gap-1">
             {(['full', 'simple'] as const).map((t) => (
