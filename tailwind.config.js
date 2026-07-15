@@ -6,6 +6,19 @@ module.exports = {
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
+    // Chrome lays print pages out at ~1046px (A4 landscape, 10mm margins) but
+    // evaluates min-width media queries against a ~750px effective viewport,
+    // so desktop layouts never applied in print. Making sm/md/lg also match
+    // print media renders the desktop (lg) layout on paper — the layout the
+    // print CSS in globals.css was designed around. xl/2xl stay screen-only
+    // (the 1046px print canvas is genuinely narrower than xl).
+    screens: {
+      sm: { raw: '(min-width: 640px), print' },
+      md: { raw: '(min-width: 768px), print' },
+      lg: { raw: '(min-width: 1024px), print' },
+      xl: { raw: '(min-width: 1280px)' },
+      '2xl': { raw: '(min-width: 1536px)' },
+    },
     extend: {
       colors: {
         charcoal: {
