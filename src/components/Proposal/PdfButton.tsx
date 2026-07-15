@@ -12,26 +12,33 @@ function proposalRoot(): Element | null {
 
 export function PdfButton({ showShort = false }: { showShort?: boolean }) {
   // ?print=short pre-applies short mode so headless printing (and internal
-  // automation) gets the condensed variant without any interaction.
+  // automation) gets the condensed variant without any interaction. Gated on
+  // showShort — the Express template has no short variant, and applying the
+  // class there would silently truncate its comparables.
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('print') === 'short') {
+    if (showShort && new URLSearchParams(window.location.search).get('print') === 'short') {
       proposalRoot()?.classList.add('print-short')
     }
-  }, [])
+  }, [showShort])
 
   const handleDownload = () => {
+    // The full button always prints the full pack, even on a ?print=short URL.
+    proposalRoot()?.classList.remove('print-short')
     window.print()
   }
 
   const handleShortDownload = () => {
     const root = proposalRoot()
     root?.classList.add('print-short')
-    const cleanup = () => root?.classList.remove('print-short')
-    window.addEventListener('afterprint', cleanup, { once: true })
+    // Remove only after printing: window.print() blocks in Chrome/Firefox but
+    // returns before rasterisation in Safari, so a synchronous cleanup would
+    // strip the class too early there. afterprint fires in all of them.
+    window.addEventListener(
+      'afterprint',
+      () => root?.classList.remove('print-short'),
+      { once: true },
+    )
     window.print()
-    // window.print() blocks in most browsers; afterprint is the fallback for
-    // the ones where it doesn't. Removing twice is harmless.
-    cleanup()
   }
 
   return (
