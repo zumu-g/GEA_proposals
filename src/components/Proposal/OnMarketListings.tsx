@@ -66,7 +66,7 @@ export function OnMarketListings({ listings, proposalType, showBedsBaths = true 
           </div>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 print:grid-cols-4 gap-6 lg:gap-8 print:gap-4">
+        <div className="print-comp-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 print:grid-cols-4 gap-6 lg:gap-8 print:gap-4">
           {listings.map((listing, index) => (
             <motion.div
               key={`${listing.address}-${index}`}
