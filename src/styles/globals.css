@@ -178,7 +178,8 @@
      and the inline dual-campaign sections) is a direct child of the template
      wrapper div. Sections may break internally (continuation pages) — leaf
      blocks below opt out individually. */
-  .proposal-print-root main > div > section {
+  .proposal-print-root main > div > section,
+  .proposal-print-root main > div > .print-drop section {
     break-before: page;
     page-break-before: always;
     break-inside: auto;
@@ -201,6 +202,19 @@
   .proposal-print-root main > div > section.print-page-continue {
     break-before: auto;
     page-break-before: auto;
+  }
+
+  /* ─── Short print mode (.print-short on the proposal root) ───
+     Engaged by the "save short pdf" button or ?print=short. Sections wrapped
+     in .print-drop (template-marked) don't print; comparables grids cap at
+     the first 6 cards so each comparables section is exactly one page. */
+  .proposal-print-root.print-short .print-drop {
+    display: none !important;
+  }
+  /* One 4-up row per comparables section — two rows plus the heading overflow
+     a landscape page and strand cards on a mostly-blank second page */
+  .proposal-print-root.print-short .print-comp-grid > *:nth-child(n + 5) {
+    display: none !important;
   }
 
   /* Ensure backgrounds print */

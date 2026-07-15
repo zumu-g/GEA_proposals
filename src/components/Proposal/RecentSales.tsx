@@ -135,7 +135,7 @@ export function RecentSales({ sales, proposalType, showBedsBaths = true }: Recen
           </div>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 print:grid-cols-4 gap-6 lg:gap-8 print:gap-4">
+        <div className="print-comp-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 print:grid-cols-4 gap-6 lg:gap-8 print:gap-4">
           {sortedSales.map((sale, index) => (
             <motion.div
               key={`${sale.address}-${index}`}

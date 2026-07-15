@@ -77,7 +77,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
   return (
     <ProposalLayout printFooter={`${proposal.propertyAddress} — ${formatPrintDate(proposal.proposalDate)}`}>
       <ViewTracker proposalId={proposal.id} />
-      <PdfButton />
+      <PdfButton showShort={proposal.template !== 'simple'} />
 
       {proposal.template === 'simple' ? (
         <SimpleProposal proposal={proposal} />
@@ -90,6 +90,8 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
         <BrandStatement proposal={proposal} statementOverride={typeContent.copy.brandStatement} />
 
         {/* Agent profile - intro + buyer database info */}
+        {/* print-drop wrappers mark sections excluded from the short print PDF */}
+        <div className="print-drop">
         <AgentProfile
           agent={proposal.agency ? {
             name: proposal.agency.agentName || proposal.agency.name,
@@ -121,6 +123,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
 
         {/* Area analysis - local market conditions */}
         <AreaAnalysis analysis={proposal.areaAnalysis} proposalType={proposal.proposalType} />
+        </div>
 
         {/* Recent comparable sales / rentals */}
         {showComparables && (
@@ -133,6 +136,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
         )}
 
         {/* VIP buyers, database, internet access */}
+        <div className="print-drop">
         {typeContent.showsVipBuyers && <VIPBuyers proposalType={proposal.proposalType} />}
 
         {/* Internet presence - listing platforms */}
@@ -148,6 +152,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
         {showMarketing && (
           <MarketingShowcase items={proposal.marketingPlan} proposalType={proposal.proposalType} />
         )}
+        </div>
 
         {/* Advertising schedule - 4-week campaign with costs */}
         {showMarketing && (
@@ -163,6 +168,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
         {proposal.dualCampaign && (
           <>
             {/* Section break — campaign heading */}
+            <div className="print-drop">
             <section className="py-16 sm:py-20 bg-charcoal-900 text-white relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-1 bg-brand" />
               <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-16 xl:px-24">
@@ -199,6 +205,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
             {proposal.devMarketingPlan && proposal.devMarketingPlan.length > 0 && (
               <MarketingShowcase items={proposal.devMarketingPlan} campaignLabel="development site campaign" />
             )}
+            </div>
 
             {/* Dev advertising schedule */}
             <AdvertisingSchedule
@@ -209,6 +216,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
             />
 
             {/* Combined advertising investment */}
+            <div className="print-drop">
             <section className="py-12 sm:py-16 bg-white border-t border-gray-100">
               <div className="max-w-3xl mx-auto px-6 sm:px-8">
                 <div className="space-y-2 font-sans text-base text-charcoal-400">
@@ -229,6 +237,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
                 </div>
               </div>
             </section>
+            </div>
           </>
         )}
 
@@ -236,12 +245,14 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
         <FeeStructureVisual fees={proposal.fees} showCommission={proposal.showCommission !== false} methodOfSale={proposal.methodOfSale} proposalType={proposal.proposalType} managementFee={proposal.managementFee} lettingFee={proposal.lettingFee} />
 
         {/* Personal closing statement */}
+        <div className="print-drop">
         <ClosingStatement
           agentName={proposal.agency?.agentName}
           agentTitle={proposal.agency?.agentTitle}
           agentPhoto={proposal.agency?.agentPhoto}
           statementOverride={typeContent.copy.closingStatement}
         />
+        </div>
 
         {/* Approval CTA */}
         <ApprovalSection proposal={proposal} />
