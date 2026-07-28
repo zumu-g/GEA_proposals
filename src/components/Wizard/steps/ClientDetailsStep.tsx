@@ -851,6 +851,13 @@ export default function ClientDetailsStep({
           >
             marketing plan
           </a>
+          {/* Rental fee forms — standalone print-only fee schedule, no full proposal */}
+          <a
+            href="/rental-fees/new"
+            className="px-8 py-2.5 rounded-lg font-sans text-sm font-medium text-gray-500 hover:text-gray-700 transition-all duration-200 min-h-[40px] flex items-center"
+          >
+            fee forms
+          </a>
         </div>
       </motion.div>
 
