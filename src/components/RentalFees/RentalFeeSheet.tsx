@@ -6,7 +6,13 @@
 // share the same layout — see RentalFeesPage for the scale-to-fit wrapper.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { Montserrat } from 'next/font/google'
 import { FeeGroup } from '@/lib/rental-fees'
+
+// The source artwork's typeface is Montserrat, not the app's usual Inter
+// (`font-sans`) — scoped to this sheet only via next/font/google rather than
+// changing the app-wide font.
+const montserrat = Montserrat({ subsets: ['latin'], weight: ['400', '500', '600', '700'], display: 'swap' })
 
 export interface RentalFeeSheetProps {
   heading: string
@@ -19,7 +25,9 @@ export function RentalFeeSheet({ heading, groups, notes, photoSrc }: RentalFeeSh
   return (
     // Pantone 187 C (sRGB approximation #A6192E) — matches the printed artwork's
     // ink, not the app's general brand red (#C41E2A).
-    <div className="rf-sheet relative h-[297mm] w-[210mm] overflow-hidden bg-[#A6192E] text-white">
+    <div
+      className={`rf-sheet relative h-[297mm] w-[210mm] overflow-hidden bg-[#A6192E] text-white ${montserrat.className}`}
+    >
       {photoSrc && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -46,7 +54,7 @@ export function RentalFeeSheet({ heading, groups, notes, photoSrc }: RentalFeeSh
         and overran the logo below).
       */}
       <div className="absolute top-[70mm] left-[34mm] w-[82mm]">
-        <h1 className="w-[64mm] font-sans text-[16pt] leading-[1.3] font-medium tracking-[0.12em] uppercase">
+        <h1 className="w-[64mm] text-[16pt] leading-[1.3] font-medium tracking-[0.12em] uppercase">
           {heading}
         </h1>
 
@@ -54,17 +62,17 @@ export function RentalFeeSheet({ heading, groups, notes, photoSrc }: RentalFeeSh
           {groups.map((group, gi) => (
             <div key={gi}>
               {group.title && (
-                <p className="mb-[1.5mm] font-sans text-[10pt] font-semibold">{group.title}</p>
+                <p className="mb-[1.5mm] text-[10pt] font-semibold">{group.title}</p>
               )}
               <div className="space-y-[1mm]">
                 {group.rows.map((row, ri) => (
                   <div key={ri}>
-                    <div className="grid grid-cols-[58mm_1fr] items-baseline gap-x-2 font-sans text-[8pt] leading-[1.35]">
+                    <div className="grid grid-cols-[58mm_1fr] items-baseline gap-x-2 text-[8pt] leading-[1.35]">
                       <span>{row.label}</span>
                       <span>{row.value}</span>
                     </div>
                     {row.note && (
-                      <p className="font-sans text-[7pt] leading-[1.3] whitespace-normal opacity-90">
+                      <p className="text-[7pt] leading-[1.3] whitespace-normal opacity-90">
                         {row.note}
                       </p>
                     )}
@@ -77,7 +85,7 @@ export function RentalFeeSheet({ heading, groups, notes, photoSrc }: RentalFeeSh
           {notes && notes.length > 0 && (
             <div className="space-y-0.5 pt-[2mm]">
               {notes.map((note, ni) => (
-                <p key={ni} className="font-sans text-[7pt] leading-[1.3] font-semibold">
+                <p key={ni} className="text-[7pt] leading-[1.3] font-semibold">
                   {note}
                 </p>
               ))}
