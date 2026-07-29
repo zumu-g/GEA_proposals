@@ -26,7 +26,7 @@ export function RentalFeeSheet({ heading, groups, notes, photoSrc }: RentalFeeSh
           src={photoSrc}
           alt=""
           className="absolute inset-y-0 right-0 left-[55%] h-full w-auto object-cover"
-          style={{ objectPosition: '72% center' }}
+          style={{ objectPosition: '62% 22%' }}
         />
       )}
 
@@ -50,21 +50,21 @@ export function RentalFeeSheet({ heading, groups, notes, photoSrc }: RentalFeeSh
           {heading}
         </h1>
 
-        <div className="mt-[19mm] space-y-3.5">
+        <div className="mt-[15mm] space-y-[5mm]">
           {groups.map((group, gi) => (
             <div key={gi}>
               {group.title && (
-                <p className="mb-1.5 font-sans text-[10.5pt] font-semibold">{group.title}</p>
+                <p className="mb-[1.5mm] font-sans text-[10pt] font-semibold">{group.title}</p>
               )}
-              <div className="space-y-1">
+              <div className="space-y-[1mm]">
                 {group.rows.map((row, ri) => (
                   <div key={ri}>
-                    <div className="grid grid-cols-[54mm_1fr] items-baseline gap-x-2 font-sans text-[9pt] leading-[1.45]">
+                    <div className="grid grid-cols-[58mm_1fr] items-baseline gap-x-2 font-sans text-[8pt] leading-[1.35]">
                       <span>{row.label}</span>
                       <span>{row.value}</span>
                     </div>
                     {row.note && (
-                      <p className="font-sans text-[8pt] leading-[1.35] whitespace-normal opacity-90">
+                      <p className="font-sans text-[7pt] leading-[1.3] whitespace-normal opacity-90">
                         {row.note}
                       </p>
                     )}
@@ -75,9 +75,9 @@ export function RentalFeeSheet({ heading, groups, notes, photoSrc }: RentalFeeSh
           ))}
 
           {notes && notes.length > 0 && (
-            <div className="space-y-0.5 pt-2">
+            <div className="space-y-0.5 pt-[2mm]">
               {notes.map((note, ni) => (
-                <p key={ni} className="font-sans text-[7.5pt] leading-[1.35] font-semibold">
+                <p key={ni} className="font-sans text-[7pt] leading-[1.3] font-semibold">
                   {note}
                 </p>
               ))}
