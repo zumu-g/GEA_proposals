@@ -17,7 +17,9 @@ export interface RentalFeeSheetProps {
 
 export function RentalFeeSheet({ heading, groups, notes, photoSrc }: RentalFeeSheetProps) {
   return (
-    <div className="rf-sheet relative h-[297mm] w-[210mm] overflow-hidden bg-[#C41E2A] text-white">
+    // Pantone 187 C (sRGB approximation #A6192E) — matches the printed artwork's
+    // ink, not the app's general brand red (#C41E2A).
+    <div className="rf-sheet relative h-[297mm] w-[210mm] overflow-hidden bg-[#A6192E] text-white">
       {photoSrc && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
