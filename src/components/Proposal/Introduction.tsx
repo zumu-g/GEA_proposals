@@ -9,6 +9,7 @@ interface IntroductionProps {
 }
 
 export function Introduction({ proposal }: IntroductionProps) {
+  const isRental = proposal.proposalType === 'rental'
   return (
     <section className="py-16 sm:py-20 lg:py-24 bg-off-white">
       <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12">
@@ -35,16 +36,16 @@ export function Introduction({ proposal }: IntroductionProps) {
             className="lg:pt-4"
           >
             <p className="text-charcoal-500 font-sans text-lg font-light leading-relaxed mb-6">
-              thank you for considering {(proposal.agency?.name || 'us').toLowerCase()} for the sale of your property at{' '}
+              thank you for considering {(proposal.agency?.name || 'us').toLowerCase()} for the {isRental ? 'leasing' : 'sale'} of your property at{' '}
               <span className="text-charcoal font-normal">{proposal.propertyAddress.toLowerCase()}</span>.
             </p>
             <p className="text-charcoal-400 font-sans text-base font-light leading-relaxed mb-6">
               we've prepared this proposal to outline how we'll market your property effectively,
-              the process we follow, and comparable properties that have recently sold in your area.
+              the process we follow, and comparable properties recently {isRental ? 'leased' : 'sold'} in your area.
             </p>
             <p className="text-charcoal-400 font-sans text-base font-light leading-relaxed">
               our approach combines local expertise with a modern marketing strategy,
-              ensuring your property reaches the right buyers at the right time.
+              ensuring your property reaches the right {isRental ? 'tenants' : 'buyers'} at the right time.
             </p>
           </motion.div>
         </div>

@@ -4,6 +4,7 @@ import { getPropertyTypeContent } from '@/lib/property-type-content'
 import { ProposalLayout } from '@/components/Layout/ProposalLayout'
 import { FullHero } from '@/components/Proposal/FullHero'
 import { SimpleProposal } from '@/components/Proposal/SimpleProposal'
+import { Introduction } from '@/components/Proposal/Introduction'
 import { BrandStatement } from '@/components/Proposal/BrandStatement'
 import { AgentProfile } from '@/components/Proposal/AgentProfile'
 import { StatsBar } from '@/components/Proposal/StatsBar'
@@ -85,6 +86,9 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
       <div className="min-h-screen">
         {/* Full-viewport cinematic hero */}
         <FullHero proposal={proposal} />
+
+        {/* Welcome / introduction */}
+        <Introduction proposal={proposal} />
 
         {/* Brand statement - price guide, method of sale */}
         <BrandStatement proposal={proposal} statementOverride={typeContent.copy.brandStatement} />
