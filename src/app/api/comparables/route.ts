@@ -174,7 +174,34 @@ export async function GET(request: Request) {
     // geocoding). Falls through to the legacy sources if it errors or is empty.
     if (sourceParam !== 'local' && (type === 'sold' || type === 'buy')) {
       try {
-        const epComps = await getEveryPropertyComparables(suburb, type, { state: 'VIC', limit: 200 })
+        // Suburb-only lookups starve in sparse rural localities (e.g. Bunyip
+        // North holds 2 sold rows while $2M+ comps sit one suburb over in
+        // Tonimbuk/Tynong North). Query the subject suburb plus its neighbours,
+        // and widen one more hop when the subject suburb is thin — the wizard's
+        // client-side distance filter keeps relevance since every comp carries
+        // real coordinates.
+        const dedupe = (comps: Awaited<ReturnType<typeof getEveryPropertyComparables>>) => {
+          const seen = new Set<string>()
+          return comps.filter((c) => {
+            const key = `${c.address.toLowerCase()}|${c.soldDate}`
+            if (seen.has(key)) return false
+            seen.add(key)
+            return true
+          })
+        }
+        const fetchSuburbs = async (subs: string[]) =>
+          (await Promise.all(subs.map((s) => getEveryPropertyComparables(s, type, { state: 'VIC', limit: 200 })))).flat()
+
+        const own = await getEveryPropertyComparables(suburb, type, { state: 'VIC', limit: 200 })
+        const hop1 = (NEIGHBORING_SUBURBS[suburb] || []).filter((s) => s !== suburb)
+        let reach = hop1
+        if (own.length < 15) {
+          // Sparse subject suburb (rural locality) — go one hop further out.
+          const hop2 = hop1.flatMap((s) => NEIGHBORING_SUBURBS[s] || [])
+          reach = [...new Set([...hop1, ...hop2])].filter((s) => s !== suburb)
+        }
+        const epComps = dedupe([...own, ...(await fetchSuburbs(reach))])
+
         if (epComps.length >= 1) {
           console.log(`[api/comparables] everypropertyAI HIT for ${suburb} (${type}) — ${epComps.length} properties`)
           return NextResponse.json({
