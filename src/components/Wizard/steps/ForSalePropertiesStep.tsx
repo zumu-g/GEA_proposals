@@ -269,8 +269,10 @@ export default function ForSalePropertiesStep({
         if (bedsMin && Number(s.bedrooms) < Number(bedsMin)) return false
         if (bathsMin && Number(s.bathrooms) < Number(bathsMin)) return false
         if (priceMin || priceMax) {
-          const numPrice = parseInt((s.askingPrice || '').replace(/[^0-9]/g, ''))
-          if (!numPrice) return true
+          const numPrice = Number(s.price) || parseInt((s.askingPrice || '').replace(/[^0-9]/g, ''))
+          // No usable price ("Contact Agent", "Inspect") — can't satisfy an
+          // explicit price range, so exclude rather than leak through.
+          if (!numPrice) return false
           if (priceMin && numPrice < Number(priceMin)) return false
           if (priceMax && numPrice > Number(priceMax)) return false
         }
