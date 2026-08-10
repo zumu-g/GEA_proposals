@@ -366,14 +366,31 @@ export default function PropertySaleStep({
             <p className="text-gray-400 font-sans text-xs">
               JPG, PNG, or WebP
             </p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={handleFileInput}
-              className="sr-only"
-            />
           </div>
+        )}
+
+        {/* File input lives outside the drop zone so "upload a different
+            photo" still works while a preview is showing (zone hidden). */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={handleFileInput}
+          className="sr-only"
+        />
+
+        {/* Upload stays reachable when an image is already set */}
+        {displayHeroUrl && !useAutoImage && (
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-2 text-gray-500 hover:text-gray-900 font-sans text-xs transition-colors min-h-[44px]"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+            </svg>
+            upload a different photo
+          </button>
         )}
 
         {/* URL input */}
