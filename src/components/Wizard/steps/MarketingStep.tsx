@@ -35,6 +35,8 @@ interface MarketingStepProps {
   dualCampaign?: boolean;
   devMarketingCosts?: MarketingCostItem[];
   onChangeDev?: (costs: MarketingCostItem[]) => void;
+  // Overlay a DRAFT watermark on the printable marketing-plan preview.
+  draftWatermark?: boolean;
 }
 
 // sessionStorage key shared with /marketing-plan/preview
@@ -302,7 +304,7 @@ function DevCampaignEditor({
 
 // ── Main Component ─────────────────────────────────────────────────────────
 
-export default function MarketingStep({ marketingCosts, onChange, propertyAddress, priceGuideMin, priceGuideMax, dualCampaign, devMarketingCosts, onChangeDev }: MarketingStepProps) {
+export default function MarketingStep({ marketingCosts, onChange, propertyAddress, priceGuideMin, priceGuideMax, dualCampaign, devMarketingCosts, onChangeDev, draftWatermark }: MarketingStepProps) {
   const [openCategoryIndex, setOpenCategoryIndex] = useState<number | null>(null);
   const prefersReducedMotion =
     typeof window !== 'undefined'
@@ -419,6 +421,7 @@ export default function MarketingStep({ marketingCosts, onChange, propertyAddres
       items: marketingCosts,
       propertyAddress: propertyAddress || undefined,
       priceGuide: min || max ? { min, max } : undefined,
+      draftWatermark: draftWatermark || undefined,
     };
     try {
       // localStorage (not sessionStorage) so the value is visible to the new tab.
@@ -429,7 +432,7 @@ export default function MarketingStep({ marketingCosts, onChange, propertyAddres
     } catch {
       // storage unavailable — ignore
     }
-  }, [marketingCosts, propertyAddress, priceGuideMin, priceGuideMax]);
+  }, [marketingCosts, propertyAddress, priceGuideMin, priceGuideMax, draftWatermark]);
 
   const isEmpty = marketingCosts.length === 0;
 

@@ -27,6 +27,7 @@ const DEFAULT_MARKETING_COSTS: MarketingCostItem[] = [
 export default function MarketingPlanBuilderPage() {
   const [propertyAddress, setPropertyAddress] = useState('')
   const [marketingCosts, setMarketingCosts] = useState<MarketingCostItem[]>(DEFAULT_MARKETING_COSTS)
+  const [draftWatermark, setDraftWatermark] = useState(false)
 
   // Auto-adjust the REA premiere listing cost to the property's suburb, unless
   // the user has edited that line (its cost still equals a known rate-card value).
@@ -62,8 +63,17 @@ export default function MarketingPlanBuilderPage() {
         </div>
 
         {/* Property context (optional) */}
-        <div className="mb-8 rounded-xl border border-gray-200 bg-white p-5">
+        <div className="mb-8 space-y-4 rounded-xl border border-gray-200 bg-white p-5">
           <AddressAutocomplete value={propertyAddress} onChange={setPropertyAddress} />
+          <label className="flex cursor-pointer items-center gap-2 font-sans text-sm text-gray-600">
+            <input
+              type="checkbox"
+              checked={draftWatermark}
+              onChange={(e) => setDraftWatermark(e.target.checked)}
+              className="h-4 w-4 accent-[#C41E2A]"
+            />
+            Draft watermark on the printed plan
+          </label>
         </div>
 
         {/* Marketing items editor (reused from the wizard). Its built-in
@@ -72,6 +82,7 @@ export default function MarketingPlanBuilderPage() {
           marketingCosts={marketingCosts}
           onChange={setMarketingCosts}
           propertyAddress={propertyAddress}
+          draftWatermark={draftWatermark}
         />
       </div>
     </div>
