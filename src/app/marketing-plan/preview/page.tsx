@@ -13,6 +13,7 @@ interface PreviewPayload {
   items: MarketingCostItem[]
   propertyAddress?: string
   priceGuide?: { min?: number; max?: number }
+  draftWatermark?: boolean
 }
 
 export default function MarketingPlanPreviewPage() {
@@ -54,6 +55,7 @@ export default function MarketingPlanPreviewPage() {
         items={payload.items}
         propertyAddress={payload.propertyAddress}
         priceGuide={payload.priceGuide}
+        draftWatermark={payload.draftWatermark}
       />
     </MarketingPlanPage>
   )

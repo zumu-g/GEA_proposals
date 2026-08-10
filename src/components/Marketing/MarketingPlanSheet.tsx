@@ -15,6 +15,8 @@ export interface MarketingPlanSheetProps {
   agentName?: string
   agentPhone?: string
   agentEmail?: string
+  /** Overlay a diagonal DRAFT watermark (screen + print). */
+  draftWatermark?: boolean
 }
 
 export function MarketingPlanSheet({
@@ -25,11 +27,24 @@ export function MarketingPlanSheet({
   agentName = 'Stuart Grant',
   agentPhone = '0438 554 522',
   agentEmail = 'info@grantsea.com.au',
+  draftWatermark = false,
 }: MarketingPlanSheetProps) {
   const total = planTotal(items)
 
   return (
-    <div className="mkt-plan-sheet mx-auto w-full max-w-[800px] bg-white text-[#1A1A1A]">
+    <div className="mkt-plan-sheet relative mx-auto w-full max-w-[800px] bg-white text-[#1A1A1A]">
+      {draftWatermark && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
+          // print-color-adjust keeps the grey visible when printed
+          style={{ printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}
+        >
+          <span className="-rotate-[30deg] select-none font-sans text-[110px] font-bold uppercase tracking-[0.3em] text-gray-300/60">
+            draft
+          </span>
+        </div>
+      )}
       {/* Header */}
       <header className="flex items-start justify-between border-b-2 border-[#C41E2A] pb-5">
         <div>
