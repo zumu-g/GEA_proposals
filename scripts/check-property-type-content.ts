@@ -6,6 +6,8 @@ import {
   PROPERTY_TYPE_CONTENT,
   getPropertyTypeContent,
   resolveSaleProcess,
+  withOffMarketStage,
+  OFF_MARKET_STAGE,
 } from '../src/lib/property-type-content'
 
 // Structural completeness: every type has a full entry
@@ -69,5 +71,20 @@ for (const type of PROPERTY_TYPES) {
 
 // House keeps the pre-feature comparables default (no type filter)
 assert.equal(PROPERTY_TYPE_CONTENT.house.comparablesFilter, null, 'house must not pre-filter comparables')
+
+// Off-market stage: prepend helper is pure, contiguous, and identity when off
+{
+  const base = resolveSaleProcess('house', 'Auction')
+  const snapshot = JSON.stringify(base)
+  const on = withOffMarketStage(base, true)
+  assert.equal(on.length, base.length + 1, 'off-market on must add exactly one step')
+  assert.equal(on[0].title, OFF_MARKET_STAGE.step.title, 'first step must be the off-market stage')
+  assert.equal(on[1].title, base[0].title, 'former step 1 must follow the off-market step')
+  on.forEach((s, i) => assert.equal(s.step, i + 1, 'off-market numbering must be contiguous from 1'))
+  assert.equal(JSON.stringify(base), snapshot, 'helper must not mutate the source steps')
+  assert.equal(withOffMarketStage(base, false), base, 'off-market off must return the input unchanged')
+  assert(OFF_MARKET_STAGE.step.duration, 'off-market step needs a duration like its siblings')
+  assert(OFF_MARKET_STAGE.points.length >= 2 && OFF_MARKET_STAGE.pills.length === 3, 'off-market copy needs its points and three pills')
+}
 
 console.log('property-type-content: all checks passed')

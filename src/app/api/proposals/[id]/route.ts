@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getProposal, updateProposal, deleteProposal, logActivity, DEFAULT_DATABASE_INFO } from '@/lib/proposal-generator'
 import { PROPERTY_TYPES, type PropertyType } from '@/types/proposal'
-import { PROPERTY_TYPE_CONTENT, getPropertyTypeContent, resolveSaleProcess } from '@/lib/property-type-content'
+import { PROPERTY_TYPE_CONTENT, getPropertyTypeContent, resolveSaleProcess, withOffMarketStage } from '@/lib/property-type-content'
 
 export async function GET(
   request: NextRequest,
@@ -66,7 +66,10 @@ export async function PUT(
       // the stored text IS a type default (agent-authored copy is never touched)
       if (newType !== (existing.propertyType || 'house')) {
         const method = body.methodOfSale !== undefined ? body.methodOfSale : existing.methodOfSale
-        updates.saleProcess = resolveSaleProcess(newType, method)
+        updates.saleProcess = withOffMarketStage(
+          resolveSaleProcess(newType, method),
+          existing.offMarketCampaign === true,
+        )
         const typeDefaults = [
           DEFAULT_DATABASE_INFO,
           ...Object.values(PROPERTY_TYPE_CONTENT).map(c => c.copy.databaseInfo).filter(Boolean),

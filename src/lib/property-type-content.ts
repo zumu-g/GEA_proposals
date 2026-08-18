@@ -562,4 +562,45 @@ export function resolveSaleProcess(type: string | null | undefined, methodOfSale
   return content.saleProcessSteps[key] ?? content.saleProcessSteps.default
 }
 
+// ─── Off-market campaign stage ───────────────────────────────────────────────
+// Fixed copy for the optional "stage one" that precedes the public campaign:
+// database buyers in the target price range brought through privately, no
+// marketing spend, no open homes, no signboard. Rendered by
+// components/Proposal/OffMarketStage and prepended to the sale process below.
+
+export const OFF_MARKET_STAGE = {
+  eyebrow: 'stage one',
+  title: 'testing the market',
+  intro:
+    'before a single dollar is spent on advertising, we take your property to the buyers we already know. ' +
+    'we go to our database, identify the buyers actively looking in your target price range, and bring them through privately.',
+  /** What stage one involves. */
+  points: [
+    'buyers from our database, matched to your target price range',
+    'private inspections — real feedback before you commit to a public campaign',
+  ],
+  /** The headline promises — rendered as pills on the full template. */
+  pills: ['no marketing spend', 'no open homes', 'no signboard'],
+  outro:
+    'only once we have tested the market and gathered that feedback do we commence the public stage of the campaign.',
+  step: {
+    title: 'Testing the Market',
+    description:
+      'Stage one — off market. We introduce your property privately to database buyers in the target price range, bring them through and gather feedback. No marketing spend, no open homes, no signboard — the public campaign starts only after this.',
+    duration: '1-2 weeks',
+    imageUrl: '/images/stocksy/viewings.jpg',
+  } as Omit<SaleStep, 'step'>,
+} as const
+
+/**
+ * Prepend the off-market stage to a resolved sale process. Pure: returns the
+ * input untouched when `on` is false, otherwise a new array numbered 1..n+1.
+ * Called from POST /api/proposals and the PUT property-type-change branch so
+ * the stored `saleProcess` always agrees with `offMarketCampaign`.
+ */
+export function withOffMarketStage(steps: SaleStep[], on: boolean): SaleStep[] {
+  if (!on) return steps
+  return [{ step: 1, ...OFF_MARKET_STAGE.step }, ...steps].map((s, i) => ({ ...s, step: i + 1 }))
+}
+
 export { PROPERTY_TYPES }

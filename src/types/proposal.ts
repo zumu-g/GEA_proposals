@@ -89,6 +89,8 @@ export interface Proposal {
   availableDate?: string;
   managementFee?: number;
   lettingFee?: string;
+  /** Off-market stage one: test the market with database buyers before the public campaign. */
+  offMarketCampaign?: boolean;
   // Dual target campaign (residential + development site)
   dualCampaign?: boolean;
   devMethodOfSale?: string;

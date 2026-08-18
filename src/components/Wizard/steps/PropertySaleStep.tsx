@@ -17,6 +17,7 @@ interface PropertySaleStepProps {
     showPriceRange: boolean
     showCommission: boolean
     propertyAddress: string
+    offMarketCampaign: boolean
     dualCampaign: boolean
     devMethodOfSale: string
     devPriceGuideMin: string
@@ -580,12 +581,50 @@ export default function PropertySaleStep({
         )}
       </motion.div>
 
+      {/* ─── Off-market campaign (stage one) ─── */}
+      <motion.div {...stagger(3)} className="space-y-2 pt-4 border-t border-gray-200">
+        <div className="flex items-center justify-between">
+          <label className="block text-sm font-sans font-medium text-gray-700 lowercase">
+            off market campaign
+            <span className="text-gray-400 text-xs ml-2">test the market privately before the public campaign</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer group">
+            <span className="text-gray-500 font-sans text-xs group-hover:text-gray-700 transition-colors">
+              {formData.offMarketCampaign ? 'on' : 'off'}
+            </span>
+            <div className="relative">
+              <input
+                type="checkbox"
+                checked={formData.offMarketCampaign}
+                onChange={(e) => onChange('offMarketCampaign', e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 bg-gray-300 rounded-full peer-checked:bg-brand transition-colors duration-200" />
+              <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 peer-checked:translate-x-4" />
+            </div>
+          </label>
+        </div>
+        <AnimatePresence initial={false}>
+          {formData.offMarketCampaign && (
+            <motion.p
+              initial={prefersReducedMotion ? false : { opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={prefersReducedMotion ? undefined : { opacity: 0, height: 0 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+              className="overflow-hidden text-xs font-sans text-gray-500 leading-relaxed"
+            >
+              stage one on the proposal: database buyers in the target price range brought through privately, feedback gathered — no marketing spend, no open homes, no signboard — before the public stage begins.
+            </motion.p>
+          )}
+        </AnimatePresence>
+      </motion.div>
+
       {/* ─── Dual target campaign (development site) ─── */}
       <motion.div {...stagger(3)} className="space-y-4 pt-4 border-t border-gray-200">
         <div className="flex items-center justify-between">
           <label className="block text-sm font-sans font-medium text-gray-700 lowercase">
             dual target campaign
-            <span className="text-gray-400 text-xs ml-2">also market as a development site</span>
+            <span className="text-gray-400 text-xs ml-2">(residential campaign + development site campaign)</span>
           </label>
           <label className="flex items-center gap-2 cursor-pointer group">
             <span className="text-gray-500 font-sans text-xs group-hover:text-gray-700 transition-colors">

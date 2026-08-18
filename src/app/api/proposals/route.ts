@@ -5,7 +5,7 @@ import { lookupComparables, lookupOnMarket } from '@/lib/comparables-lookup'
 import { getCurrentUser } from '@/lib/current-user'
 import { getEffectiveConfig } from '@/lib/user-profile'
 import { PROPERTY_TYPES, type PropertyType } from '@/types/proposal'
-import { getPropertyTypeContent, resolveSaleProcess } from '@/lib/property-type-content'
+import { getPropertyTypeContent, resolveSaleProcess, withOffMarketStage } from '@/lib/property-type-content'
 
 interface WizardMarketingItem {
   id?: string; category: string; description: string; cost: number; included: boolean
@@ -88,6 +88,7 @@ export async function POST(request: NextRequest) {
     const managementFeeStr = formData.get('managementFee') as string | null
     const lettingFee = formData.get('lettingFee') as string | null
     const dualCampaign = formData.get('dualCampaign') as string | null
+    const offMarketCampaign = formData.get('offMarketCampaign') as string | null
     const devMethodOfSale = formData.get('devMethodOfSale') as string | null
     const devPriceGuideMinStr = formData.get('devPriceGuideMin') as string | null
     const devPriceGuideMaxStr = formData.get('devPriceGuideMax') as string | null
@@ -251,7 +252,13 @@ export async function POST(request: NextRequest) {
     // reproduce the previous hardcoded auction/default arrays exactly.
     // Rental keeps its own steps (set above) and never reaches this lookup.
     if (proposalType !== 'rental') {
-      proposal.saleProcess = resolveSaleProcess(propertyType, methodOfSale)
+      // Off-market stage one (never for rentals) — prepended via the shared helper
+      // so POST and the PUT type-change branch agree (see withOffMarketStage)
+      proposal.offMarketCampaign = offMarketCampaign === '1'
+      proposal.saleProcess = withOffMarketStage(
+        resolveSaleProcess(propertyType, methodOfSale),
+        proposal.offMarketCampaign,
+      )
       // Type-aware persisted default copy (agent edits are never overridden —
       // this only replaces the residential default set by createProposal)
       const typeDatabaseInfo = getPropertyTypeContent(propertyType).copy.databaseInfo
