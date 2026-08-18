@@ -11,7 +11,6 @@ interface OffMarketStageProps {
 
 // "Stage one — testing the market": rendered only when proposal.offMarketCampaign
 // is on. Copy is the fixed OFF_MARKET_STAGE constant (one source for both templates).
-// The three "no" points are the headline promise, so they get the pill treatment.
 export function OffMarketStage({ variant = 'full' }: OffMarketStageProps) {
   const prefersReducedMotion = useReducedMotion()
   const fadeUp = {
@@ -21,9 +20,7 @@ export function OffMarketStage({ variant = 'full' }: OffMarketStageProps) {
     transition: { duration: 0.5, ease: 'easeOut' },
   }
 
-  const { eyebrow, title, intro, points, outro } = OFF_MARKET_STAGE
-  const pills = points.filter((p) => p.startsWith('no '))
-  const detail = points.filter((p) => !p.startsWith('no '))
+  const { eyebrow, title, intro, points, pills, outro } = OFF_MARKET_STAGE
 
   if (variant === 'compact') {
     return (
@@ -39,7 +36,7 @@ export function OffMarketStage({ variant = 'full' }: OffMarketStageProps) {
             {intro}
           </motion.p>
           <motion.ul {...fadeUp} className="space-y-2 mb-5">
-            {points.map((p) => (
+            {[...points, ...pills].map((p) => (
               <li key={p} className="flex items-start gap-3 font-sans text-sm text-gray-700">
                 <span className="mt-2 w-1.5 h-1.5 rounded-full bg-brand flex-shrink-0" />
                 <span>{p}</span>
@@ -71,7 +68,7 @@ export function OffMarketStage({ variant = 'full' }: OffMarketStageProps) {
               {intro}
             </motion.p>
             <motion.ul {...fadeUp} className="space-y-3 mb-8">
-              {detail.map((p) => (
+              {points.map((p) => (
                 <li key={p} className="flex items-start gap-3 font-sans text-sm sm:text-base text-white/80">
                   <span className="mt-2.5 w-1.5 h-1.5 rounded-full bg-brand flex-shrink-0" />
                   <span>{p}</span>

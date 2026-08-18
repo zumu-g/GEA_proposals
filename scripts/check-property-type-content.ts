@@ -84,7 +84,7 @@ assert.equal(PROPERTY_TYPE_CONTENT.house.comparablesFilter, null, 'house must no
   assert.equal(JSON.stringify(base), snapshot, 'helper must not mutate the source steps')
   assert.equal(withOffMarketStage(base, false), base, 'off-market off must return the input unchanged')
   assert(OFF_MARKET_STAGE.step.duration, 'off-market step needs a duration like its siblings')
-  assert(OFF_MARKET_STAGE.points.length >= 3, 'off-market copy needs its points')
+  assert(OFF_MARKET_STAGE.points.length >= 2 && OFF_MARKET_STAGE.pills.length === 3, 'off-market copy needs its points and three pills')
 }
 
 console.log('property-type-content: all checks passed')

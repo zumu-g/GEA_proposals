@@ -574,13 +574,13 @@ export const OFF_MARKET_STAGE = {
   intro:
     'before a single dollar is spent on advertising, we take your property to the buyers we already know. ' +
     'we go to our database, identify the buyers actively looking in your target price range, and bring them through privately.',
+  /** What stage one involves. */
   points: [
     'buyers from our database, matched to your target price range',
     'private inspections — real feedback before you commit to a public campaign',
-    'no marketing spend',
-    'no open homes',
-    'no signboard',
   ],
+  /** The headline promises — rendered as pills on the full template. */
+  pills: ['no marketing spend', 'no open homes', 'no signboard'],
   outro:
     'only once we have tested the market and gathered that feedback do we commence the public stage of the campaign.',
   step: {
