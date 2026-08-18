@@ -519,6 +519,10 @@ function buildAgentApprovalHtml(proposal: Proposal, proposalUrl: string): string
                   <td style="padding: 6px 0; color: #737373; font-size: 13px;">Marketing Budget</td>
                   <td style="padding: 6px 0; color: #1A1A1A; font-size: 14px; font-weight: 500;">${escapeHtml(marketingBudget)}</td>
                 </tr>` : ''}
+                ${proposal.offMarketCampaign ? `<tr>
+                  <td style="padding: 6px 0; color: #737373; font-size: 13px;">Off-market stage</td>
+                  <td style="padding: 6px 0; color: #1A1A1A; font-size: 14px; font-weight: 500;">Yes — testing the market before public launch</td>
+                </tr>` : ''}
                 ${proposal.dualCampaign ? `<tr>
                   <td style="padding: 6px 0; color: #737373; font-size: 13px;">Dual Campaign</td>
                   <td style="padding: 6px 0; color: #1A1A1A; font-size: 14px; font-weight: 500;">Development site campaign — ${escapeHtml(proposal.devMethodOfSale || 'TBC')}${proposal.devPriceGuide ? ', guide ' + fmtPrice(proposal.devPriceGuide.min) + ' — ' + fmtPrice(proposal.devPriceGuide.max) : ''}</td>
@@ -750,6 +754,10 @@ function buildClientApprovalHtml(proposal: Proposal, proposalUrl: string, agency
                         <td style="padding: 8px 0; color: #737373; font-size: 13px; vertical-align: top;">Commission</td>
                         <td style="padding: 8px 0; color: #1A1A1A; font-size: 14px;">${fmtPercent(commission)}</td>
                       </tr>`}
+                      ${proposal.offMarketCampaign ? `<tr>
+                        <td style="padding: 8px 0; color: #737373; font-size: 13px; vertical-align: top;">Off-market stage</td>
+                        <td style="padding: 8px 0; color: #1A1A1A; font-size: 14px;">Yes — testing the market before public launch</td>
+                      </tr>` : ''}
                       ${proposal.dualCampaign ? `<tr>
                         <td style="padding: 8px 0; color: #737373; font-size: 13px; vertical-align: top;">Development Campaign</td>
                         <td style="padding: 8px 0; color: #1A1A1A; font-size: 14px;">${escapeHtml(proposal.devMethodOfSale || 'TBC')} — advertised on realcommercial.com.au</td>
