@@ -312,6 +312,7 @@ function initSchema(db: Database.Database) {
     'ALTER TABLE nurture_touchpoints ADD COLUMN talking_points TEXT',
     // Dual target campaign (residential + development site)
     'ALTER TABLE proposals ADD COLUMN dual_campaign INTEGER DEFAULT 0',
+    'ALTER TABLE proposals ADD COLUMN off_market_campaign INTEGER DEFAULT 0',  // stage-one off-market toggle
     'ALTER TABLE proposals ADD COLUMN dev_method_of_sale TEXT',
     'ALTER TABLE proposals ADD COLUMN dev_price_guide_min REAL',
     'ALTER TABLE proposals ADD COLUMN dev_price_guide_max REAL',

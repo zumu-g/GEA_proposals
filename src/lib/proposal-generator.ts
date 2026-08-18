@@ -109,6 +109,7 @@ interface ProposalRow {
   management_fee: number | null
   letting_fee: string | null
   dual_campaign: number | null
+  off_market_campaign: number | null
   dev_method_of_sale: string | null
   dev_price_guide_min: number | null
   dev_price_guide_max: number | null
@@ -161,6 +162,7 @@ function rowToProposal(row: ProposalRow): Proposal {
     managementFee: row.management_fee ?? undefined,
     lettingFee: row.letting_fee ?? undefined,
     dualCampaign: row.dual_campaign === 1,
+    offMarketCampaign: row.off_market_campaign === 1,
     devMethodOfSale: row.dev_method_of_sale || undefined,
     devPriceGuide:
       row.dev_price_guide_min != null && row.dev_price_guide_max != null
@@ -216,6 +218,7 @@ function proposalToParams(proposal: Proposal) {
     management_fee: proposal.managementFee ?? null,
     letting_fee: proposal.lettingFee || null,
     dual_campaign: proposal.dualCampaign ? 1 : 0,
+    off_market_campaign: proposal.offMarketCampaign ? 1 : 0,
     dev_method_of_sale: proposal.devMethodOfSale || null,
     dev_price_guide_min: proposal.devPriceGuide?.min ?? null,
     dev_price_guide_max: proposal.devPriceGuide?.max ?? null,
@@ -244,7 +247,7 @@ export async function saveProposal(proposal: Proposal): Promise<void> {
       advertising_schedule, total_advertising_cost, area_analysis, team_members,
       marketing_approach, marketing_costs, database_info, internet_listings, on_market_listings, hidden_sections,
       template, property_type, proposal_type, asking_rent, lease_type, available_date, management_fee, letting_fee,
-      dual_campaign, dev_method_of_sale, dev_price_guide_min, dev_price_guide_max, dev_show_price_range,
+      dual_campaign, off_market_campaign, dev_method_of_sale, dev_price_guide_min, dev_price_guide_max, dev_show_price_range,
       dev_marketing_costs, dev_marketing_plan, dev_advertising_schedule, dev_total_advertising_cost,
       status, sent_at, viewed_at, approved_at)
     VALUES (@id, @client_name, @client_email, @property_address, @proposal_date,
@@ -253,7 +256,7 @@ export async function saveProposal(proposal: Proposal): Promise<void> {
       @advertising_schedule, @total_advertising_cost, @area_analysis, @team_members,
       @marketing_approach, @marketing_costs, @database_info, @internet_listings, @on_market_listings, @hidden_sections,
       @template, @property_type, @proposal_type, @asking_rent, @lease_type, @available_date, @management_fee, @letting_fee,
-      @dual_campaign, @dev_method_of_sale, @dev_price_guide_min, @dev_price_guide_max, @dev_show_price_range,
+      @dual_campaign, @off_market_campaign, @dev_method_of_sale, @dev_price_guide_min, @dev_price_guide_max, @dev_show_price_range,
       @dev_marketing_costs, @dev_marketing_plan, @dev_advertising_schedule, @dev_total_advertising_cost,
       @status, @sent_at, @viewed_at, @approved_at)
     ON CONFLICT(id) DO UPDATE SET
@@ -269,7 +272,7 @@ export async function saveProposal(proposal: Proposal): Promise<void> {
       internet_listings=@internet_listings, on_market_listings=@on_market_listings, hidden_sections=@hidden_sections,
       template=@template, property_type=@property_type, proposal_type=@proposal_type, asking_rent=@asking_rent, lease_type=@lease_type,
       available_date=@available_date, management_fee=@management_fee, letting_fee=@letting_fee,
-      dual_campaign=@dual_campaign, dev_method_of_sale=@dev_method_of_sale,
+      dual_campaign=@dual_campaign, off_market_campaign=@off_market_campaign, dev_method_of_sale=@dev_method_of_sale,
       dev_price_guide_min=@dev_price_guide_min, dev_price_guide_max=@dev_price_guide_max,
       dev_show_price_range=@dev_show_price_range, dev_marketing_costs=@dev_marketing_costs,
       dev_marketing_plan=@dev_marketing_plan, dev_advertising_schedule=@dev_advertising_schedule,
