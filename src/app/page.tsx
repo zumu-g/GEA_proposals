@@ -191,6 +191,8 @@ export default function HomePage() {
   useEffect(() => { methodOfSaleRef.current = methodOfSale }, [methodOfSale])
   // Dual target campaign (development site) — KTD 2c: state persists when toggled off
   const [dualCampaign, setDualCampaign] = useState(false)
+  // Off-market stage one — test the market with database buyers before going public
+  const [offMarketCampaign, setOffMarketCampaign] = useState(false)
   // Sidebar page toggles — sections excluded from the generated client proposal.
   const [hiddenSections, setHiddenSections] = useState<string[]>(DEFAULT_HIDDEN_SECTIONS)
   const toggleSection = useCallback((id: string, enabled: boolean) => {
@@ -330,6 +332,7 @@ export default function HomePage() {
     lettingFee,
     marketingCosts,
     dualCampaign,
+    offMarketCampaign,
     devMethodOfSale,
     devPriceGuideMin,
     devPriceGuideMax,
@@ -337,7 +340,7 @@ export default function HomePage() {
     devMarketingCosts,
     hiddenSections,
     editingProposalId,
-  }), [proposalType, clientName, clientEmail, propertyAddress, methodOfSale, priceGuideMin, priceGuideMax, heroImageUrl, commission, showPriceRange, showCommission, template, propertyType, askingRent, leaseType, availableDate, managementFee, lettingFee, marketingCosts, dualCampaign, devMethodOfSale, devPriceGuideMin, devPriceGuideMax, devShowPriceRange, devMarketingCosts, hiddenSections, editingProposalId])
+  }), [proposalType, clientName, clientEmail, propertyAddress, methodOfSale, priceGuideMin, priceGuideMax, heroImageUrl, commission, showPriceRange, showCommission, template, propertyType, askingRent, leaseType, availableDate, managementFee, lettingFee, marketingCosts, dualCampaign, offMarketCampaign, devMethodOfSale, devPriceGuideMin, devPriceGuideMax, devShowPriceRange, devMarketingCosts, hiddenSections, editingProposalId])
 
   const handleRestoreDraft = useCallback((data: { step: number; formData: Record<string, unknown> }) => {
     const d = data.formData
@@ -365,6 +368,7 @@ export default function HomePage() {
     if (d.marketingCosts && Array.isArray(d.marketingCosts)) setMarketingCosts(d.marketingCosts as MarketingCostItem[])
     if (Array.isArray(d.hiddenSections)) setHiddenSections(d.hiddenSections as string[])
     if (d.dualCampaign !== undefined) setDualCampaign(d.dualCampaign as boolean)
+    if (d.offMarketCampaign !== undefined) setOffMarketCampaign(d.offMarketCampaign as boolean)
     if (d.devMethodOfSale) setDevMethodOfSale(d.devMethodOfSale as string)
     if (d.devPriceGuideMin) setDevPriceGuideMin(d.devPriceGuideMin as string)
     if (d.devPriceGuideMax) setDevPriceGuideMax(d.devPriceGuideMax as string)
@@ -412,6 +416,7 @@ export default function HomePage() {
       // Pre-fill dual campaign — dev items come from the persisted raw list
       // (dev_marketing_costs), never reconstructed from the schedule
       setDualCampaign(proposal.dualCampaign === true)
+      setOffMarketCampaign(proposal.offMarketCampaign === true)
       setHiddenSections(proposal.hiddenSections || DEFAULT_HIDDEN_SECTIONS)
       setDevMethodOfSale(proposal.devMethodOfSale || 'Expressions of Interest')
       setDevPriceGuideMin(proposal.devPriceGuide?.min ? String(proposal.devPriceGuide.min) : '')
@@ -493,6 +498,7 @@ export default function HomePage() {
       setPropertyType((proposal.propertyType as PropertyType) || 'house')
 
       setDualCampaign(proposal.dualCampaign === true)
+      setOffMarketCampaign(proposal.offMarketCampaign === true)
       setHiddenSections(proposal.hiddenSections || DEFAULT_HIDDEN_SECTIONS)
       setDevMethodOfSale(proposal.devMethodOfSale || 'Expressions of Interest')
       setDevPriceGuideMin(proposal.devPriceGuide?.min ? String(proposal.devPriceGuide.min) : '')
@@ -587,6 +593,7 @@ export default function HomePage() {
 
     // Dual target campaign — always submitted; server ignores when dualCampaign=0 (KTD 2c)
     formData.append('dualCampaign', dualCampaign && proposalType !== 'rental' ? '1' : '0')
+    formData.append('offMarketCampaign', offMarketCampaign && proposalType !== 'rental' ? '1' : '0')
     formData.append('devMethodOfSale', devMethodOfSale)
     if (devPriceGuideMin) formData.append('devPriceGuideMin', devPriceGuideMin)
     if (devPriceGuideMax) formData.append('devPriceGuideMax', devPriceGuideMax)
@@ -701,6 +708,7 @@ export default function HomePage() {
     setMarketingCosts(DEFAULT_MARKETING_COSTS)
     setHiddenSections(DEFAULT_HIDDEN_SECTIONS)
     setDualCampaign(false)
+    setOffMarketCampaign(false)
     setDevMethodOfSale('Expressions of Interest')
     setDevPriceGuideMin('')
     setDevPriceGuideMax('')
@@ -741,7 +749,7 @@ export default function HomePage() {
         return !validatePropertySale({
           methodOfSale, priceGuideMin, priceGuideMax,
           heroImage, heroImageUrl, commission, showPriceRange, showCommission, propertyAddress,
-          dualCampaign, devMethodOfSale, devPriceGuideMin, devPriceGuideMax, devShowPriceRange,
+          dualCampaign, offMarketCampaign, devMethodOfSale, devPriceGuideMin, devPriceGuideMax, devShowPriceRange,
         })
       case 2:
         if (validateMarketing(marketingCosts)) return false
@@ -805,6 +813,7 @@ export default function HomePage() {
       case 'showPriceRange': setShowPriceRange(value); break
       case 'showCommission': setShowCommission(value); break
       case 'dualCampaign': setDualCampaign(value); break
+      case 'offMarketCampaign': setOffMarketCampaign(value); break
       case 'devMethodOfSale': setDevMethodOfSale(value); break
       case 'devPriceGuideMin': setDevPriceGuideMin(value); break
       case 'devPriceGuideMax': setDevPriceGuideMax(value); break
@@ -900,6 +909,7 @@ export default function HomePage() {
             showCommission,
             propertyAddress,
             dualCampaign,
+            offMarketCampaign,
             devMethodOfSale,
             devPriceGuideMin,
             devPriceGuideMax,
