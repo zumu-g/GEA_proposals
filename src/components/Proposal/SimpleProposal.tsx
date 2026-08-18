@@ -2,6 +2,7 @@ import type { Proposal } from '@/types/proposal'
 import { getPropertyTypeContent } from '@/lib/property-type-content'
 import { FullHero } from '@/components/Proposal/FullHero'
 import { BrandStatement } from '@/components/Proposal/BrandStatement'
+import { OffMarketStage } from '@/components/Proposal/OffMarketStage'
 import { AgentProfile } from '@/components/Proposal/AgentProfile'
 import { RecentSales } from '@/components/Proposal/RecentSales'
 import { FeeStructureVisual } from '@/components/Proposal/FeeStructureVisual'
@@ -28,6 +29,9 @@ export function SimpleProposal({ proposal }: { proposal: Proposal }) {
 
       {/* Price guide + method of sale (respects showPriceRange) */}
       <BrandStatement proposal={proposal} statementOverride={typeContent.copy.brandStatement} />
+
+      {/* Off-market stage one (compact) */}
+      {proposal.offMarketCampaign && proposal.proposalType !== 'rental' && <OffMarketStage variant="compact" />}
 
       {/* Who the agent is */}
       <AgentProfile

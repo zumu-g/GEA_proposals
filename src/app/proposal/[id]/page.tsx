@@ -6,6 +6,7 @@ import { FullHero } from '@/components/Proposal/FullHero'
 import { SimpleProposal } from '@/components/Proposal/SimpleProposal'
 import { Introduction } from '@/components/Proposal/Introduction'
 import { BrandStatement } from '@/components/Proposal/BrandStatement'
+import { OffMarketStage } from '@/components/Proposal/OffMarketStage'
 import { AgentProfile } from '@/components/Proposal/AgentProfile'
 import { StatsBar } from '@/components/Proposal/StatsBar'
 import { AreaAnalysis } from '@/components/Proposal/AreaAnalysis'
@@ -92,6 +93,9 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
 
         {/* Brand statement - price guide, method of sale */}
         <BrandStatement proposal={proposal} statementOverride={typeContent.copy.brandStatement} />
+
+        {/* Off-market stage one — outside print-drop so the short PDF keeps it; always shown when on */}
+        {proposal.offMarketCampaign && !isRentalProposal && <OffMarketStage variant="full" />}
 
         {/* Agent profile - intro + buyer database info */}
         {/* print-drop wrappers mark sections excluded from the short print PDF */}
