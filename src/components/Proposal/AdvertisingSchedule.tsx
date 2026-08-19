@@ -47,7 +47,7 @@ export function AdvertisingSchedule({ schedule, totalCost, methodOfSale, campaig
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
-          className="mb-12 sm:mb-16"
+          className="mb-12 sm:mb-16 print:mb-5"
         >
           <p className="text-warm font-sans text-xs tracking-[0.3em] uppercase mb-3">
             {campaignLabel ? `${campaignLabel} — advertising schedule` : 'advertising schedule'}
@@ -63,7 +63,7 @@ export function AdvertisingSchedule({ schedule, totalCost, methodOfSale, campaig
         </motion.div>
 
         {/* Weekly cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-3 gap-6 lg:gap-8 print:gap-3">
           {sorted.map((week, index) => (
             <motion.div
               key={week.week}
@@ -74,10 +74,10 @@ export function AdvertisingSchedule({ schedule, totalCost, methodOfSale, campaig
                 duration: 0.4,
                 delay: prefersReducedMotion ? 0 : index * 0.1,
               }}
-              className={`rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 border overflow-hidden print:break-inside-avoid ${isAuctionWeek(week) ? 'bg-brand/[0.03] border-brand/20' : 'bg-white border-charcoal-50/60'}`}
+              className={`rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 border overflow-hidden print:break-inside-avoid ${index === 0 ? 'print:row-span-2 ' : ''}${isAuctionWeek(week) ? 'bg-brand/[0.03] border-brand/20' : 'bg-white border-charcoal-50/60'}`}
             >
               {/* Week header */}
-              <div className={`flex items-center justify-between px-6 py-4 border-b ${isAuctionWeek(week) ? 'border-brand/15 bg-brand/5' : 'border-charcoal-50/60'}`}>
+              <div className={`flex items-center justify-between px-6 py-4 print:py-2 border-b ${isAuctionWeek(week) ? 'border-brand/15 bg-brand/5' : 'border-charcoal-50/60'}`}>
                 <div className="flex items-center gap-3">
                   <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-brand text-white font-sans text-sm font-semibold">
                     {weekBadge(week)}
@@ -103,13 +103,13 @@ export function AdvertisingSchedule({ schedule, totalCost, methodOfSale, campaig
                 {week.activities.map((activity, actIdx) => (
                   <div
                     key={actIdx}
-                    className="flex items-start justify-between gap-4 px-6 py-4"
+                    className="flex items-start justify-between gap-4 px-6 py-4 print:px-3 print:py-1"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="font-sans text-sm font-medium text-charcoal">
+                      <p className="font-sans text-sm print:text-xs font-medium text-charcoal">
                         {activity.category}
                       </p>
-                      <p className="font-sans text-sm font-light text-charcoal-400 mt-0.5 leading-relaxed">
+                      <p className="font-sans text-sm print:text-xs print:leading-snug font-light text-charcoal-400 mt-0.5 leading-relaxed">
                         {activity.description}
                       </p>
                     </div>
@@ -141,7 +141,7 @@ export function AdvertisingSchedule({ schedule, totalCost, methodOfSale, campaig
               duration: 0.4,
               delay: prefersReducedMotion ? 0 : schedule.length * 0.1,
             }}
-            className="mt-12 sm:mt-16"
+            className="mt-12 sm:mt-16 print:mt-4 print:break-before-avoid"
           >
             <div className="max-w-md ml-auto">
               <div className="h-0.5 bg-brand mb-6" />

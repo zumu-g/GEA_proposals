@@ -114,9 +114,10 @@
 
   /* Global scale compression: Tailwind sizes are rem-based, so shrinking the
      root scales the whole screen-designed layout to landscape-page proportions
-     (16px -> 12px ≈ 9pt body floor) */
+     (16px -> 14px ≈ 10.5pt body). 14px fills a landscape page without
+     pushing the 3-up comparables grid past the 277mm body width. */
   html {
-    font-size: 12px;
+    font-size: 14px;
   }
 
   .print\:hidden {
@@ -179,14 +180,32 @@
      wrapper div. Sections may break internally (continuation pages) — leaf
      blocks below opt out individually. */
   .proposal-print-root main > div > section,
+  .proposal-print-root main > div > footer,
   .proposal-print-root main > div > .print-drop section {
     break-before: page;
     page-break-before: always;
     break-inside: auto;
     page-break-inside: auto;
-    min-height: 0 !important;
     padding-top: 8mm !important;
     padding-bottom: 8mm !important;
+  }
+  /* Fill: every non-cover section takes the page body (210 - 2x10mm margins,
+     minus 2mm safety) with its content vertically centred, so short sections
+     read as composed pages rather than a strip of type over blank paper. */
+  .proposal-print-root main > div > section:not(:first-child),
+  .proposal-print-root main > div > footer,
+  .proposal-print-root main > div > .print-drop section {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 188mm;
+  }
+  /* Flex items shrink to content width; keep flow children full-width but
+     leave absolutely positioned decorations (accent bars, corner washes) alone */
+  .proposal-print-root main > div > section:not(:first-child) > :not(.absolute),
+  .proposal-print-root main > div > footer > :not(.absolute),
+  .proposal-print-root main > div > .print-drop section > :not(.absolute) {
+    width: 100%;
   }
   /* The hero is the cover — no break before the first page, and it fills the
      full-bleed first page exactly (A4 landscape = 297x210mm; margin 0) */
@@ -198,10 +217,24 @@
     padding: 0 !important;
     overflow: hidden;
   }
-  /* Opt-out: small sections that share a page with the previous one */
-  .proposal-print-root main > div > section.print-page-continue {
+  /* Opt-out: small sections that share a page with the previous one. Matches
+     both direct children and sections nested in a .print-drop wrapper. The
+     preceding section drops its fill so the pair sits together at the top. */
+  .proposal-print-root main > div > section.print-page-continue,
+  .proposal-print-root main > div > .print-drop > section.print-page-continue {
     break-before: auto;
     page-break-before: auto;
+    display: block; /* flex containers print as monolithic blocks; block lets it flow */
+    min-height: 0;
+    padding-top: 4mm !important;
+    padding-bottom: 4mm !important;
+  }
+  .proposal-print-root main > div > section:has(+ section.print-page-continue),
+  .proposal-print-root main > div > section:has(+ .print-drop > section.print-page-continue:first-child),
+  .proposal-print-root main > div > .print-drop > section:has(+ section.print-page-continue) {
+    min-height: 0;
+    justify-content: flex-start;
+    padding-bottom: 4mm !important;
   }
 
   /* ─── Short print mode (.print-short on the proposal root) ───
@@ -211,9 +244,14 @@
   .proposal-print-root.print-short .print-drop {
     display: none !important;
   }
-  /* One 4-up row per comparables section — two rows plus the heading overflow
-     a landscape page and strand cards on a mostly-blank second page */
-  .proposal-print-root.print-short .print-comp-grid > *:nth-child(n + 5) {
+  /* A section paired with a now-hidden .print-drop partner gets its fill back */
+  .proposal-print-root.print-short main > div > section:has(+ .print-drop > section.print-page-continue:first-child) {
+    min-height: 188mm;
+    justify-content: center;
+  }
+  /* One 3x2 block per comparables section — the grid is 3 columns at print, so
+     six cards fill exactly one page */
+  .proposal-print-root.print-short .print-comp-grid > *:nth-child(n + 7) {
     display: none !important;
   }
 
@@ -233,11 +271,21 @@
     page-break-inside: avoid;
   }
   .print-tile-list {
-    /* compress the tall on-screen rhythm between tiles */
-    row-gap: 1.5rem !important;
+    /* compress the tall on-screen rhythm between tiles: 3 tiles per page */
+    row-gap: 1rem !important;
   }
   .print-tile-list > * + * {
-    margin-top: 1.5rem !important;
+    margin-top: 1rem !important;
+  }
+  .print-comp-grid > * {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Photo boxes that use a responsive aspect-ratio (sm:aspect-*) — Tailwind
+     orders `sm:` after `print:`, so aspect must be released here instead. */
+  .proposal-print-root .print-photo {
+    aspect-ratio: auto !important;
   }
 
   /* Ensure images print */

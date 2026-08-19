@@ -57,7 +57,7 @@ export function FeeStructureVisual({ fees, showCommission = true, methodOfSale, 
           >
             {/* Thin sage rule treatment — different from gold-accent-line */}
             <div className="w-8 h-px bg-sage mb-6" />
-            <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-normal text-white lowercase mb-12">
+            <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-normal text-white lowercase mb-12 print:mb-5">
               your investment
             </h2>
 
@@ -65,11 +65,11 @@ export function FeeStructureVisual({ fees, showCommission = true, methodOfSale, 
                 management fee (% of weekly rent) and letting fee; sales show
                 commission (% of final sale price). */}
             {showCommission && (
-              <div className="bg-charcoal-700 rounded-lg border-l-4 border-gold p-8 sm:p-10 text-center">
+              <div className="bg-charcoal-700 rounded-lg border-l-4 border-gold p-8 sm:p-10 print:p-5 text-center">
                 <p className="text-gold font-sans text-xs tracking-[0.25em] uppercase mb-4">
                   {isRental ? 'management fee' : 'commission'}
                 </p>
-                <p className="font-display text-6xl sm:text-7xl lg:text-8xl font-normal text-gold leading-none">
+                <p className="font-display text-6xl sm:text-7xl lg:text-8xl print:text-6xl font-normal text-gold leading-none">
                   {isRental ? (managementFee ?? commissionRate) : commissionRate}%
                 </p>
                 <p className="text-white/70 font-sans text-sm font-light mt-4">

@@ -92,7 +92,7 @@ export function RecentSales({ sales, proposalType, showBedsBaths = true }: Recen
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
         >
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between mb-12 sm:mb-16">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between mb-12 sm:mb-16 print:mb-5">
             <div>
               {/* Overline label treatment — distinct from gold-accent-line */}
               <p className="text-sage font-sans text-xs tracking-[0.3em] uppercase mb-3">
@@ -135,7 +135,7 @@ export function RecentSales({ sales, proposalType, showBedsBaths = true }: Recen
           </div>
         </motion.div>
 
-        <div className="print-comp-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 print:grid-cols-4 gap-6 lg:gap-8 print:gap-4">
+        <div className="print-comp-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 print:grid-cols-3 gap-6 lg:gap-8 print:gap-4">
           {sortedSales.map((sale, index) => (
             <motion.div
               key={`${sale.address}-${index}`}
@@ -147,7 +147,7 @@ export function RecentSales({ sales, proposalType, showBedsBaths = true }: Recen
             >
               <div className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 h-full flex flex-col">
                 {/* Image */}
-                <div className="w-full h-48 overflow-hidden relative">
+                <div className="w-full h-48 print:h-[28mm] overflow-hidden relative">
                   {sale.imageUrl && !imageErrors.has(sale.imageUrl) ? (
                     <img
                       src={sale.imageUrl}
@@ -185,7 +185,7 @@ export function RecentSales({ sales, proposalType, showBedsBaths = true }: Recen
                 </div>
 
                 {/* Content */}
-                <div className="p-6 flex-1 flex flex-col">
+                <div className="p-6 print:p-2.5 flex-1 flex flex-col">
                   <h3 className="font-display text-lg font-normal text-charcoal lowercase mb-2 line-clamp-2">
                     {sale.address.toLowerCase()}
                   </h3>

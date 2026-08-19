@@ -19,7 +19,7 @@ export function StatsBar({ stats }: StatsBarProps) {
   const displayStats = stats && stats.length > 0 ? stats : defaultStats
 
   return (
-    <section className="bg-sage-50 py-16 sm:py-20 relative overflow-hidden">
+    <section className="print-page-continue bg-sage-50 py-16 sm:py-20 relative overflow-hidden">
       <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-sage-200 to-transparent" />
 
       <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-16 xl:px-24">

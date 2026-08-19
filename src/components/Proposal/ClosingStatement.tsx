@@ -21,10 +21,10 @@ export function ClosingStatement({ agentName, agentTitle, agentPhoto, statementO
   const hasPhoto = !imageError
 
   return (
-    <section className="py-20 sm:py-28 lg:py-32 bg-off-white relative overflow-hidden">
+    <section className="print-page-continue py-20 sm:py-28 lg:py-32 bg-off-white relative overflow-hidden">
 
       <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-16 xl:px-24 relative z-10">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 print:gap-8 items-center">
           {/* Agent photo with quote overlay */}
           <motion.div
             initial={prefersReducedMotion ? false : { opacity: 0, x: -20 }}
@@ -32,7 +32,7 @@ export function ClosingStatement({ agentName, agentTitle, agentPhoto, statementO
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
           >
-            <div className="aspect-[3/4] sm:aspect-[4/5] rounded-2xl overflow-hidden relative shadow-2xl max-w-md mx-auto lg:mx-0">
+            <div className="aspect-[3/4] sm:aspect-[4/5] rounded-2xl overflow-hidden relative shadow-2xl max-w-md mx-auto lg:mx-0 print-photo print:h-[50mm] print:max-w-[40mm]">
               {hasPhoto ? (
                 <img
                   src={photo}
@@ -64,19 +64,19 @@ export function ClosingStatement({ agentName, agentTitle, agentPhoto, statementO
             viewport={{ once: true }}
             transition={{ duration: 0.5, delay: prefersReducedMotion ? 0 : 0.15 }}
           >
-            <p className="text-brand font-sans text-xs tracking-[0.3em] uppercase mb-6">
+            <p className="text-brand font-sans text-xs tracking-[0.3em] uppercase mb-6 print:mb-2">
               a personal promise
             </p>
-            <h2 className="font-display text-3xl sm:text-4xl font-normal text-charcoal lowercase mb-8">
+            <h2 className="font-display text-3xl sm:text-4xl font-normal text-charcoal lowercase mb-8 print:mb-3">
               let&apos;s get started
             </h2>
-            <div className="w-12 h-px bg-brand mb-8" />
+            <div className="w-12 h-px bg-brand mb-8 print:mb-3" />
 
-            <p className="font-sans text-base sm:text-lg font-light text-charcoal-400 leading-relaxed mb-10">
+            <p className="font-sans text-base sm:text-lg font-light text-charcoal-400 leading-relaxed mb-10 print:mb-4">
               {statementOverride ?? 'I look forward to getting underway with the campaign. Please call me if you need any further information or have any questions. I am committed to achieving the very best outcome for you and your family.'}
             </p>
 
-            <div className="border-t border-charcoal-100 pt-8">
+            <div className="border-t border-charcoal-100 pt-8 print:pt-3">
               <p className="font-display text-2xl font-normal text-charcoal lowercase">
                 {name.toLowerCase()}
               </p>
@@ -86,7 +86,7 @@ export function ClosingStatement({ agentName, agentTitle, agentPhoto, statementO
               <img
                 src="/images/grants-logo.svg"
                 alt="Grant's Estate Agents"
-                className="h-10 w-auto mt-6 opacity-60"
+                className="h-10 w-auto mt-6 opacity-60 print:hidden"
               />
             </div>
           </motion.div>
