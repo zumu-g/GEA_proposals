@@ -275,8 +275,8 @@ export default function HomePage() {
         if (Number(item.cost) === rate && newDescription === item.description) return item
         changed = true
         return { ...item, cost: rate, description: newDescription }
-    })
-    return changed ? next : marketingCosts
+      })
+      return changed ? next : marketingCosts
     })
   }, [propertyAddress, proposalType])
 
