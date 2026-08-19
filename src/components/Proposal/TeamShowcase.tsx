@@ -15,7 +15,7 @@ export function TeamShowcase({ agency, proposalType }: TeamShowcaseProps) {
   const [imageError, setImageError] = useState(false)
 
   return (
-    <section className="py-20 sm:py-28 lg:py-32 bg-off-white relative overflow-hidden">
+    <section className="print-page-continue py-20 sm:py-28 lg:py-32 bg-off-white relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-16 xl:px-24">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
           {/* Content */}
@@ -44,7 +44,7 @@ export function TeamShowcase({ agency, proposalType }: TeamShowcaseProps) {
             viewport={{ once: true }}
             transition={{ duration: 0.5, delay: prefersReducedMotion ? 0 : 0.15 }}
           >
-            <div className="aspect-[4/3] rounded-2xl overflow-hidden shadow-lg relative">
+            <div className="aspect-[4/3] rounded-2xl overflow-hidden shadow-lg relative print:aspect-auto print:h-[60mm]">
               {!imageError ? (
                 <img
                   src="/images/stocksy/team.jpg"
