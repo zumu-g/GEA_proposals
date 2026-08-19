@@ -1,6 +1,7 @@
 import type { Proposal } from '@/types/proposal'
 import { getPropertyTypeContent } from '@/lib/property-type-content'
 import { FullHero } from '@/components/Proposal/FullHero'
+import { Introduction } from '@/components/Proposal/Introduction'
 import { BrandStatement } from '@/components/Proposal/BrandStatement'
 import { OffMarketStage } from '@/components/Proposal/OffMarketStage'
 import { AgentProfile } from '@/components/Proposal/AgentProfile'
@@ -26,6 +27,9 @@ export function SimpleProposal({ proposal }: { proposal: Proposal }) {
     <div className="min-h-screen">
       {/* Hero: property + address */}
       <FullHero proposal={proposal} />
+
+      {/* Welcome / introduction — same as the full layout */}
+      <Introduction proposal={proposal} />
 
       {/* Price guide + method of sale (respects showPriceRange) */}
       <BrandStatement proposal={proposal} statementOverride={typeContent.copy.brandStatement} />
