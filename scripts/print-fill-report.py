@@ -3,8 +3,8 @@
 
 Usage: scripts/print-fill-report.py <file.pdf> [--sheet out.png] [--min 35]
 
-Rasterises each page (pdftoppm, 50 dpi) and reports what share of the page's
-body height carries content. "Content" is measured against each page's dominant
+Rasterises each page (pdftoppm, 50 dpi) and reports the vertical span of content on the page
+(first content row to last) as a share of the body height. "Content" is measured against each page's dominant
 colour so a full-page tinted background does not read as filled: a pixel row
 counts when > 5% of its pixels differ from the page mode by more than ΔL 25
 (greyscale). Non-cover pages under --min % are flagged. Optionally writes a
@@ -41,18 +41,23 @@ for i, f in enumerate(files, 1):
     sample = [px[x, y] for y in range(0, h, 4) for x in range(0, w, 4)]
     mode = Counter(sample).most_common(1)[0][0]
     top, bot = int(h * (1 - args.body) / 2), int(h * (1 + args.body) / 2)
-    content_rows = 0
+    first = last = None
     for y in range(top, bot):
         diff = sum(1 for x in range(0, w, 2) if abs(px[x, y] - mode) > 25)
         if diff > 0.05 * (w / 2):
-            content_rows += 1
-    pct = 100.0 * content_rows / max(1, bot - top)
+            last = y
+            if first is None:
+                first = y
+    # span: how much of the body height the composition occupies (top of first
+    # content row to bottom of last) — a centred paragraph page has low density
+    # but a healthy span; a top-strip page has a low span.
+    pct = 0.0 if first is None else 100.0 * (last - first + 1) / max(1, bot - top)
     flag = ""
     if i > 1 and pct < args.min:
         flag = "  <-- under-filled"
         warn += 1
     rows.append((i, pct))
-    print(f"page {i:2d}: content {pct:5.1f}% of body{flag}")
+    print(f"page {i:2d}: span {pct:5.1f}% of body{flag}")
 
 print(f"\n{len(files)} pages, {warn} under-filled (< {args.min:.0f}%)")
 
