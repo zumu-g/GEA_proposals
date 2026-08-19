@@ -40,7 +40,7 @@ export function MarketingPlanSheet({
           // print-color-adjust keeps the grey visible when printed
           style={{ printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}
         >
-          <span className="-rotate-[30deg] select-none font-sans text-[110px] font-bold uppercase tracking-[0.3em] text-gray-300/60">
+          <span className="-rotate-[30deg] select-none font-display text-[90px] font-normal uppercase tracking-[0.35em] text-gray-200/50">
             draft
           </span>
         </div>

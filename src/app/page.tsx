@@ -254,26 +254,31 @@ export default function HomePage() {
   // ─── Auto-adjust REA premiere listing cost to the property's suburb ─────────
   // Only touches the premiere line, and only when the user hasn't edited it
   // (its cost still equals a known rate-card value).
+  // Runs only when the address/type changes — never on cost edits, otherwise a
+  // typed value that happens to equal another suburb's rate (e.g. $3019) gets
+  // snapped back to this suburb's rate.
   useEffect(() => {
     if (proposalType === 'rental') return
     const rate = reacomPremiereForSuburb(propertyAddress)
     const label = suburbLabelForPremiere(propertyAddress) || 'Berwick'
 
-    let changed = false
-    const next = marketingCosts.map((item) => {
-      if (!item.description.startsWith('Premiere Listing — realestate.com.au')) return item
-      // Don't clobber a custom cost the user typed in.
-      if (!REACOM_PREMIERE_RATE_VALUES.includes(Number(item.cost))) return item
-      const newDescription = item.description.replace(
-        /—\s*[^—)]+\)\s*$/,
-        `— ${label})`
-      )
-      if (Number(item.cost) === rate && newDescription === item.description) return item
-      changed = true
-      return { ...item, cost: rate, description: newDescription }
+    setMarketingCosts((marketingCosts) => {
+      let changed = false
+      const next = marketingCosts.map((item) => {
+        if (!item.description.startsWith('Premiere Listing — realestate.com.au')) return item
+        // Don't clobber a custom cost the user typed in.
+        if (!REACOM_PREMIERE_RATE_VALUES.includes(Number(item.cost))) return item
+        const newDescription = item.description.replace(
+          /—\s*[^—)]+\)\s*$/,
+          `— ${label})`
+        )
+        if (Number(item.cost) === rate && newDescription === item.description) return item
+        changed = true
+        return { ...item, cost: rate, description: newDescription }
+      })
+      return changed ? next : marketingCosts
     })
-    if (changed) setMarketingCosts(next)
-  }, [propertyAddress, proposalType, marketingCosts])
+  }, [propertyAddress, proposalType])
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Init: origin, recent proposals, ?edit= param
