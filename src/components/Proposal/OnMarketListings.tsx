@@ -53,7 +53,7 @@ export function OnMarketListings({ listings, proposalType, showBedsBaths = true 
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
         >
-          <div className="mb-12 sm:mb-16">
+          <div className="mb-12 sm:mb-16 print:mb-5">
             <p className="text-sage font-sans text-xs tracking-[0.3em] uppercase mb-3">
               on the market
             </p>
@@ -66,7 +66,7 @@ export function OnMarketListings({ listings, proposalType, showBedsBaths = true 
           </div>
         </motion.div>
 
-        <div className="print-comp-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 print:grid-cols-4 gap-6 lg:gap-8 print:gap-4">
+        <div className="print-comp-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 print:grid-cols-3 gap-6 lg:gap-8 print:gap-4">
           {listings.map((listing, index) => (
             <motion.div
               key={`${listing.address}-${index}`}
@@ -78,7 +78,7 @@ export function OnMarketListings({ listings, proposalType, showBedsBaths = true 
             >
               <div className="bg-charcoal-50/30 rounded-xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 h-full flex flex-col">
                 {/* Image */}
-                <div className="w-full h-48 overflow-hidden relative">
+                <div className="w-full h-48 print:h-[28mm] overflow-hidden relative">
                   {listing.imageUrl && !imageErrors.has(listing.imageUrl) ? (
                     <img
                       src={listing.imageUrl}
@@ -111,7 +111,7 @@ export function OnMarketListings({ listings, proposalType, showBedsBaths = true 
                 </div>
 
                 {/* Content */}
-                <div className="p-6 flex-1 flex flex-col">
+                <div className="p-6 print:p-2.5 flex-1 flex flex-col">
                   <h3 className="font-display text-lg font-normal text-charcoal lowercase mb-2 line-clamp-2">
                     {listing.address.toLowerCase()}
                   </h3>
