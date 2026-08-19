@@ -52,7 +52,7 @@ export function ProcessJourney({ steps, methodOfSale, proposalType, intro }: Pro
           {...fadeUp}
           viewport={{ once: true }}
           transition={fadeUpTransition}
-          className="mb-20 sm:mb-28 text-center"
+          className="mb-20 sm:mb-28 print:mb-6 text-center"
         >
           <p className="font-sans text-xs font-medium tracking-wider-custom uppercase text-sage-600 mb-4">
             {isRental ? 'leasing process' : 'selling process'}
@@ -97,7 +97,7 @@ export function ProcessJourney({ steps, methodOfSale, proposalType, intro }: Pro
               >
                 {/* Image block with step number overlay */}
                 <div className="w-full lg:w-1/2">
-                  <div className="aspect-[4/3] rounded-2xl overflow-hidden relative shadow-lg">
+                  <div className="aspect-[4/3] print:aspect-auto print:h-[44mm] rounded-2xl overflow-hidden relative shadow-lg">
                     {hasImage ? (
                       <>
                         <img
@@ -111,7 +111,7 @@ export function ProcessJourney({ steps, methodOfSale, proposalType, intro }: Pro
                       </>
                     ) : (
                       <div className={`w-full h-full bg-gradient-to-br ${theme.bg} flex items-center justify-center`}>
-                        <span className={`font-display text-[10rem] sm:text-[13rem] lg:text-[15rem] font-normal select-none leading-none ${theme.text}`}>
+                        <span className={`font-display text-[10rem] sm:text-[13rem] lg:text-[15rem] print:text-[6rem] font-normal select-none leading-none ${theme.text}`}>
                           {stepNumber}
                         </span>
                       </div>
