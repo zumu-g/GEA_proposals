@@ -1,11 +1,13 @@
 import type { Proposal } from '@/types/proposal'
 import { getPropertyTypeContent } from '@/lib/property-type-content'
+import { getDefaultProposalExtras, DEFAULT_TOTAL_ADVERTISING_COST, DEFAULT_AGENCY_CONFIG } from '@/lib/proposal-generator'
 import { FullHero } from '@/components/Proposal/FullHero'
 import { Introduction } from '@/components/Proposal/Introduction'
 import { BrandStatement } from '@/components/Proposal/BrandStatement'
 import { OffMarketStage } from '@/components/Proposal/OffMarketStage'
 import { AgentProfile } from '@/components/Proposal/AgentProfile'
 import { RecentSales } from '@/components/Proposal/RecentSales'
+import { AdvertisingSchedule } from '@/components/Proposal/AdvertisingSchedule'
 import { FeeStructureVisual } from '@/components/Proposal/FeeStructureVisual'
 import { ApprovalSection } from '@/components/Proposal/ApprovalSection'
 import { Footer } from '@/components/Proposal/Footer'
@@ -23,6 +25,9 @@ export function SimpleProposal({ proposal }: { proposal: Proposal }) {
   // Property-type copy/visibility — rentals resolve to the house baseline.
   const typeContent = getPropertyTypeContent(proposal.proposalType === 'rental' ? undefined : proposal.propertyType)
 
+  // Agent details fall back to the built-in agency config so the intro always shows.
+  const agency = proposal.agency || DEFAULT_AGENCY_CONFIG
+
   return (
     <div className="min-h-screen">
       {/* Hero: property + address */}
@@ -37,23 +42,32 @@ export function SimpleProposal({ proposal }: { proposal: Proposal }) {
       {/* Off-market stage one (compact) */}
       {proposal.offMarketCampaign && proposal.proposalType !== 'rental' && <OffMarketStage variant="compact" />}
 
-      {/* Who the agent is */}
+      {/* Who the agent is — always rendered with intro text, falling back to agency defaults */}
       <AgentProfile
-        agent={proposal.agency ? {
-          name: proposal.agency.agentName || proposal.agency.name,
-          title: proposal.agency.agentTitle || 'Director',
-          phone: proposal.agency.agentPhone || proposal.agency.contactPhone,
-          email: proposal.agency.contactEmail,
-          photoUrl: proposal.agency.agentPhoto,
-          bio: proposal.agency.agentBio,
-          yearsExperience: proposal.agency.agentYearsExperience,
-        } : undefined}
+        agent={{
+          name: agency.agentName || agency.name,
+          title: agency.agentTitle || 'Director',
+          phone: agency.agentPhone || agency.contactPhone,
+          email: agency.contactEmail,
+          photoUrl: agency.agentPhoto,
+          bio: agency.agentBio || DEFAULT_AGENCY_CONFIG.agentBio,
+          yearsExperience: agency.agentYearsExperience,
+        }}
         databaseInfo={proposal.databaseInfo}
       />
 
       {/* A few comparable sales to justify the price */}
       {trimmedSales.length > 0 && (
         <RecentSales sales={trimmedSales} proposalType={proposal.proposalType} showBedsBaths={typeContent.showsBedsBaths} />
+      )}
+
+      {/* Marketing plan + costs — same schedule as the full layout */}
+      {!(proposal.hiddenSections || []).includes('marketing') && (
+        <AdvertisingSchedule
+          schedule={proposal.advertisingSchedule || getDefaultProposalExtras().advertisingSchedule}
+          totalCost={proposal.totalAdvertisingCost ?? DEFAULT_TOTAL_ADVERTISING_COST}
+          methodOfSale={proposal.methodOfSale}
+        />
       )}
 
       {/* Fees + marketing cost (respects showCommission) */}
