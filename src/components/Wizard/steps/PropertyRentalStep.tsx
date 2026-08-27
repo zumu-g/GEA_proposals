@@ -26,10 +26,11 @@ const LEASE_TYPES = [
   { value: '', label: 'n/a', description: 'lease type to be confirmed' },
 ] as const
 
-const LETTING_FEE_OPTIONS = [
+const LETTING_FEE_PRESETS = [
   "1 week's rent + GST",
+  "1.5 weeks' rent + GST",
   "2 weeks' rent + GST",
-  "4 weeks' rent + GST",
+  "2.5 weeks' rent + GST",
   'n/a',
 ]
 
@@ -74,6 +75,7 @@ export default function PropertyRentalStep({
   const [heroPreview, setHeroPreview] = useState<string | null>(null)
   const [selectedAutoIndex, setSelectedAutoIndex] = useState(0)
   const [isUploading, setIsUploading] = useState(false)
+  const [useCustomLettingFee, setUseCustomLettingFee] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Persist a chosen/uploaded photo immediately so it survives and joins the
@@ -486,28 +488,64 @@ export default function PropertyRentalStep({
         </div>
 
         {/* Letting fee */}
-        <div>
+        <div className="space-y-3">
           <label
             htmlFor="rental-lettingFee"
-            className="block text-sm font-sans font-medium text-gray-700 mb-2 lowercase"
+            className="block text-sm font-sans font-medium text-gray-700 lowercase"
           >
             letting fee
             <span className="text-gray-400 text-xs ml-2">optional</span>
           </label>
-          <select
-            id="rental-lettingFee"
-            value={formData.lettingFee}
-            onChange={(e) => onChange('lettingFee', e.target.value)}
-            className="px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900 font-sans focus:ring-1 focus:ring-brand focus:border-brand text-base touch-manipulation transition-colors min-w-[260px]"
-          >
-            <option value="">select letting fee...</option>
-            {LETTING_FEE_OPTIONS.map((opt) => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))}
-          </select>
-          <p className="text-gray-500 font-sans text-xs mt-1.5">
-            charged once per new tenancy
-          </p>
+
+          {!useCustomLettingFee ? (
+            <div className="space-y-2">
+              <select
+                id="rental-lettingFee"
+                value={formData.lettingFee}
+                onChange={(e) => {
+                  if (e.target.value === 'custom') {
+                    setUseCustomLettingFee(true)
+                    onChange('lettingFee', '')
+                  } else {
+                    onChange('lettingFee', e.target.value)
+                  }
+                }}
+                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900 font-sans focus:ring-1 focus:ring-brand focus:border-brand text-base touch-manipulation transition-colors"
+              >
+                <option value="">select letting fee...</option>
+                {LETTING_FEE_PRESETS.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+                <option value="custom">custom</option>
+              </select>
+              <p className="text-gray-500 font-sans text-xs">
+                charged once per new tenancy
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <input
+                type="text"
+                value={formData.lettingFee}
+                onChange={(e) => onChange('lettingFee', e.target.value)}
+                placeholder="e.g. 0.85 weeks, $500, contact agent"
+                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900 font-sans placeholder-gray-400 focus:ring-1 focus:ring-brand focus:border-brand text-base touch-manipulation transition-colors"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setUseCustomLettingFee(false)
+                  onChange('lettingFee', '')
+                }}
+                className="text-xs text-gray-500 hover:text-gray-900 font-sans transition-colors"
+              >
+                ← back to presets
+              </button>
+              <p className="text-gray-500 font-sans text-xs">
+                enter any text (e.g., "0.85 weeks", "$500", "contact agent")
+              </p>
+            </div>
+          )}
         </div>
       </motion.div>
     </div>

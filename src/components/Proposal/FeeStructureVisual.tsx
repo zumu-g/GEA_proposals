@@ -65,37 +65,45 @@ export function FeeStructureVisual({ fees, showCommission = true, methodOfSale, 
                 management fee (% of weekly rent) and letting fee; sales show
                 commission (% of final sale price). */}
             {showCommission && (
-              <div className="bg-charcoal-700 rounded-lg border-l-4 border-gold p-8 sm:p-10 print:p-5 text-center">
-                <p className="text-gold font-sans text-xs tracking-[0.25em] uppercase mb-4">
-                  {isRental ? 'management fee' : 'commission'}
-                </p>
-                <p className="font-display text-6xl sm:text-7xl lg:text-8xl print:text-6xl font-normal text-gold leading-none">
-                  {isRental ? (managementFee ?? commissionRate) : commissionRate}%
-                </p>
-                <p className="text-white/70 font-sans text-sm font-light mt-4">
-                  {isRental ? 'of weekly rent collected + GST' : 'of the final sale price + GST'}
+              <div className="bg-charcoal-700 rounded-lg border-l-4 border-gold p-8 sm:p-10 print:p-5">
+                {/* Main fee: displayed inline for tighter spacing */}
+                <div className="flex items-baseline gap-2 mb-2">
+                  <p className="text-gold font-sans text-xs tracking-[0.25em] uppercase font-semibold">
+                    {isRental ? 'management fee' : 'commission'}
+                  </p>
+                  <p className="font-display text-4xl sm:text-5xl font-normal text-gold leading-none">
+                    {isRental ? (managementFee ?? commissionRate) : commissionRate}%
+                  </p>
+                </div>
+                <p className="text-white/70 font-sans text-xs sm:text-sm font-light mb-6">
+                  {isRental ? 'of weekly rent collected, + GST' : 'of the final sale price, + GST'}
                 </p>
 
+                {/* Secondary fees: compact list format */}
                 {isRental && lettingFee && (
-                  <div className="mt-8 pt-6 border-t border-white/10">
-                    <p className="text-white/60 font-sans text-xs tracking-[0.15em] uppercase mb-3">
-                      letting fee
-                    </p>
-                    <p className="text-white/70 font-sans text-sm font-light">
-                      {lettingFee}
-                    </p>
+                  <div className="space-y-3 py-5 border-t border-white/10">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <p className="text-white/60 font-sans text-xs tracking-[0.12em] uppercase">
+                        letting fee
+                      </p>
+                      <p className="text-white/80 font-sans text-sm font-light text-right">
+                        {lettingFee}
+                      </p>
+                    </div>
                   </div>
                 )}
 
                 {!isRental && fixedFees.length > 0 && (
-                  <div className="mt-8 pt-6 border-t border-white/10">
-                    <p className="text-white/60 font-sans text-xs tracking-[0.15em] uppercase mb-3">
-                      additional
-                    </p>
+                  <div className="space-y-3 py-5 border-t border-white/10">
                     {fixedFees.map((fee, index) => (
-                      <p key={index} className="text-white/70 font-sans text-sm font-light">
-                        {fee}
-                      </p>
+                      <div key={index} className="flex items-baseline justify-between gap-3">
+                        <p className="text-white/60 font-sans text-xs tracking-[0.12em] uppercase">
+                          {fee.split(' — ')[0] || 'additional'}
+                        </p>
+                        <p className="text-white/80 font-sans text-sm font-light text-right">
+                          {fee.split(' — ')[1] || fee}
+                        </p>
+                      </div>
                     ))}
                   </div>
                 )}

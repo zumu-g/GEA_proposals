@@ -37,7 +37,7 @@ export function FullHero({ proposal }: FullHeroProps) {
           <img
             src={proposal.heroImage}
             alt={proposal.propertyAddress}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover object-center"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-charcoal via-charcoal/60 to-charcoal/30" />
         </div>

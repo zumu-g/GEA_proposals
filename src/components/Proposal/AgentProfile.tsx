@@ -39,7 +39,7 @@ export function AgentProfile({ agent, databaseInfo }: AgentProfileProps) {
                 <img
                   src={agent.photoUrl}
                   alt={agent.name}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover object-center"
                 />
               ) : (
                 <div className="w-full h-full bg-charcoal-50 flex items-center justify-center">
