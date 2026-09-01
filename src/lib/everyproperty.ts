@@ -284,6 +284,42 @@ export async function getComparables(
   }))
 }
 
+/**
+ * Comparables for a full address: subject suburb plus its neighbours (one
+ * extra hop when the subject suburb is thin), deduped. Shared by
+ * /api/comparables, /api/proposals, and email intake.
+ */
+export async function getComparablesForAddress(
+  address: string,
+  type: 'sold' | 'buy' | 'rent' | 'leased'
+): Promise<EveryPropertyComp[]> {
+  const { parseAddress, NEIGHBORING_SUBURBS } = await import('./address-utils')
+  const parts = parseAddress(address)
+  const suburb = (parts?.suburb || address.replace(/[,]/g, ' ').replace(/\s+/g, ' ').trim()).toLowerCase()
+
+  const own = await getComparables(suburb, type, { state: 'VIC', limit: 200 })
+  const hop1 = (NEIGHBORING_SUBURBS[suburb] || []).filter((s) => s !== suburb)
+  let reach = hop1
+  if (own.length < 15) {
+    // Sparse subject suburb (rural locality) — go one hop further out. The
+    // wizard's client-side distance filter keeps relevance since every comp
+    // carries real coordinates.
+    const hop2 = hop1.flatMap((s) => NEIGHBORING_SUBURBS[s] || [])
+    reach = [...new Set([...hop1, ...hop2])].filter((s) => s !== suburb)
+  }
+  const neighbours = (
+    await Promise.all(reach.map((s) => getComparables(s, type, { state: 'VIC', limit: 200 })))
+  ).flat()
+
+  const seen = new Set<string>()
+  return [...own, ...neighbours].filter((c) => {
+    const key = `${c.address.toLowerCase()}|${c.soldDate}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 /** Address suggestions for a partial query (GET /api/search). */
 export async function suggestAddresses(query: string): Promise<AddressSuggestion[]> {
   const trimmed = query?.trim()
