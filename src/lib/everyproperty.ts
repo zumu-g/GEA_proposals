@@ -157,6 +157,13 @@ interface OnMarketRow {
   latitude: number | null; longitude: number | null
   listingUrl: string | null; imageUrl: string | null
 }
+interface RentalRow {
+  rawAddress: string; displayPrice: string | null; weeklyRent: number | null; status: string | null
+  landAreaSqm: number | null; propertyType: string | null
+  bedrooms: number | null; bathrooms: number | null; carSpaces: number | null
+  latitude: number | null; longitude: number | null
+  listingUrl: string | null; imageUrl: string | null; listedDate: string | null
+}
 
 function titleCaseSuburb(s: string): string {
   return s.trim().split(/\s+/).map((w) => (w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : '')).join(' ')
@@ -165,18 +172,24 @@ function titleCaseSuburb(s: string): string {
 /**
  * Comparables for a suburb from everypropertyAI, with accurate per-property
  * coordinates. `type`: 'sold' → /api/sold-sales; 'buy' (on-market) →
- * /api/on-market-listings. Returns [] on any error so callers can fall back.
+ * /api/on-market-listings; 'rent' | 'leased' → /api/rental-listings
+ * ('leased' filters to rows the API marks status=Leased — the endpoint carries
+ * only current listings today, so leased returns [] until the backend adds
+ * historical data). Returns [] on any error so callers can fall back.
  */
 export async function getComparables(
   suburb: string,
-  type: 'sold' | 'buy',
+  type: 'sold' | 'buy' | 'rent' | 'leased',
   opts?: { state?: string; limit?: number }
 ): Promise<EveryPropertyComp[]> {
   const sub = titleCaseSuburb(suburb)
   if (!sub) return []
   const state = (opts?.state || 'VIC').toUpperCase()
   const limit = String(opts?.limit ?? 200)
-  const path = type === 'buy' ? '/api/on-market-listings' : '/api/sold-sales'
+  const path =
+    type === 'buy' ? '/api/on-market-listings'
+    : type === 'rent' || type === 'leased' ? '/api/rental-listings'
+    : '/api/sold-sales'
 
   let data: { results?: unknown[] }
   try {
@@ -204,6 +217,34 @@ export async function getComparables(
       propertyType: r.propertyType ?? 'House',
       date: r.saleDate ?? '',
       soldDate: r.saleDate ?? '',
+      url: r.listingUrl ?? '',
+      link: r.listingUrl ?? '',
+      imageUrl: r.imageUrl ?? null,
+      lat: r.latitude ?? null,
+      lng: r.longitude ?? null,
+      landSize: landSizeStr(r.landAreaSqm),
+      daysOnMarket: null,
+      sqft: 0,
+      distance: 0,
+    }))
+  }
+
+  if (type === 'rent' || type === 'leased') {
+    let rentals = rows as RentalRow[]
+    if (type === 'leased') {
+      rentals = rentals.filter((r) => (r.status || '').toLowerCase() === 'leased')
+    }
+    return rentals.map((r) => ({
+      address: r.rawAddress,
+      price: r.weeklyRent ?? 0,
+      askingPrice: r.displayPrice ?? (r.weeklyRent ? `$${r.weeklyRent} per week` : 'Contact Agent'),
+      bedrooms: r.bedrooms ?? 0,
+      bathrooms: r.bathrooms ?? 0,
+      carSpaces: r.carSpaces ?? 0,
+      cars: r.carSpaces ?? 0,
+      propertyType: r.propertyType ?? 'House',
+      date: r.listedDate ?? '',
+      soldDate: r.listedDate ?? '',
       url: r.listingUrl ?? '',
       link: r.listingUrl ?? '',
       imageUrl: r.imageUrl ?? null,
