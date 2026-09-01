@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createProposal, parseCSV, parseExcel } from '@/lib/spreadsheet-parser'
 import { saveProposal, getProposal, getAgencyConfig, listProposals, deleteProposal, setProposalOwner, getProposalOwner } from '@/lib/proposal-generator'
-import { lookupComparables, lookupOnMarket } from '@/lib/comparables-lookup'
+import { getComparablesForAddress } from '@/lib/everyproperty'
 import { getCurrentUser } from '@/lib/current-user'
 import { getEffectiveConfig } from '@/lib/user-profile'
 import { PROPERTY_TYPES, type PropertyType } from '@/types/proposal'
@@ -182,8 +182,8 @@ export async function POST(request: NextRequest) {
       try {
         console.log('[proposals] Looking up comparables for:', propertyAddress)
         const [comparables, onMarket] = await Promise.all([
-          lookupComparables(propertyAddress),
-          lookupOnMarket(propertyAddress),
+          getComparablesForAddress(propertyAddress, 'sold'),
+          getComparablesForAddress(propertyAddress, 'buy'),
         ])
         if (comparables.length > 0) {
           spreadsheetRows = comparables

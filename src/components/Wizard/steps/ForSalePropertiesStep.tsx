@@ -262,9 +262,11 @@ export default function ForSalePropertiesStep({
 
       let filteredBuy = onMarket.filter((s: any) => {
         if (removedOnMarketRef.current.has(s.address || '')) return false
-        if (distanceFilter !== Infinity && sLat && sLng && s.lat && s.lng) {
-          const dist = haversineKm(sLat, sLng, s.lat, s.lng)
-          if (dist > distanceFilter) return false
+        // Listings without coords can't prove they're in range — exclude them.
+        // There is no backfill: they reappear only when distance is set to Any.
+        if (distanceFilter !== Infinity && sLat && sLng) {
+          if (!s.lat || !s.lng) return false
+          if (haversineKm(sLat, sLng, s.lat, s.lng) > distanceFilter) return false
         }
         if (bedsMin && Number(s.bedrooms) < Number(bedsMin)) return false
         if (bathsMin && Number(s.bathrooms) < Number(bathsMin)) return false
@@ -355,47 +357,9 @@ export default function ForSalePropertiesStep({
     }
   }, [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, suburbFilter, daysOnMarketMax, sortBy, effSubjectLat, effSubjectLng, rawOnMarket, applyFilters])
 
-  // ─── On-market rental coordinate refinement ────────────────────────────
-  // Some for-rent listings arrive without coordinates; geocode their real
-  // addresses (type=rent) so each distance is measured property-to-property,
-  // not from a suburb centroid. Runs once per confirmed address, in background.
-  const [isRefining, setIsRefining] = useState(false)
-  const refinedRentAddrRef = useRef('')
-  useEffect(() => {
-    if (!isRental) return
-    const addr = confirmedAddress
-    if (!addr || refinedRentAddrRef.current === addr) return
-    if (rawOnMarket.length === 0) return
-    if (!rawOnMarket.some((s: any) => !s.lat || !s.lng)) {
-      refinedRentAddrRef.current = addr
-      return
-    }
-    refinedRentAddrRef.current = addr
-    const suburb = extractSuburb(addr)
-    ;(async () => {
-      setIsRefining(true)
-      try {
-        for (let round = 0; round < 4; round++) {
-          const res = await fetch('/api/comparables/geocode', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ address: addr, type: 'rent' }),
-          })
-          if (!res.ok) break
-          const data = await res.json()
-          if (data.updated > 0) {
-            const r = await fetch(`/api/comparables?address=${encodeURIComponent(suburb)}&type=rent`)
-            const rd = await r.json()
-            if (Array.isArray(rd.sales)) setRawOnMarket(rd.sales)
-          }
-          if (!data.remaining || data.remaining <= 0) break
-        }
-      } catch {
-        // coarse/missing distances remain
-      }
-      setIsRefining(false)
-    })()
-  }, [rawOnMarket, confirmedAddress, isRental])
+  // everypropertyAI listings carry accurate per-property coordinates, so no
+  // client-triggered geocode refinement is needed; the flag stays for the UI.
+  const isRefining = false
 
   // ─── Search function ──────────────────────────────────────────────────
   const searchListings = useCallback(

@@ -405,10 +405,11 @@ export default function ComparablesStep({
       // --- SOLD FILTERING ---
       let filteredSold = sold.filter((s: any) => {
         if (removedSoldRef.current.has(s.address || '')) return false
-        // Distance filter (primary)
-        if (distanceFilter !== Infinity && sLat && sLng && s.lat && s.lng) {
-          const dist = haversineKm(sLat, sLng, s.lat, s.lng)
-          if (dist > distanceFilter) return false
+        // Distance filter (primary) — listings without coords can't prove
+        // they're in range, so exclude them rather than leak through.
+        if (distanceFilter !== Infinity && sLat && sLng) {
+          if (!s.lat || !s.lng) return false
+          if (haversineKm(sLat, sLng, s.lat, s.lng) > distanceFilter) return false
         }
         // Secondary filters
         if (bedsMin && Number(s.bedrooms) < Number(bedsMin)) return false
@@ -482,9 +483,9 @@ export default function ComparablesStep({
       // --- ON-MARKET FILTERING ---
       let filteredBuy = onMarket.filter((s: any) => {
         if (removedOnMarketRef.current.has(s.address || '')) return false
-        if (distanceFilter !== Infinity && sLat && sLng && s.lat && s.lng) {
-          const dist = haversineKm(sLat, sLng, s.lat, s.lng)
-          if (dist > distanceFilter) return false
+        if (distanceFilter !== Infinity && sLat && sLng) {
+          if (!s.lat || !s.lng) return false
+          if (haversineKm(sLat, sLng, s.lat, s.lng) > distanceFilter) return false
         }
         if (bedsMin && Number(s.bedrooms) < Number(bedsMin)) return false
         if (bathsMin && Number(s.bathrooms) < Number(bathsMin)) return false

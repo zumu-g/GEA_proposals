@@ -18,7 +18,7 @@
 
 import { createProposal, parseCSV } from './spreadsheet-parser'
 import { saveProposal, getAgencyConfig, logActivity } from './proposal-generator'
-import { lookupComparables, lookupOnMarket } from './comparables-lookup'
+import { getComparablesForAddress } from './everyproperty'
 import { getDb } from './db'
 import { Proposal } from '@/types/proposal'
 
@@ -212,8 +212,8 @@ async function processEmail(message: AgentMailMessage): Promise<ProcessResult> {
     try {
       console.log(`[email-intake] Looking up comparables for: ${brief.propertyAddress}`)
       const [comps, onMarket] = await Promise.all([
-        lookupComparables(brief.propertyAddress),
-        lookupOnMarket(brief.propertyAddress),
+        getComparablesForAddress(brief.propertyAddress, 'sold'),
+        getComparablesForAddress(brief.propertyAddress, 'buy'),
       ])
       autoComparables = comps
       autoOnMarket = onMarket
@@ -250,10 +250,14 @@ async function processEmail(message: AgentMailMessage): Promise<ProcessResult> {
 
   // Add auto-looked-up comparables and on-market if no CSV was provided
   if (autoComparables && autoComparables.length > 0 && proposal.recentSales.length === 0) {
-    proposal.recentSales = autoComparables
+    proposal.recentSales = autoComparables.map((c) => ({ ...c, imageUrl: c.imageUrl ?? undefined }))
   }
   if (autoOnMarket && autoOnMarket.length > 0) {
-    proposal.onMarketListings = autoOnMarket
+    proposal.onMarketListings = autoOnMarket.map((c) => ({
+      ...c,
+      imageUrl: c.imageUrl ?? undefined,
+      daysOnMarket: c.daysOnMarket ?? undefined,
+    }))
   }
 
   await saveProposal(proposal)
