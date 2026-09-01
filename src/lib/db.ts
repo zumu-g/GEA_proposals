@@ -151,125 +151,11 @@ function initSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_notification_dismissals_key ON notification_dismissals(notification_key);
     CREATE INDEX IF NOT EXISTS idx_notification_reads_key ON notification_reads(notification_key);
 
-    CREATE TABLE IF NOT EXISTS cached_properties (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      address TEXT NOT NULL,
-      suburb TEXT NOT NULL,
-      state TEXT DEFAULT 'vic',
-      postcode TEXT,
-      street_address TEXT,
-      price REAL,
-      price_display TEXT,
-      bedrooms INTEGER DEFAULT 0,
-      bathrooms INTEGER DEFAULT 0,
-      car_spaces INTEGER DEFAULT 0,
-      property_type TEXT DEFAULT 'House',
-      land_size TEXT,
-      listing_type TEXT NOT NULL CHECK(listing_type IN ('sold', 'on_market')),
-      sold_date TEXT,
-      days_on_market INTEGER,
-      url TEXT,
-      image_url TEXT,
-      images TEXT,
-      lat REAL,
-      lng REAL,
-      source TEXT DEFAULT 'homely',
-      scraped_at TEXT NOT NULL DEFAULT (datetime('now')),
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      UNIQUE(address, listing_type)
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_cached_props_suburb ON cached_properties(suburb);
-    CREATE INDEX IF NOT EXISTS idx_cached_props_type ON cached_properties(listing_type);
-    CREATE INDEX IF NOT EXISTS idx_cached_props_suburb_type ON cached_properties(suburb, listing_type);
-    CREATE INDEX IF NOT EXISTS idx_cached_props_scraped ON cached_properties(scraped_at);
-
-    CREATE TABLE IF NOT EXISTS cache_metadata (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      suburb TEXT NOT NULL,
-      listing_type TEXT NOT NULL CHECK(listing_type IN ('sold', 'on_market')),
-      last_scraped_at TEXT NOT NULL,
-      result_count INTEGER DEFAULT 0,
-      source TEXT DEFAULT 'homely',
-      UNIQUE(suburb, listing_type)
-    );
-
-    CREATE TABLE IF NOT EXISTS sold_properties (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      address TEXT NOT NULL,
-      suburb TEXT NOT NULL,
-      state TEXT NOT NULL DEFAULT 'vic',
-      postcode TEXT NOT NULL,
-      price INTEGER,
-      bedrooms INTEGER DEFAULT 0,
-      bathrooms INTEGER DEFAULT 0,
-      car_spaces INTEGER DEFAULT 0,
-      property_type TEXT DEFAULT 'House',
-      sold_date TEXT,
-      land_size TEXT,
-      url TEXT,
-      image_url TEXT,
-      lat REAL,
-      lng REAL,
-      source TEXT DEFAULT 'realestate.com.au',
-      scraped_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(address, sold_date)
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_sold_suburb ON sold_properties(suburb);
-
     CREATE TABLE IF NOT EXISTS cron_runs (
       job TEXT PRIMARY KEY,
       last_run_at TEXT NOT NULL,
       last_result TEXT
     );
-
-    CREATE TABLE IF NOT EXISTS leased_properties (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      address TEXT NOT NULL,
-      suburb TEXT NOT NULL,
-      state TEXT NOT NULL DEFAULT 'vic',
-      postcode TEXT NOT NULL,
-      price INTEGER,
-      price_display TEXT,
-      bedrooms INTEGER DEFAULT 0,
-      bathrooms INTEGER DEFAULT 0,
-      car_spaces INTEGER DEFAULT 0,
-      property_type TEXT DEFAULT 'House',
-      leased_date TEXT,
-      land_size TEXT,
-      url TEXT,
-      image_url TEXT,
-      lat REAL,
-      lng REAL,
-      source TEXT DEFAULT 'realestate.com.au',
-      scraped_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(address, leased_date)
-    );
-    CREATE INDEX IF NOT EXISTS idx_leased_suburb ON leased_properties(suburb);
-
-    CREATE TABLE IF NOT EXISTS for_rent_properties (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      address TEXT NOT NULL,
-      suburb TEXT NOT NULL,
-      state TEXT NOT NULL DEFAULT 'vic',
-      postcode TEXT NOT NULL,
-      price INTEGER,
-      price_display TEXT,
-      bedrooms INTEGER DEFAULT 0,
-      bathrooms INTEGER DEFAULT 0,
-      car_spaces INTEGER DEFAULT 0,
-      property_type TEXT DEFAULT 'House',
-      url TEXT,
-      image_url TEXT,
-      lat REAL,
-      lng REAL,
-      days_listed INTEGER,
-      source TEXT DEFAULT 'realestate.com.au',
-      scraped_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(address)
-    );
-    CREATE INDEX IF NOT EXISTS idx_for_rent_suburb ON for_rent_properties(suburb);
 
     CREATE TABLE IF NOT EXISTS uploaded_images (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -303,10 +189,6 @@ function initSchema(db: Database.Database) {
     'ALTER TABLE proposals ADD COLUMN available_date TEXT',
     'ALTER TABLE proposals ADD COLUMN management_fee REAL',
     'ALTER TABLE proposals ADD COLUMN letting_fee TEXT',
-    'ALTER TABLE sold_properties ADD COLUMN price_display TEXT',
-    'ALTER TABLE sold_properties ADD COLUMN geocoded_at TEXT',       // set when lat/lng backfilled to a real address
-    'ALTER TABLE leased_properties ADD COLUMN geocoded_at TEXT',     // set when lat/lng backfilled to a real address
-    'ALTER TABLE for_rent_properties ADD COLUMN geocoded_at TEXT',   // set when lat/lng backfilled to a real address
     // Nurture touchpoints — new columns for AI-generated plans
     'ALTER TABLE nurture_touchpoints ADD COLUMN day_number INTEGER NOT NULL DEFAULT 0',
     'ALTER TABLE nurture_touchpoints ADD COLUMN talking_points TEXT',
@@ -337,6 +219,16 @@ function initSchema(db: Database.Database) {
       // Column already exists — ignore
     }
   }
+
+  // Property data now lives in everypropertyAI — drop the legacy scraped
+  // tables so existing volumes (e.g. Railway) shed the stale copies. Idempotent.
+  db.exec(`
+    DROP TABLE IF EXISTS cached_properties;
+    DROP TABLE IF EXISTS cache_metadata;
+    DROP TABLE IF EXISTS sold_properties;
+    DROP TABLE IF EXISTS leased_properties;
+    DROP TABLE IF EXISTS for_rent_properties;
+  `)
 
   // Idempotent rollout backfill: assign pre-existing proposals to the principal,
   // and mark the principal account. Safe to re-run — guarded by NULL / value checks.
