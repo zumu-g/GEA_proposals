@@ -804,7 +804,7 @@ export default function SoldPropertiesStep({
 
     const suburb = extractSuburb(addr)
     setIsRefreshing(true)
-    setStatusMessage('Refreshing from homely...')
+    setStatusMessage('Refreshing from everypropertyAI...')
     excludedSoldRef.current.clear()
     removedSoldRef.current.clear()
 

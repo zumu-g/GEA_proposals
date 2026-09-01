@@ -418,7 +418,7 @@ export default function ForSalePropertiesStep({
 
     const suburb = extractSuburb(addr)
     setIsRefreshing(true)
-    setStatusMessage('Refreshing from homely...')
+    setStatusMessage('Refreshing from everypropertyAI...')
     excludedOnMarketRef.current.clear()
     includedOnMarketRef.current.clear()
     removedOnMarketRef.current.clear()
