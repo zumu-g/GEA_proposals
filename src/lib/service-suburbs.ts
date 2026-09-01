@@ -2,7 +2,7 @@
  * GEA service-area suburbs (Casey/Cardinia + fringe).
  *
  * Lightweight, client-safe constant — keep in sync with the keys of
- * NEIGHBORING_SUBURBS in comparables-lookup.ts (which is server-only
+ * NEIGHBORING_SUBURBS in address-utils.ts (which is server-only
  * because it pulls in the SQLite cache).
  *
  * Used to rank address-autocomplete suggestions so local addresses
