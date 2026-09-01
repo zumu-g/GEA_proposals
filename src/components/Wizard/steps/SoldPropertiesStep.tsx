@@ -388,92 +388,9 @@ export default function SoldPropertiesStep({
     includedAddrRef.current = new Set(compRows.filter(r => r.included).map(r => r.address))
   }, [compRows])
 
-  // Background distance refinement (geocode comp addresses to real coordinates)
-  const [isRefining, setIsRefining] = useState(false)
-  const refinedAddrRef = useRef<string>('')
-
-  // After results load, if any sold comps still sit at the suburb centroid
-  // (geocoded === false), geocode their real addresses server-side so distances
-  // become accurate. Runs once per confirmed address, in the background.
-  useEffect(() => {
-    if (isRental) return
-    const addr = confirmedAddress
-    if (!addr || refinedAddrRef.current === addr) return
-    const soldRows = rawComps.filter((s: any) => s.date || s.soldDate)
-    if (soldRows.length === 0) return
-    if (!soldRows.some((s: any) => s.geocoded === false)) {
-      refinedAddrRef.current = addr // all already geocoded
-      return
-    }
-
-    refinedAddrRef.current = addr
-    const suburb = extractSuburb(addr)
-    ;(async () => {
-      setIsRefining(true)
-      try {
-        for (let round = 0; round < 4; round++) {
-          const res = await fetch('/api/comparables/geocode', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ address: addr }),
-          })
-          if (!res.ok) break
-          const data = await res.json()
-          if (data.updated > 0) {
-            const r = await fetch(`/api/comparables?address=${encodeURIComponent(suburb)}&type=sold`)
-            const rd = await r.json()
-            if (Array.isArray(rd.sales)) setRawComps(rd.sales)
-          }
-          if (!data.remaining || data.remaining <= 0) break
-        }
-      } catch {
-        // ignore — coarse distances remain
-      }
-      setIsRefining(false)
-    })()
-  }, [rawComps, confirmedAddress, isRental])
-
-  // Leased equivalent: leased comps occasionally lack coordinates, which makes
-  // the distance filter inapplicable. Geocode their real addresses server-side
-  // (type=leased) and re-fetch so distances become accurate. Runs once per
-  // confirmed address, in the background.
-  const refinedLeasedAddrRef = useRef<string>('')
-  useEffect(() => {
-    if (!isRental) return
-    const addr = confirmedAddress
-    if (!addr || refinedLeasedAddrRef.current === addr) return
-    if (rawComps.length === 0) return
-    if (!rawComps.some((s: any) => !s.lat || !s.lng)) {
-      refinedLeasedAddrRef.current = addr // all already have coords
-      return
-    }
-
-    refinedLeasedAddrRef.current = addr
-    const suburb = extractSuburb(addr)
-    ;(async () => {
-      setIsRefining(true)
-      try {
-        for (let round = 0; round < 4; round++) {
-          const res = await fetch('/api/comparables/geocode', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ address: addr, type: 'leased' }),
-          })
-          if (!res.ok) break
-          const data = await res.json()
-          if (data.updated > 0) {
-            const r = await fetch(`/api/comparables?address=${encodeURIComponent(suburb)}&type=leased`)
-            const rd = await r.json()
-            if (Array.isArray(rd.sales)) setRawComps(rd.sales)
-          }
-          if (!data.remaining || data.remaining <= 0) break
-        }
-      } catch {
-        // ignore — coarse distances remain
-      }
-      setIsRefining(false)
-    })()
-  }, [rawComps, confirmedAddress, isRental])
+  // everypropertyAI comps carry accurate per-property coordinates, so no
+  // client-triggered geocode refinement is needed; the flag stays for the UI.
+  const isRefining = false
 
   // Rows tagged with their tier (derived from the current bands, not stored —
   // so editing bands never resets the include selections in compRows).
@@ -602,9 +519,11 @@ export default function SoldPropertiesStep({
         if (suburbFilter && compSuburb !== suburbFilter) return false
         // Distance filter — comps now carry accurate per-property coords from
         // everypropertyAI, so apply it uniformly (no same-suburb centroid exemption).
-        if (distanceFilter !== Infinity && sLat && sLng && s.lat && s.lng) {
-          const dist = haversineKm(sLat, sLng, s.lat, s.lng)
-          if (dist > distanceFilter) return false
+        // Comps without coords can't prove they're in range — exclude them
+        // (background geocode backfill restores them once coords resolve).
+        if (distanceFilter !== Infinity && sLat && sLng) {
+          if (!s.lat || !s.lng) return false
+          if (haversineKm(sLat, sLng, s.lat, s.lng) > distanceFilter) return false
         }
         if (bedsMin && Number(s.bedrooms) < Number(bedsMin)) return false
         if (bathsMin && Number(s.bathrooms) < Number(bathsMin)) return false
@@ -814,29 +733,11 @@ export default function SoldPropertiesStep({
         let sold = soldData.sales || []
         let src = soldData.source || ''
 
-        // ── If no results, try on-demand scrape for this suburb ──
+        // ── No results: everypropertyAI has nothing for this area yet ──
         if (sold.length === 0) {
-          setStatusMessage('No local data — scraping realestate.com.au...')
-          try {
-            // Rentals scrape REA leased listings; sales scrape sold listings.
-            // The sold-scrape path can never populate leased_properties.
-            const scrapeRes = await fetch(isRental ? '/api/scrape-leased' : '/api/scrape-sold', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ suburb, pages: 3 }),
-            })
-            const scrapeData = await scrapeRes.json()
-            if (scrapeData.stored > 0) {
-              // Re-fetch from local DB now that we have data
-              const retryRes = await fetch(`/api/comparables?address=${encodeURIComponent(suburb)}&type=${isRental ? 'leased' : 'sold'}`)
-              const retryData = await retryRes.json()
-              sold = retryData.sales || []
-              src = retryData.source || 'local-db'
-              setStatusMessage(`Scraped ${scrapeData.stored} properties for ${suburb}`)
-            }
-          } catch {
-            console.warn('[SoldPropertiesStep] On-demand scrape failed')
-          }
+          setStatusMessage(
+            `No ${isRental ? 'leased' : 'sold'} listings found for "${suburb}" via everypropertyAI — try a wider distance or adjust filters.`
+          )
         }
 
         // ── Geocode subject property (collect result without setting state yet) ──
