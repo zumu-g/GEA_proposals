@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getComparablesForAddress } from '@/lib/everyproperty'
+import { getComparablesForAddress, getComparablesForAddressDetailed } from '@/lib/everyproperty'
 import { getProposal, saveProposal, logActivity } from '@/lib/proposal-generator'
 
 // All property data comes live from the everypropertyAI HTTP API — the app
@@ -21,7 +21,22 @@ export async function GET(request: Request) {
   const type = (searchParams.get('type') as CompType) || 'sold'
 
   try {
-    const sales = await getComparablesForAddress(address, type)
+    const { comps: sales, failedSuburbs, totalSuburbs } =
+      await getComparablesForAddressDetailed(address, type)
+    if (sales.length === 0 && failedSuburbs === totalSuburbs) {
+      // Every suburb fetch failed — an API outage, not an empty market. The
+      // wizard checks data.error and shows a failure message instead of
+      // "no listings found".
+      return NextResponse.json({
+        address,
+        type,
+        count: 0,
+        sales: [],
+        source: 'everypropertyai',
+        cached: false,
+        error: 'everypropertyAI lookup failed — try again',
+      })
+    }
     return NextResponse.json({
       address,
       type,

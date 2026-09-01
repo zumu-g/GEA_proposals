@@ -15,6 +15,7 @@
 
 const DEFAULT_API_URL = 'https://geaeverypropertyai-production.up.railway.app'
 const TIMEOUT_MS = 150_000 // generous — uncached proposal can take ~120s
+const SUBURB_TIMEOUT_MS = 15_000 // suburb listing endpoints are DB reads — fail fast so the neighbour fan-out can't stall the wizard
 
 // ─── Returned shape (ProposalPropertyData) — any field may be absent/empty ───
 export interface ProposalPriceEstimate {
@@ -58,7 +59,11 @@ function apiUrl(): string {
 }
 
 /** Authenticated GET against the everypropertyAI HTTP API; returns parsed JSON. */
-async function getJson(path: string, params: Record<string, string>): Promise<unknown> {
+async function getJson(
+  path: string,
+  params: Record<string, string>,
+  timeoutMs: number = TIMEOUT_MS
+): Promise<unknown> {
   const base = apiUrl()
   const token = process.env.EVERYPROPERTY_API_TOKEN || ''
   const url = new URL(path, base)
@@ -70,12 +75,12 @@ async function getJson(path: string, params: Record<string, string>): Promise<un
   try {
     res = await fetch(url.toString(), {
       headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     })
   } catch (err: any) {
     if (err?.name === 'AbortError' || err?.name === 'TimeoutError') {
       throw new Error(
-        `everypropertyAI timed out after ${TIMEOUT_MS / 1000}s (address may be uncached).`
+        `everypropertyAI timed out after ${timeoutMs / 1000}s (address may be uncached).`
       )
     }
     throw new Error(`everypropertyAI not reachable at ${base}`)
@@ -175,9 +180,24 @@ function titleCaseSuburb(s: string): string {
  * /api/on-market-listings; 'rent' | 'leased' → /api/rental-listings
  * ('leased' filters to rows the API marks status=Leased — the endpoint carries
  * only current listings today, so leased returns [] until the backend adds
- * historical data). Returns [] on any error so callers can fall back.
+ * historical data). Returns [] on any error — callers that need to tell an
+ * outage apart from a genuinely-empty suburb use
+ * getComparablesForAddressDetailed instead.
  */
 export async function getComparables(
+  suburb: string,
+  type: 'sold' | 'buy' | 'rent' | 'leased',
+  opts?: { state?: string; limit?: number }
+): Promise<EveryPropertyComp[]> {
+  try {
+    return await getComparablesOrThrow(suburb, type, opts)
+  } catch {
+    return []
+  }
+}
+
+/** Same mapping as getComparables but lets API errors propagate. */
+async function getComparablesOrThrow(
   suburb: string,
   type: 'sold' | 'buy' | 'rent' | 'leased',
   opts?: { state?: string; limit?: number }
@@ -191,11 +211,8 @@ export async function getComparables(
     : type === 'rent' || type === 'leased' ? '/api/rental-listings'
     : '/api/sold-sales'
 
-  let data: { results?: unknown[] }
-  try {
-    data = (await getJson(path, { suburb: sub, state, limit })) as { results?: unknown[] }
-  } catch {
-    return []
+  const data = (await getJson(path, { suburb: sub, state, limit }, SUBURB_TIMEOUT_MS)) as {
+    results?: unknown[]
   }
   const rows = Array.isArray(data?.results) ? data.results : []
   const landSizeStr = (n: number | null) => (n && n > 0 ? `${Math.round(n)}m²` : null)
@@ -293,11 +310,33 @@ export async function getComparablesForAddress(
   address: string,
   type: 'sold' | 'buy' | 'rent' | 'leased'
 ): Promise<EveryPropertyComp[]> {
+  return (await getComparablesForAddressDetailed(address, type)).comps
+}
+
+/**
+ * As getComparablesForAddress, but also reports how many per-suburb fetches
+ * failed so callers can distinguish an API outage (all failed, comps empty)
+ * from a genuinely-empty result.
+ */
+export async function getComparablesForAddressDetailed(
+  address: string,
+  type: 'sold' | 'buy' | 'rent' | 'leased'
+): Promise<{ comps: EveryPropertyComp[]; failedSuburbs: number; totalSuburbs: number }> {
   const { parseAddress, NEIGHBORING_SUBURBS } = await import('./address-utils')
   const parts = parseAddress(address)
   const suburb = (parts?.suburb || address.replace(/[,]/g, ' ').replace(/\s+/g, ' ').trim()).toLowerCase()
 
-  const own = await getComparables(suburb, type, { state: 'VIC', limit: 200 })
+  let failedSuburbs = 0
+  const fetchSuburb = async (s: string): Promise<EveryPropertyComp[]> => {
+    try {
+      return await getComparablesOrThrow(s, type, { state: 'VIC', limit: 200 })
+    } catch {
+      failedSuburbs++
+      return []
+    }
+  }
+
+  const own = await fetchSuburb(suburb)
   const hop1 = (NEIGHBORING_SUBURBS[suburb] || []).filter((s) => s !== suburb)
   let reach = hop1
   if (own.length < 15) {
@@ -307,17 +346,16 @@ export async function getComparablesForAddress(
     const hop2 = hop1.flatMap((s) => NEIGHBORING_SUBURBS[s] || [])
     reach = [...new Set([...hop1, ...hop2])].filter((s) => s !== suburb)
   }
-  const neighbours = (
-    await Promise.all(reach.map((s) => getComparables(s, type, { state: 'VIC', limit: 200 })))
-  ).flat()
+  const neighbours = (await Promise.all(reach.map(fetchSuburb))).flat()
 
   const seen = new Set<string>()
-  return [...own, ...neighbours].filter((c) => {
+  const comps = [...own, ...neighbours].filter((c) => {
     const key = `${c.address.toLowerCase()}|${c.soldDate}`
     if (seen.has(key)) return false
     seen.add(key)
     return true
   })
+  return { comps, failedSuburbs, totalSuburbs: 1 + reach.length }
 }
 
 /** Address suggestions for a partial query (GET /api/search). */

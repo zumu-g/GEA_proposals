@@ -519,8 +519,8 @@ export default function SoldPropertiesStep({
         if (suburbFilter && compSuburb !== suburbFilter) return false
         // Distance filter — comps now carry accurate per-property coords from
         // everypropertyAI, so apply it uniformly (no same-suburb centroid exemption).
-        // Comps without coords can't prove they're in range — exclude them
-        // (background geocode backfill restores them once coords resolve).
+        // Comps without coords can't prove they're in range — exclude them.
+        // There is no backfill: they reappear only when distance is set to Any.
         if (distanceFilter !== Infinity && sLat && sLng) {
           if (!s.lat || !s.lng) return false
           if (haversineKm(sLat, sLng, s.lat, s.lng) > distanceFilter) return false

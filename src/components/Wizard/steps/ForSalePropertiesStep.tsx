@@ -262,8 +262,8 @@ export default function ForSalePropertiesStep({
 
       let filteredBuy = onMarket.filter((s: any) => {
         if (removedOnMarketRef.current.has(s.address || '')) return false
-        // Listings without coords can't prove they're in range — exclude them
-        // (background geocode backfill restores them once coords resolve).
+        // Listings without coords can't prove they're in range — exclude them.
+        // There is no backfill: they reappear only when distance is set to Any.
         if (distanceFilter !== Infinity && sLat && sLng) {
           if (!s.lat || !s.lng) return false
           if (haversineKm(sLat, sLng, s.lat, s.lng) > distanceFilter) return false
