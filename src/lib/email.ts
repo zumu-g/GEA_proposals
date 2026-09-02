@@ -63,6 +63,48 @@ export async function sendProposalEmail(
   }
 }
 
+// Machine-parseable "proposal sent" event notification. Read by an automation
+// that posts a CRM note and starts the maintain-contact sequence — the subject
+// prefix "PROPOSAL SENT — " and the four labelled body lines are keyed on
+// downstream, so keep this plain text with nothing before those lines.
+const SENT_NOTIFICATION_TO = 'stuart_grant@me.com'
+
+function formatSentDate(iso: string): string {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const parts = new Intl.DateTimeFormat('en-AU', {
+    timeZone: 'Australia/Melbourne', day: '2-digit', month: 'numeric', year: 'numeric',
+  }).formatToParts(new Date(iso))
+  const get = (t: string) => parts.find((p) => p.type === t)?.value || ''
+  return `${get('day')} ${months[Number(get('month')) - 1]} ${get('year')}`
+}
+
+export async function sendSentNotification(
+  proposal: Proposal,
+  sentAtIso: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await getResend().emails.send({
+      from: `GEA Proposals <${FROM_EMAIL}>`,
+      to: [SENT_NOTIFICATION_TO],
+      subject: `PROPOSAL SENT — ${proposal.propertyAddress}`,
+      text: [
+        `Address: ${proposal.propertyAddress}`,
+        `Vendor: ${proposal.clientName}`,
+        `Sent: ${formatSentDate(sentAtIso)}`,
+        `Proposal link: ${getProposalUrl(proposal.id)}`,
+      ].join('\n'),
+    })
+    if (error) {
+      console.error('Sent-notification Resend error:', error)
+      return { success: false, error: error.message }
+    }
+    return { success: true }
+  } catch (err) {
+    console.error('Sent-notification error:', err)
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to send notification' }
+  }
+}
+
 export async function sendNurtureEmail(
   proposal: Proposal,
   subject: string,
