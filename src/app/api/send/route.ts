@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getProposal, updateProposal } from '@/lib/proposal-generator'
 import { sendProposalEmail, sendSentNotification } from '@/lib/email'
+import { logProposalSentNote } from '@/lib/gea-crm'
 import { createNurturePlan } from '@/lib/nurture'
 
 export async function POST(request: NextRequest) {
@@ -67,6 +68,16 @@ export async function POST(request: NextRequest) {
     sendSentNotification(proposal, sentAt).catch((err) =>
       console.error('Sent-notification failed:', err instanceof Error ? err.message : err)
     )
+
+    // CRM property note with the proposal link — fire-and-forget; a CRM miss
+    // or outage never affects the send.
+    logProposalSentNote(
+      proposal.propertyAddress,
+      proposal.clientName,
+      `${process.env.NEXT_PUBLIC_BASE_URL || 'https://proposalto.com'}/proposal/${proposal.id}`
+    ).then((r) => {
+      if (!r.success) console.warn('CRM sent-note skipped:', r.error)
+    })
 
     try {
       createNurturePlan(proposalId)

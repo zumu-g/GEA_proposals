@@ -53,6 +53,55 @@ export function isCrmConfigured(): boolean {
 }
 
 /**
+ * Append a note to a CRM property (POST /api/properties/:id/notes, same
+ * consumer key as search). Returns success=false rather than throwing.
+ */
+export async function addPropertyNote(
+  propertyId: string,
+  body: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!isCrmConfigured()) return { success: false, error: 'GEA_CRM not configured' }
+  try {
+    const res = await fetch(new URL(`/api/properties/${encodeURIComponent(propertyId)}/notes`, apiUrl()).toString(), {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.GEA_CRM_API_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ body }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+    if (!res.ok) return { success: false, error: `GEA_CRM note failed (HTTP ${res.status})` }
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'GEA_CRM note failed' }
+  }
+}
+
+/**
+ * Log a "proposal sent" note against the CRM property matching this address.
+ * Resolves the property via the existing search; a miss (property not in the
+ * CRM, ambiguous match, or CRM down) is a silent no-op — sending the proposal
+ * must never depend on the CRM.
+ */
+export async function logProposalSentNote(
+  address: string,
+  vendorName: string,
+  proposalUrl: string
+): Promise<{ success: boolean; error?: string }> {
+  const result = await searchProperty(address)
+  if (result.error) return { success: false, error: result.error }
+  if (!result.found || result.properties.length === 0) {
+    return { success: false, error: 'property not found in GEA_CRM' }
+  }
+  const property = result.properties[0]
+  return addPropertyNote(
+    property.id,
+    `Proposal sent to ${vendorName}. View proposal: ${proposalUrl}`
+  )
+}
+
+/**
  * Search GEA_CRM for a property by full address string. Always resolves — on any
  * failure it returns `{ found:false, count:0, ..., error }` so the caller can
  * degrade to everypropertyAI without try/catch.
