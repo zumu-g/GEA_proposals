@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getProposal, updateProposal } from '@/lib/proposal-generator'
-import { sendProposalEmail } from '@/lib/email'
+import { sendProposalEmail, sendSentNotification } from '@/lib/email'
 import { createNurturePlan } from '@/lib/nurture'
 
 export async function POST(request: NextRequest) {
@@ -56,10 +56,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const sentAt = proposal.sentAt || new Date().toISOString()
     await updateProposal(proposalId, {
       status: proposal.status === 'draft' ? 'sent' : proposal.status,
-      sentAt: proposal.sentAt || new Date().toISOString(),
+      sentAt,
     })
+
+    // Machine-parseable event notification for the CRM automation — must not
+    // block or fail the client send.
+    sendSentNotification(proposal, sentAt).catch((err) =>
+      console.error('Sent-notification failed:', err instanceof Error ? err.message : err)
+    )
 
     try {
       createNurturePlan(proposalId)
