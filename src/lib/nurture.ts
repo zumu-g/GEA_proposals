@@ -1,31 +1,15 @@
 /**
  * AI Nurture Engine
  * Manages automated follow-up touchpoints for proposals.
- * Uses Claude API to generate personalised email content and nurture plans
- * on behalf of Stuart Grant, Grant's Estate Agents.
+ * Uses MiniMax to generate personalised email content and nurture plans on
+ * behalf of Stuart Grant, Grant's Estate Agents. Both generators fall back to
+ * templates when the provider is unavailable, so the cron never stalls.
  */
 
-import Anthropic from '@anthropic-ai/sdk'
+import { chatCompletion } from './minimax'
 import { getDb } from '@/lib/db'
 import { getProposal, logActivity } from '@/lib/proposal-generator'
 import { sendNurtureEmail } from '@/lib/email'
-
-// --- Lazy Anthropic client with env check ---
-
-let _anthropic: Anthropic | null = null
-
-function getAnthropicClient(): Anthropic {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error(
-      'ANTHROPIC_API_KEY environment variable is not set. ' +
-      'Set it in your .env.local file to enable AI nurture content generation.'
-    )
-  }
-  if (!_anthropic) {
-    _anthropic = new Anthropic()
-  }
-  return _anthropic
-}
 
 // --- Types ---
 
@@ -174,16 +158,10 @@ export async function generateNurturePlan(proposalId: string): Promise<{ plan: N
   }>
 
   try {
-    const client = getAnthropicClient()
-
-    const message = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
+    const text = await chatCompletion({
       system: PLAN_GENERATION_PROMPT,
-      messages: [
-        {
-          role: 'user',
-          content: `Create a nurture plan for this vendor:
+      maxTokens: 6000,
+      user: `Create a nurture plan for this vendor:
 
 Client name: ${proposal.clientName} (use "${clientFirstNames}" in greetings)
 Property address: ${proposal.propertyAddress}
@@ -191,25 +169,25 @@ Price guide: ${priceGuide}
 Method of sale: ${proposal.methodOfSale || 'not yet decided'}
 
 Return ONLY the JSON array.`,
-        },
-      ],
     })
 
-    const textBlock = message.content.find((block) => block.type === 'text')
-    if (!textBlock?.text) {
-      throw new Error('Empty response from Claude API')
+    // Strip any markdown fence, then fall back to the outermost [...] span if
+    // the model wrapped the array in prose.
+    let jsonText = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim()
+    if (!jsonText.startsWith('[')) {
+      const start = jsonText.indexOf('[')
+      const end = jsonText.lastIndexOf(']')
+      if (start === -1 || end <= start) throw new Error('No JSON array in model response')
+      jsonText = jsonText.slice(start, end + 1)
     }
-
-    // Parse the JSON response, stripping any markdown fences
-    const jsonText = textBlock.text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim()
     touchpointData = JSON.parse(jsonText)
 
     if (!Array.isArray(touchpointData) || touchpointData.length === 0) {
-      throw new Error('Invalid response structure from Claude API')
+      throw new Error('Invalid response structure from the AI provider')
     }
   } catch (err) {
     console.warn(
-      '[nurture] Claude API unavailable for plan generation, using template:',
+      '[nurture] AI plan generation unavailable, using template:',
       err instanceof Error ? err.message : err
     )
     // Fall back to template-based plan
@@ -326,16 +304,10 @@ export async function generateNurtureContent(
   const fallbackHtml = `<p>Hi ${clientFirstNames},</p><p>I just wanted to touch base regarding your property at ${proposal.propertyAddress}. If you have any questions about the proposal or would like to discuss anything further, I am always happy to have a chat.</p><p>You can reach me directly on 0438 554 522 or at the office on 03 9767 3200.</p><p>Warm regards,<br>Stuart Grant<br>Grant's Estate Agents</p>`
 
   try {
-    const client = getAnthropicClient()
-
-    const message = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
+    const text = await chatCompletion({
       system: NURTURE_SYSTEM_PROMPT,
-      messages: [
-        {
-          role: 'user',
-          content: `Write a follow-up email for this specific context:
+      maxTokens: 3000,
+      user: `Write a follow-up email for this specific context:
 
 Client name: ${proposal.clientName} (use "${clientFirstNames}" in the greeting)
 Property address: ${proposal.propertyAddress}
@@ -349,18 +321,11 @@ ${daysSinceSent <= 2 ? 'This is an early follow-up — keep it brief and friendl
 ${daysSinceSent >= 14 ? 'This is a later follow-up — be respectful of their decision timeline. No pressure, just letting them know you are still here to help.' : ''}
 
 Remember: return ONLY HTML <p> tags with the email body. No subject line, no HTML document wrapper.`,
-        },
-      ],
     })
 
-    const textBlock = message.content.find((block) => block.type === 'text')
-    if (!textBlock?.text) {
-      return fallbackHtml
-    }
-
-    return textBlock.text
+    return text.trim() || fallbackHtml
   } catch (err) {
-    console.error('[nurture] Claude API error generating content:', err instanceof Error ? err.message : err)
+    console.error('[nurture] AI error generating content:', err instanceof Error ? err.message : err)
     return fallbackHtml
   }
 }
