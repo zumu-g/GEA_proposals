@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     const message = error instanceof Error ? error.message : 'Failed to generate copy'
     console.error('generate-agent-copy failed:', message)
     // Surface the missing-key case plainly; it is a config problem, not a bug.
-    const status = message.includes('ANTHROPIC_API_KEY') ? 503 : 500
+    const status = message.includes('MINIMAX_API_KEY') ? 503 : 500
     return NextResponse.json({ error: message }, { status })
   }
 }

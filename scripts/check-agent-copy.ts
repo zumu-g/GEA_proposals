@@ -19,6 +19,22 @@ const { parseCopy, contextBlock } = __test
 }
 assert.deepEqual(parseCopy('```\n{"bio":"A","intro":"B"}\n```'), { bio: 'A', intro: 'B' })
 
+// MiniMax-M2 emits <think> traces before the answer — they must not reach JSON.parse
+assert.deepEqual(
+  parseCopy('<think>The owner is Jane, so I should...</think>\n{"bio":"A","intro":"B"}'),
+  { bio: 'A', intro: 'B' }
+)
+assert.deepEqual(
+  parseCopy('<think>reasoning</think>```json\n{"bio":"A","intro":"B"}\n```'),
+  { bio: 'A', intro: 'B' }
+)
+// A stray sentence either side of the object still parses
+assert.deepEqual(
+  parseCopy('Here is the copy:\n{"bio":"A","intro":"B"}\nLet me know.'),
+  { bio: 'A', intro: 'B' }
+)
+assert.throws(() => parseCopy('<think>only thinking, no answer</think>'), /No JSON object/)
+
 // Whitespace is trimmed off both fields
 assert.deepEqual(parseCopy('{"bio":"  A  ","intro":"\\n B \\n"}'), { bio: 'A', intro: 'B' })
 
