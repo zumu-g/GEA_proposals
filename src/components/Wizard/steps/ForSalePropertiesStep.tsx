@@ -4,7 +4,18 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { ComparableRow } from './SoldPropertiesStep'
 import { getPropertyTypeContent } from '@/lib/property-type-content'
+import { filterWithExplain, type FilterCriterion } from '@/lib/filter-explain'
 import type { PropertyType } from '@/types/proposal'
+
+/** Human label for a comma-separated property-type filter token list. */
+function propTypeLabel(token: string): string {
+  return token
+    .split(',')
+    .map(t => t.trim())
+    .filter(Boolean)
+    .map(t => t.charAt(0).toUpperCase() + t.slice(1))
+    .join(' / ')
+}
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -192,7 +203,11 @@ export default function ForSalePropertiesStep({
   const [propType, setPropType] = useState(subjectTypeFilter)
   useEffect(() => { setPropType(subjectTypeFilter) }, [subjectTypeFilter])
   const [suburbFilter, setSuburbFilter] = useState('')
+  const [landMin, setLandMin] = useState('')
+  const [landMax, setLandMax] = useState('')
   const [daysOnMarketMax, setDaysOnMarketMax] = useState('')
+  // Names the filters responsible when everything is filtered out
+  const [emptyReasons, setEmptyReasons] = useState<{ label: string; wouldReturn: number }[] | null>(null)
   const [sortBy, setSortBy] = useState('distance-asc')
 
   // Image error tracking
@@ -260,39 +275,67 @@ export default function ForSalePropertiesStep({
       const sLat = effSubjectLat
       const sLng = effSubjectLng
 
-      let filteredBuy = onMarket.filter((s: any) => {
-        if (removedOnMarketRef.current.has(s.address || '')) return false
-        // Listings without coords can't prove they're in range — exclude them.
-        // There is no backfill: they reappear only when distance is set to Any.
-        if (distanceFilter !== Infinity && sLat && sLng) {
-          if (!s.lat || !s.lng) return false
-          if (haversineKm(sLat, sLng, s.lat, s.lng) > distanceFilter) return false
-        }
-        if (bedsMin && Number(s.bedrooms) < Number(bedsMin)) return false
-        if (bathsMin && Number(s.bathrooms) < Number(bathsMin)) return false
-        if (priceMin || priceMax) {
-          const numPrice = Number(s.price) || parseInt((s.askingPrice || '').replace(/[^0-9]/g, ''))
-          // No usable price ("Contact Agent", "Inspect") — can't satisfy an
-          // explicit price range, so exclude rather than leak through.
-          if (!numPrice) return false
-          if (priceMin && numPrice < Number(priceMin)) return false
-          if (priceMax && numPrice > Number(priceMax)) return false
-        }
-        if (
-          propType &&
-          s.propertyType &&
-          !propType.toLowerCase().split(',').some(t => s.propertyType.toLowerCase().includes(t.trim()))
-        )
-          return false
-        if (suburbFilter) {
-          const addr = (s.address || '').toLowerCase()
-          if (!addr.includes(suburbFilter.toLowerCase())) return false
-        }
-        if (daysOnMarketMax && s.daysOnMarket != null) {
-          if (s.daysOnMarket > Number(daysOnMarketMax)) return false
-        }
-        return true
-      })
+      // Each filter is a named criterion so an empty result can say which one
+      // is responsible — a type inherited from the subject property sits behind
+      // a collapsed panel and otherwise silently zeroes the list.
+      const criteria: FilterCriterion<any>[] = [
+        {
+          label: 'distance',
+          active: distanceFilter !== Infinity && !!sLat && !!sLng,
+          // Listings without coords can't prove they're in range — exclude them.
+          // There is no backfill: they reappear only when distance is set to Any.
+          test: s => !!s.lat && !!s.lng && haversineKm(sLat!, sLng!, s.lat, s.lng) <= distanceFilter,
+        },
+        { label: 'bedrooms', active: !!bedsMin, test: s => Number(s.bedrooms) >= Number(bedsMin) },
+        { label: 'bathrooms', active: !!bathsMin, test: s => Number(s.bathrooms) >= Number(bathsMin) },
+        {
+          label: 'price range',
+          active: !!(priceMin || priceMax),
+          test: s => {
+            const numPrice = Number(s.price) || parseInt((s.askingPrice || '').replace(/[^0-9]/g, ''))
+            // No usable price ("Contact Agent", "Inspect") — can't satisfy an
+            // explicit price range, so exclude rather than leak through.
+            if (!numPrice) return false
+            if (priceMin && numPrice < Number(priceMin)) return false
+            if (priceMax && numPrice > Number(priceMax)) return false
+            return true
+          },
+        },
+        {
+          label: `property type: ${propTypeLabel(propType)}`,
+          active: !!propType,
+          test: s =>
+            !s.propertyType ||
+            propType.toLowerCase().split(',').some(t => s.propertyType.toLowerCase().includes(t.trim())),
+        },
+        {
+          label: 'land size',
+          active: !!(landMin || landMax),
+          test: s => {
+            // landSize arrives as a formatted string e.g. "650m²"
+            const sqm = parseInt(String(s.landSize ?? '').replace(/[^0-9]/g, ''), 10)
+            if (!sqm) return false
+            if (landMin && sqm < Number(landMin)) return false
+            if (landMax && sqm > Number(landMax)) return false
+            return true
+          },
+        },
+        {
+          label: 'suburb',
+          active: !!suburbFilter,
+          test: s => (s.address || '').toLowerCase().includes(suburbFilter.toLowerCase()),
+        },
+        {
+          label: 'listed within',
+          active: !!daysOnMarketMax,
+          test: s => s.daysOnMarket == null || s.daysOnMarket <= Number(daysOnMarketMax),
+        },
+      ]
+
+      const notRemoved = onMarket.filter((s: any) => !removedOnMarketRef.current.has(s.address || ''))
+      const explained = filterWithExplain(notRemoved, criteria)
+      setEmptyReasons(explained.candidates ?? null)
+      let filteredBuy = explained.rows
 
       filteredBuy.sort((a: any, b: any) => {
         const priceA = parseInt((a.askingPrice || '').replace(/[^0-9]/g, '')) || 0
@@ -347,15 +390,21 @@ export default function ForSalePropertiesStep({
         `Found ${buyCount} on-market listings${buyCount < onMarket.length ? ` (from ${onMarket.length})` : ''}`
       )
     },
-    [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, suburbFilter, daysOnMarketMax, sortBy, effSubjectLat, effSubjectLng]
+    [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, suburbFilter, landMin, landMax, daysOnMarketMax, sortBy, effSubjectLat, effSubjectLng]
   )
+
+  // Open the filter panel when a hidden filter is what emptied the list, so the
+  // control named in the empty state is actually on screen.
+  useEffect(() => {
+    if (emptyReasons) setShowFilters(true)
+  }, [emptyReasons])
 
   // Re-apply filters when filter values change
   useEffect(() => {
     if (rawOnMarket.length > 0) {
       applyFilters(rawOnMarket)
     }
-  }, [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, suburbFilter, daysOnMarketMax, sortBy, effSubjectLat, effSubjectLng, rawOnMarket, applyFilters])
+  }, [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, suburbFilter, landMin, landMax, daysOnMarketMax, sortBy, effSubjectLat, effSubjectLng, rawOnMarket, applyFilters])
 
   // everypropertyAI listings carry accurate per-property coordinates, so no
   // client-triggered geocode refinement is needed; the flag stays for the UI.
@@ -524,7 +573,7 @@ export default function ForSalePropertiesStep({
   // ─── Counts ───────────────────────────────────────────────────────────
   const selectedOnMarketCount = onMarketRows.filter(r => r.included && r.address.trim()).length
 
-  const hasActiveFilters = !!(priceMin || priceMax || bedsMin || bathsMin || propType || suburbFilter || daysOnMarketMax)
+  const hasActiveFilters = !!(priceMin || priceMax || bedsMin || bathsMin || propType || suburbFilter || landMin || landMax || daysOnMarketMax)
 
   // ─── Animation ────────────────────────────────────────────────────────
   const fadeUp = prefersReducedMotion
@@ -672,6 +721,20 @@ export default function ForSalePropertiesStep({
                     {opt.label}
                   </button>
                 ))}
+                {propType && (
+                  // The type filter is pre-set from the subject property and
+                  // otherwise lives behind the collapsed panel — surface it here
+                  // so it can never silently empty the list.
+                  <button
+                    type="button"
+                    onClick={() => setPropType('')}
+                    title="clear property type filter"
+                    className="rounded-full px-3 py-2 font-sans text-sm font-medium bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all flex items-center gap-1.5"
+                  >
+                    {propTypeLabel(propType)} only
+                    <span aria-hidden className="text-amber-500">×</span>
+                  </button>
+                )}
               </div>
 
               {/* Price filter — always visible */}
@@ -759,6 +822,8 @@ export default function ForSalePropertiesStep({
                       setBathsMin('')
                       setPropType('')
                       setSuburbFilter('')
+                      setLandMin('')
+                      setLandMax('')
                       setDaysOnMarketMax('')
                     }}
                     className="text-gray-400 hover:text-gray-600 font-sans text-xs transition-colors"
@@ -828,6 +893,28 @@ export default function ForSalePropertiesStep({
                           type="text"
                           value={suburbFilter}
                           onChange={e => setSuburbFilter(e.target.value)}
+                          className={inputClasses}
+                          placeholder="Any"
+                        />
+                      </div>
+                      <div>
+                        <label className={labelClasses}>min land (m²)</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={landMin}
+                          onChange={e => setLandMin(e.target.value.replace(/[^0-9]/g, ''))}
+                          className={inputClasses}
+                          placeholder="Any"
+                        />
+                      </div>
+                      <div>
+                        <label className={labelClasses}>max land (m²)</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={landMax}
+                          onChange={e => setLandMax(e.target.value.replace(/[^0-9]/g, ''))}
                           className={inputClasses}
                           placeholder="Any"
                         />
@@ -969,9 +1056,20 @@ export default function ForSalePropertiesStep({
                   <p className="text-amber-600 font-sans text-sm">
                     all {rawOnMarket.length} results filtered out
                   </p>
-                  <p className="text-gray-400 font-sans text-xs mt-1">
-                    try increasing the distance or broadening your filters
-                  </p>
+                  {emptyReasons ? (
+                    <div className="text-gray-500 font-sans text-xs mt-2 space-y-0.5">
+                      {emptyReasons.slice(0, 2).map(r => (
+                        <p key={r.label}>
+                          clear <span className="font-medium text-gray-700">{r.label}</span> to see{' '}
+                          {r.wouldReturn} {r.wouldReturn === 1 ? 'listing' : 'listings'}
+                        </p>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-gray-400 font-sans text-xs mt-1">
+                      try increasing the distance or broadening your filters
+                    </p>
+                  )}
                 </div>
               )}
 
