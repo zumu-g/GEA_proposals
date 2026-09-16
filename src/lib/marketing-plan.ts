@@ -121,6 +121,14 @@ export const MARKETING_CATALOG: Record<string, CatalogOption[]> = {
   Auctioneer: [
     { description: 'Aleisha — professional auctioneer', cost: 700 },
   ],
+  // Direct mail — printing plus letterbox distribution to the surrounding
+  // streets. Costs are a starting point, not rate-card figures: confirm with
+  // the agency and adjust per campaign.
+  Print: [
+    { description: 'Direct mail campaign — DL flyers to 1000 surrounding homes (print + distribution)', cost: 550 },
+    { description: 'Direct mail campaign — A4 letter drop to 500 surrounding homes (print + distribution)', cost: 350 },
+    { description: 'Just Listed / Just Sold direct mail drop — 500 homes', cost: 300 },
+  ],
   Photography: [
     { description: 'Complete Image — Standard Rental Shoot (10 images, web only)', cost: 150 },
     { description: 'Complete Image — Sales Day Shoot (10 images)', cost: 205 },
