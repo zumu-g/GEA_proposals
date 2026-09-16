@@ -169,6 +169,10 @@ export default function HomePage() {
   const [availableDate, setAvailableDate] = useState('')
   const [managementFee, setManagementFee] = useState('')
   const [lettingFee, setLettingFee] = useState('')
+  // Per-proposal agent copy (AI-drafted in step 1, always agent-edited). Blank
+  // falls back to the agency default bio and the generic introduction.
+  const [agentBio, setAgentBio] = useState('')
+  const [introText, setIntroText] = useState('')
 
   // ── Step 2: Property & Sale state ────────────────────────────────────────
   const [methodOfSale, setMethodOfSale] = useState('')
@@ -335,6 +339,8 @@ export default function HomePage() {
     availableDate,
     managementFee,
     lettingFee,
+    agentBio,
+    introText,
     marketingCosts,
     dualCampaign,
     offMarketCampaign,
@@ -370,6 +376,8 @@ export default function HomePage() {
     if (d.availableDate) setAvailableDate(d.availableDate as string)
     if (d.managementFee) setManagementFee(d.managementFee as string)
     if (d.lettingFee) setLettingFee(d.lettingFee as string)
+    if (d.agentBio) setAgentBio(d.agentBio as string)
+    if (d.introText) setIntroText(d.introText as string)
     if (d.marketingCosts && Array.isArray(d.marketingCosts)) setMarketingCosts(d.marketingCosts as MarketingCostItem[])
     if (Array.isArray(d.hiddenSections)) setHiddenSections(d.hiddenSections as string[])
     if (d.dualCampaign !== undefined) setDualCampaign(d.dualCampaign as boolean)
@@ -416,6 +424,8 @@ export default function HomePage() {
       if (proposal.availableDate) setAvailableDate(proposal.availableDate)
       if (proposal.managementFee != null) setManagementFee(String(proposal.managementFee))
       if (proposal.lettingFee) setLettingFee(proposal.lettingFee)
+      setAgentBio(proposal.agency?.agentBio || '')
+      setIntroText(proposal.introText || '')
       if (proposal.heroImage) setHeroImageUrl(proposal.heroImage)
 
       // Pre-fill dual campaign — dev items come from the persisted raw list
@@ -576,6 +586,8 @@ export default function HomePage() {
       if (managementFee) formData.append('managementFee', managementFee)
       if (lettingFee) formData.append('lettingFee', lettingFee)
     }
+    if (agentBio.trim()) formData.append('agentBio', agentBio.trim())
+    if (introText.trim()) formData.append('introText', introText.trim())
     formData.append('methodOfSale', methodOfSale)
     if (priceGuideMin) formData.append('priceGuideMin', priceGuideMin)
     if (priceGuideMax) formData.append('priceGuideMax', priceGuideMax)
@@ -710,6 +722,8 @@ export default function HomePage() {
     setAvailableDate('')
     setManagementFee('')
     setLettingFee('')
+    setAgentBio('')
+    setIntroText('')
     setMarketingCosts(DEFAULT_MARKETING_COSTS)
     setHiddenSections(DEFAULT_HIDDEN_SECTIONS)
     setDualCampaign(false)
@@ -831,6 +845,8 @@ export default function HomePage() {
       case 'availableDate': setAvailableDate(value); break
       case 'managementFee': setManagementFee(value); break
       case 'lettingFee': setLettingFee(value); break
+      case 'agentBio': setAgentBio(value); break
+      case 'introText': setIntroText(value); break
     }
   }, [])
 
@@ -870,6 +886,7 @@ export default function HomePage() {
             clientName, clientEmail, propertyAddress, proposalType,
             priceGuideMin, priceGuideMax,
             hasHeroImage: !!(heroImage || heroImageUrl || selectedAutoImageUrl),
+            agentBio, introText,
           }}
           onChange={handleFieldChange}
           recentProposals={recentProposals}

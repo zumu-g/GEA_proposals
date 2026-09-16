@@ -87,6 +87,10 @@ export async function POST(request: NextRequest) {
     const availableDate = formData.get('availableDate') as string | null
     const managementFeeStr = formData.get('managementFee') as string | null
     const lettingFee = formData.get('lettingFee') as string | null
+    // Per-proposal agent copy from the wizard (AI-drafted, agent-edited). Blank
+    // means "use the standard copy", so only non-empty values override.
+    const agentBio = (formData.get('agentBio') as string | null)?.trim() || null
+    const introText = (formData.get('introText') as string | null)?.trim() || null
     const dualCampaign = formData.get('dualCampaign') as string | null
     const offMarketCampaign = formData.get('offMarketCampaign') as string | null
     const devMethodOfSale = formData.get('devMethodOfSale') as string | null
@@ -212,8 +216,12 @@ export async function POST(request: NextRequest) {
         commissionRate: rate,
         inclusions: (agencyConfig as any).defaultInclusions,
       },
-      agency: agencyConfig,
+      // The stored agency snapshot carries this proposal's bio, so the proposal
+      // page renders what the agent approved even if the profile changes later.
+      agency: agentBio ? { ...agencyConfig, agentBio } : agencyConfig,
     })
+
+    if (introText) proposal.introText = introText
 
     // Client-facing template choice
     proposal.template = template

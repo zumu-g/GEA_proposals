@@ -189,6 +189,7 @@ function initSchema(db: Database.Database) {
     'ALTER TABLE proposals ADD COLUMN available_date TEXT',
     'ALTER TABLE proposals ADD COLUMN management_fee REAL',
     'ALTER TABLE proposals ADD COLUMN letting_fee TEXT',
+    'ALTER TABLE proposals ADD COLUMN intro_text TEXT',             // vendor-specific introduction (AI-drafted, agent-edited)
     // Nurture touchpoints — new columns for AI-generated plans
     'ALTER TABLE nurture_touchpoints ADD COLUMN day_number INTEGER NOT NULL DEFAULT 0',
     'ALTER TABLE nurture_touchpoints ADD COLUMN talking_points TEXT',

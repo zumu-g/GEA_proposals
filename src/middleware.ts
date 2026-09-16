@@ -7,7 +7,7 @@ const COOKIE_NAME = 'gea_auth'
 const PROTECTED_PAGES = ['/', '/dashboard', '/edit', '/onboarding', '/settings']
 
 // API routes that require authentication
-const PROTECTED_API = ['/api/dashboard', '/api/proposals', '/api/cron', '/api/poll-inbox', '/api/profile', '/api/campaigns', '/api/gea-crm']
+const PROTECTED_API = ['/api/dashboard', '/api/proposals', '/api/cron', '/api/poll-inbox', '/api/profile', '/api/campaigns', '/api/gea-crm', '/api/generate-agent-copy']
 
 function isProtectedPage(pathname: string): boolean {
   return PROTECTED_PAGES.some(
@@ -67,5 +67,6 @@ export const config = {
     '/api/cron',
     '/api/cron/:path*',
     '/api/poll-inbox',
+    '/api/generate-agent-copy',
   ],
 }

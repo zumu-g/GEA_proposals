@@ -35,18 +35,41 @@ export function Introduction({ proposal }: IntroductionProps) {
             transition={{ duration: 0.5, delay: 0.1 }}
             className="lg:pt-4"
           >
-            <p className="text-charcoal-500 font-sans text-lg font-light leading-relaxed mb-6">
-              thank you for considering {(proposal.agency?.name || 'us').toLowerCase()} for the {isRental ? 'leasing' : 'sale'} of your property at{' '}
-              <span className="text-charcoal font-normal">{proposal.propertyAddress.toLowerCase()}</span>.
-            </p>
-            <p className="text-charcoal-400 font-sans text-base font-light leading-relaxed mb-6">
-              we've prepared this proposal to outline how we'll market your property effectively,
-              the process we follow, and comparable properties recently {isRental ? 'leased' : 'sold'} in your area.
-            </p>
-            <p className="text-charcoal-400 font-sans text-base font-light leading-relaxed">
-              our approach combines local expertise with a modern marketing strategy,
-              ensuring your property reaches the right {isRental ? 'tenants' : 'buyers'} at the right time.
-            </p>
+            {proposal.introText ? (
+              // Vendor-specific introduction written in the wizard. Paragraph
+              // breaks are preserved; the generic copy below is the fallback.
+              proposal.introText
+                .split(/\n{2,}/)
+                .map(p => p.trim())
+                .filter(Boolean)
+                .map((para, i) => (
+                  <p
+                    key={i}
+                    className={
+                      i === 0
+                        ? 'text-charcoal-500 font-sans text-lg font-light leading-relaxed mb-6'
+                        : 'text-charcoal-400 font-sans text-base font-light leading-relaxed mb-6 last:mb-0'
+                    }
+                  >
+                    {para}
+                  </p>
+                ))
+            ) : (
+              <>
+                <p className="text-charcoal-500 font-sans text-lg font-light leading-relaxed mb-6">
+                  thank you for considering {(proposal.agency?.name || 'us').toLowerCase()} for the {isRental ? 'leasing' : 'sale'} of your property at{' '}
+                  <span className="text-charcoal font-normal">{proposal.propertyAddress.toLowerCase()}</span>.
+                </p>
+                <p className="text-charcoal-400 font-sans text-base font-light leading-relaxed mb-6">
+                  we've prepared this proposal to outline how we'll market your property effectively,
+                  the process we follow, and comparable properties recently {isRental ? 'leased' : 'sold'} in your area.
+                </p>
+                <p className="text-charcoal-400 font-sans text-base font-light leading-relaxed">
+                  our approach combines local expertise with a modern marketing strategy,
+                  ensuring your property reaches the right {isRental ? 'tenants' : 'buyers'} at the right time.
+                </p>
+              </>
+            )}
           </motion.div>
         </div>
       </div>

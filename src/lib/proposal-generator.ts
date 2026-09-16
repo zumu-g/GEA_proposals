@@ -108,6 +108,7 @@ interface ProposalRow {
   available_date: string | null
   management_fee: number | null
   letting_fee: string | null
+  intro_text: string | null
   dual_campaign: number | null
   off_market_campaign: number | null
   dev_method_of_sale: string | null
@@ -161,6 +162,7 @@ function rowToProposal(row: ProposalRow): Proposal {
     availableDate: row.available_date ?? undefined,
     managementFee: row.management_fee ?? undefined,
     lettingFee: row.letting_fee ?? undefined,
+    introText: row.intro_text ?? undefined,
     dualCampaign: row.dual_campaign === 1,
     offMarketCampaign: row.off_market_campaign === 1,
     devMethodOfSale: row.dev_method_of_sale || undefined,
@@ -217,6 +219,7 @@ function proposalToParams(proposal: Proposal) {
     available_date: proposal.availableDate || null,
     management_fee: proposal.managementFee ?? null,
     letting_fee: proposal.lettingFee || null,
+    intro_text: proposal.introText || null,
     dual_campaign: proposal.dualCampaign ? 1 : 0,
     off_market_campaign: proposal.offMarketCampaign ? 1 : 0,
     dev_method_of_sale: proposal.devMethodOfSale || null,
@@ -246,7 +249,7 @@ export async function saveProposal(proposal: Proposal): Promise<void> {
       sale_process, marketing_plan, recent_sales, fees, agency,
       advertising_schedule, total_advertising_cost, area_analysis, team_members,
       marketing_approach, marketing_costs, database_info, internet_listings, on_market_listings, hidden_sections,
-      template, property_type, proposal_type, asking_rent, lease_type, available_date, management_fee, letting_fee,
+      template, property_type, proposal_type, asking_rent, lease_type, available_date, management_fee, letting_fee, intro_text,
       dual_campaign, off_market_campaign, dev_method_of_sale, dev_price_guide_min, dev_price_guide_max, dev_show_price_range,
       dev_marketing_costs, dev_marketing_plan, dev_advertising_schedule, dev_total_advertising_cost,
       status, sent_at, viewed_at, approved_at)
@@ -255,7 +258,7 @@ export async function saveProposal(proposal: Proposal): Promise<void> {
       @sale_process, @marketing_plan, @recent_sales, @fees, @agency,
       @advertising_schedule, @total_advertising_cost, @area_analysis, @team_members,
       @marketing_approach, @marketing_costs, @database_info, @internet_listings, @on_market_listings, @hidden_sections,
-      @template, @property_type, @proposal_type, @asking_rent, @lease_type, @available_date, @management_fee, @letting_fee,
+      @template, @property_type, @proposal_type, @asking_rent, @lease_type, @available_date, @management_fee, @letting_fee, @intro_text,
       @dual_campaign, @off_market_campaign, @dev_method_of_sale, @dev_price_guide_min, @dev_price_guide_max, @dev_show_price_range,
       @dev_marketing_costs, @dev_marketing_plan, @dev_advertising_schedule, @dev_total_advertising_cost,
       @status, @sent_at, @viewed_at, @approved_at)
@@ -271,7 +274,7 @@ export async function saveProposal(proposal: Proposal): Promise<void> {
       marketing_approach=@marketing_approach, marketing_costs=@marketing_costs, database_info=@database_info,
       internet_listings=@internet_listings, on_market_listings=@on_market_listings, hidden_sections=@hidden_sections,
       template=@template, property_type=@property_type, proposal_type=@proposal_type, asking_rent=@asking_rent, lease_type=@lease_type,
-      available_date=@available_date, management_fee=@management_fee, letting_fee=@letting_fee,
+      available_date=@available_date, management_fee=@management_fee, letting_fee=@letting_fee, intro_text=@intro_text,
       dual_campaign=@dual_campaign, off_market_campaign=@off_market_campaign, dev_method_of_sale=@dev_method_of_sale,
       dev_price_guide_min=@dev_price_guide_min, dev_price_guide_max=@dev_price_guide_max,
       dev_show_price_range=@dev_show_price_range, dev_marketing_costs=@dev_marketing_costs,
