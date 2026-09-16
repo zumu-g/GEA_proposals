@@ -2,6 +2,13 @@
 // Run: npx tsx scripts/check-agent-copy.ts   (no API calls, no key needed)
 import assert from 'node:assert/strict'
 import { __test } from '../src/lib/agent-copy'
+import { stripReasoning } from '../src/lib/minimax'
+
+// The client strips reasoning traces without touching response markup — the
+// nurture generator returns <p> tags through the same path.
+assert.equal(stripReasoning('<think>plan</think>hello'), 'hello')
+assert.equal(stripReasoning('<p>Hi Jane,</p>'), '<p>Hi Jane,</p>')
+assert.equal(stripReasoning('<think>a</think><p>Body</p>'), '<p>Body</p>')
 
 const { parseCopy, contextBlock } = __test
 
@@ -19,7 +26,8 @@ const { parseCopy, contextBlock } = __test
 }
 assert.deepEqual(parseCopy('```\n{"bio":"A","intro":"B"}\n```'), { bio: 'A', intro: 'B' })
 
-// MiniMax-M2 emits <think> traces before the answer — they must not reach JSON.parse
+// The MiniMax client strips <think> traces; parseCopy's outermost-{...} recovery
+// is the second line of defence if any survive
 assert.deepEqual(
   parseCopy('<think>The owner is Jane, so I should...</think>\n{"bio":"A","intro":"B"}'),
   { bio: 'A', intro: 'B' }

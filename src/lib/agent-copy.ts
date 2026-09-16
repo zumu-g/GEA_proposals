@@ -3,16 +3,10 @@
 // vendor-specific introduction. Both are drafts the agent edits before the
 // proposal is created — nothing here is sent to a vendor unreviewed.
 //
-// Provider is MiniMax via its OpenAI-compatible /chat/completions endpoint,
-// matching the other GEA projects:
-//   MINIMAX_API_KEY   — required; no key means the route returns 503
-//   MINIMAX_BASE_URL  — default https://api.minimax.io/v1
-//   MINIMAX_MODEL     — default MiniMax-M2
+// The MiniMax call itself lives in ./minimax.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const DEFAULT_BASE_URL = 'https://api.minimax.io/v1'
-const DEFAULT_MODEL = 'MiniMax-M2'
-const TIMEOUT_MS = 30_000
+import { chatCompletion } from './minimax'
 
 export interface AgentCopyContext {
   agentName: string
@@ -69,15 +63,13 @@ function contextBlock(c: AgentCopyContext): string {
 }
 
 /**
- * Recover the JSON object from a model response. MiniMax-M2 is a reasoning
- * model: it emits inline <think>…</think> traces, and sometimes wraps the
- * answer in a markdown fence despite instructions. Strip both, then fall back
- * to the outermost {...} span if anything still surrounds it.
+ * Recover the JSON object from a model response. Reasoning traces are already
+ * stripped by the MiniMax client; this handles the markdown fence the model
+ * sometimes adds despite instructions, falling back to the outermost {...}
+ * span if prose still surrounds it.
  */
 function parseCopy(text: string): AgentCopy {
   let cleaned = text
-    .replace(/<think>[\s\S]*?<\/think>/gi, '')
-    .replace(/<\/?think>/gi, '')
     .trim()
     .replace(/^```(?:json)?\s*/, '')
     .replace(/\s*```$/, '')
@@ -98,52 +90,12 @@ function parseCopy(text: string): AgentCopy {
 }
 
 export async function generateAgentCopy(context: AgentCopyContext): Promise<AgentCopy> {
-  const apiKey = process.env.MINIMAX_API_KEY
-  if (!apiKey) {
-    throw new Error(
-      'MINIMAX_API_KEY environment variable is not set. ' +
-        'Set it in .env (and on Railway) to enable AI copy generation.'
-    )
-  }
-
-  const baseUrl = process.env.MINIMAX_BASE_URL || DEFAULT_BASE_URL
-  const model = process.env.MINIMAX_MODEL || DEFAULT_MODEL
-
-  const response = await fetch(`${baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: SYSTEM },
-        { role: 'user', content: contextBlock(context) },
-      ],
-      temperature: 0.7,
-      // Reasoning tokens are spent before the answer — leave room for both.
-      max_tokens: 4000,
-    }),
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+  const text = await chatCompletion({
+    system: SYSTEM,
+    user: contextBlock(context),
+    maxTokens: 4000,
   })
-
-  if (!response.ok) {
-    const body = await response.json().catch(() => null)
-    const detail =
-      body?.error?.message || body?.base_resp?.status_msg || response.statusText
-    throw new Error(`MiniMax error (${response.status}): ${detail}`)
-  }
-
-  const data = await response.json()
-  // MiniMax reports business errors in base_resp with HTTP 200.
-  if (data?.base_resp?.status_code && data.base_resp.status_code !== 0) {
-    throw new Error(`MiniMax error: ${data.base_resp.status_msg || 'unknown'}`)
-  }
-
-  const content = data?.choices?.[0]?.message?.content
-  if (typeof content !== 'string' || !content.trim()) {
-    throw new Error('MiniMax returned an empty response')
-  }
-
-  return parseCopy(content)
+  return parseCopy(text)
 }
 
 // Exported for the check script — the parsing is the part worth testing.
