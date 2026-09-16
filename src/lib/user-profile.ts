@@ -179,14 +179,20 @@ export async function getEffectiveConfig(
   const profile = getProfile(email)
   if (!profile) return agency
 
+  // Settings and onboarding save cleared text inputs as '' rather than null, and
+  // '' ?? fallback keeps the empty string — a blank bio field then wiped the
+  // agency default off the proposal instead of falling back to it.
+  const or = (v: string | null | undefined, fallback: string | undefined) =>
+    v && v.trim() ? v : fallback
+
   return {
     ...agency,
-    agentName: profile.agentName ?? agency.agentName,
-    agentTitle: profile.agentTitle ?? agency.agentTitle,
-    agentPhone: profile.agentPhone ?? agency.agentPhone,
-    agentPhoto: profile.agentPhoto ?? agency.agentPhoto,
-    agentBio: profile.agentBio ?? agency.agentBio,
-    contactEmail: profile.agentEmail ?? agency.contactEmail,
+    agentName: or(profile.agentName, agency.agentName) ?? agency.agentName,
+    agentTitle: or(profile.agentTitle, agency.agentTitle),
+    agentPhone: or(profile.agentPhone, agency.agentPhone) ?? agency.agentPhone,
+    agentPhoto: or(profile.agentPhoto, agency.agentPhoto),
+    agentBio: or(profile.agentBio, agency.agentBio),
+    contactEmail: or(profile.agentEmail, agency.contactEmail) ?? agency.contactEmail,
     defaultCommissionRate: profile.defaultCommissionRate ?? agency.defaultCommissionRate,
   }
 }

@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { getProposal, getDefaultProposalExtras, DEFAULT_TOTAL_ADVERTISING_COST } from '@/lib/proposal-generator'
+import { getProposal, getDefaultProposalExtras, DEFAULT_TOTAL_ADVERTISING_COST, DEFAULT_AGENCY_CONFIG } from '@/lib/proposal-generator'
 import { getPropertyTypeContent } from '@/lib/property-type-content'
 import { ProposalLayout } from '@/components/Layout/ProposalLayout'
 import { FullHero } from '@/components/Proposal/FullHero'
@@ -107,7 +107,9 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
             phone: proposal.agency.agentPhone || proposal.agency.contactPhone,
             email: proposal.agency.contactEmail,
             photoUrl: proposal.agency.agentPhoto,
-            bio: proposal.agency.agentBio,
+            // Older proposals stored an agency snapshot with no bio; fall back to
+            // the agency default rather than rendering the section bio-less.
+            bio: proposal.agency.agentBio || DEFAULT_AGENCY_CONFIG.agentBio,
             yearsExperience: proposal.agency.agentYearsExperience,
           } : undefined}
           databaseInfo={proposal.databaseInfo}
