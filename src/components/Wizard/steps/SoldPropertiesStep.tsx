@@ -349,6 +349,8 @@ export default function SoldPropertiesStep({
   // defaults on first mount otherwise)
   useEffect(() => { setPropType(subjectTypeFilter) }, [subjectTypeFilter])
   const [suburbFilter, setSuburbFilter] = useState('')
+  const [landMin, setLandMin] = useState('')
+  const [landMax, setLandMax] = useState('')
   const [soldWithin, setSoldWithin] = useState('12')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -535,6 +537,13 @@ export default function SoldPropertiesStep({
           !propType.toLowerCase().split(',').some(t => s.propertyType.toLowerCase().includes(t.trim()))
         )
           return false
+        if (landMin || landMax) {
+          // landSize arrives as a formatted string e.g. "650m²"
+          const sqm = parseInt(String(s.landSize ?? '').replace(/[^0-9]/g, ''), 10)
+          if (!sqm) return false
+          if (landMin && sqm < Number(landMin)) return false
+          if (landMax && sqm > Number(landMax)) return false
+        }
         if (soldWithin && s.date) {
           const saleDate = new Date(s.date)
           const now = new Date()
@@ -654,17 +663,21 @@ export default function SoldPropertiesStep({
             if (dist < nearest) nearest = dist
           }
         }
-        if (nearest === Infinity) {
-          // No comp carries coordinates — distance can't be measured (common for
-          // leased data). Point the user at price/other filters rather than a
-          // bogus "Infinitykm away" message.
+        // Only blame distance when it's actually what excluded everything. If the
+        // nearest comp sits inside the current radius, some other filter (price,
+        // type, land size, date) emptied the list — saying "nearest is 111m away"
+        // under a 5km filter is self-contradictory. nearest === Infinity means no
+        // comp carries coordinates (common for leased data), so distance can't be
+        // the cause either.
+        if (nearest > distanceFilter) {
+          const suggestedDist = [1, 2, 5, 10].find(d => d > distanceFilter && nearest <= d)
           setStatusMessage(
-            `${sold.length} ${isRental ? 'leased' : 'sold'} ${sold.length === 1 ? 'property' : 'properties'} found, but none match the current filters. Try clearing the price range or other filters.`
+            `No properties within ${distanceFilter < 1 ? `${distanceFilter * 1000}m` : `${distanceFilter}km`} — nearest is ${formatDistance(nearest)} away.` +
+              (suggestedDist ? ` Try ${suggestedDist}km.` : ' Try Any.')
           )
         } else {
-          const suggestedDist = nearest < 1 ? '1km' : nearest < 2 ? '2km' : nearest < 5 ? '5km' : '10km'
           setStatusMessage(
-            `No properties within ${distanceFilter < 1 ? `${distanceFilter * 1000}m` : `${distanceFilter}km`} — nearest is ${formatDistance(nearest)} away. Try ${suggestedDist}.`
+            `${sold.length} ${isRental ? 'leased' : 'sold'} ${sold.length === 1 ? 'property' : 'properties'} found, but none match the current filters. Try clearing the price range or other filters.`
           )
         }
       } else {
@@ -673,7 +686,7 @@ export default function SoldPropertiesStep({
         )
       }
     },
-    [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, suburbFilter, soldWithin, dateFrom, dateTo, sortBy, subjectLat, subjectLng, confirmedAddress, isRental, subjectPropertyType]
+    [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, suburbFilter, landMin, landMax, soldWithin, dateFrom, dateTo, sortBy, subjectLat, subjectLng, confirmedAddress, isRental, subjectPropertyType]
   )
 
   // Re-apply filters when filter values change
@@ -681,7 +694,7 @@ export default function SoldPropertiesStep({
     if (rawComps.length > 0) {
       applyFilters(rawComps)
     }
-  }, [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, suburbFilter, soldWithin, dateFrom, dateTo, sortBy, subjectLat, subjectLng, rawComps, applyFilters])
+  }, [distanceFilter, bedsMin, bathsMin, priceMin, priceMax, propType, suburbFilter, landMin, landMax, soldWithin, dateFrom, dateTo, sortBy, subjectLat, subjectLng, rawComps, applyFilters])
 
   // Sparse-suburb auto-widen: after a fresh search, if the user hasn't touched
   // the time control and fewer than 15 comps fall within the default 12-month
@@ -1109,7 +1122,7 @@ export default function SoldPropertiesStep({
   // ─── Counts ───────────────────────────────────────────────────────────
   const selectedSoldCount = compRows.filter(r => r.included && r.address.trim()).length
 
-  const hasActiveFilters = !!(priceMin || priceMax || bedsMin || bathsMin || propType || suburbFilter || soldWithin || dateFrom || dateTo)
+  const hasActiveFilters = !!(priceMin || priceMax || bedsMin || bathsMin || propType || suburbFilter || landMin || landMax || soldWithin || dateFrom || dateTo)
 
   // Suburbs present in the current results (for the suburb filter dropdown)
   const availableSuburbs = useMemo(() => {
@@ -1410,6 +1423,8 @@ export default function SoldPropertiesStep({
                         setBathsMin('')
                         setPropType('')
                         setSuburbFilter('')
+                        setLandMin('')
+                        setLandMax('')
                         userSetTimeRef.current = true
                         setSoldWithin('')
                         setDateFrom('')
@@ -1514,6 +1529,28 @@ export default function SoldPropertiesStep({
                               <option key={sub} value={sub}>{titleCaseSuburb(sub)}</option>
                             ))}
                           </select>
+                        </div>
+                        <div>
+                          <label className={labelClasses}>min land (m²)</label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={landMin}
+                            onChange={e => setLandMin(e.target.value.replace(/[^0-9]/g, ''))}
+                            className={inputClasses}
+                            placeholder="Any"
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClasses}>max land (m²)</label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={landMax}
+                            onChange={e => setLandMax(e.target.value.replace(/[^0-9]/g, ''))}
+                            className={inputClasses}
+                            placeholder="Any"
+                          />
                         </div>
                         <div>
                           <label className={labelClasses}>{isRental ? 'leased within' : 'sold within'}</label>
