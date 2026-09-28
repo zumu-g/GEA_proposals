@@ -57,7 +57,8 @@ export function RentalFeeSheet({ heading, groups, notes, photoSrc }: RentalFeeSh
         and overran the logo below).
       */}
       <div className="absolute top-[70mm] left-[27.5%] w-fit -translate-x-1/2">
-        <h1 className="w-[64mm] text-[16pt] leading-[1.3] font-medium tracking-[0.12em] uppercase">
+        {/* Re-apply Montserrat: globals.css sets font-display (Playfair) on every h1. */}
+        <h1 className={`w-[64mm] text-[16pt] leading-[1.3] font-medium tracking-[0.12em] uppercase ${montserrat.className}`}>
           {heading}
         </h1>
 
