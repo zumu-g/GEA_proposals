@@ -33,8 +33,11 @@ export function RentalFeeSheet({ heading, groups, notes, photoSrc }: RentalFeeSh
         <img
           src={photoSrc}
           alt=""
-          className="absolute inset-y-0 right-0 left-[55%] h-full w-auto object-cover"
-          style={{ objectPosition: '62% 22%' }}
+          // Explicit width, not w-auto: a replaced element with width:auto takes
+          // its intrinsic ratio (~445mm wide here), so object-cover/position never
+          // crop and only the photo's left edge (the shoulder) was visible.
+          className="absolute inset-y-0 right-0 h-full w-[45%] object-cover"
+          style={{ objectPosition: '67% 22%' }}
         />
       )}
 
@@ -45,15 +48,15 @@ export function RentalFeeSheet({ heading, groups, notes, photoSrc }: RentalFeeSh
         overlapping them — two independently absolutely-positioned blocks with
         hardcoded `top` offsets was the bug: it only "worked" for the shorter
         heading. Measured off the source scan: the red panel ends at 55% width
-        (115.5mm), so this column (left 34mm, width 82mm) stays clear of the
-        photo with margin. The heading itself is narrower (64mm) so it wraps
+        (115.5mm), so this column is centred on that panel (midpoint 27.5%)
+        and sized to its content. The heading itself is narrower (64mm) so it wraps
         at the same points as the artwork. Each fee row is a fixed-width label
         column + a value that starts at a left tab-stop right after it — the
         source does NOT right-justify values to the panel edge, which is what
         the previous `justify-between` layout did (and why long labels wrapped
         and overran the logo below).
       */}
-      <div className="absolute top-[70mm] left-[34mm] w-[82mm]">
+      <div className="absolute top-[70mm] left-[27.5%] w-fit -translate-x-1/2">
         <h1 className="w-[64mm] text-[16pt] leading-[1.3] font-medium tracking-[0.12em] uppercase">
           {heading}
         </h1>
@@ -94,9 +97,10 @@ export function RentalFeeSheet({ heading, groups, notes, photoSrc }: RentalFeeSh
         </div>
       </div>
 
+      {/* Sheet-only logo recoloured to PMS 187 C; the shared grants-logo.svg keeps the app brand red. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/images/grants-logo.svg"
+        src="/images/grants-logo-187c.svg"
         alt="Grant's"
         className="absolute bottom-[40mm] left-[30mm] w-[52mm]"
       />
