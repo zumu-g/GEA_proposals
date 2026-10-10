@@ -47,7 +47,7 @@ export function InternetPresence({ listings, proposalType }: InternetPresencePro
 
           {/* Right — platform list */}
           <div className="lg:col-span-3">
-            <div className="space-y-4">
+            <div className="space-y-4 print-listing-list">
               {platforms.map((platform, index) => {
                 const isPremiere = platform.toLowerCase().includes('premiere')
                 return (

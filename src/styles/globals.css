@@ -314,6 +314,18 @@
     page-break-before: always;
   }
 
+  /* Internet listings + team share one page (TeamShowcase is
+     print-page-continue). Five listing rows at screen padding (461px) plus
+     the team block overflow the 718px body and push the team onto an
+     unfilled page; compact rows bring the pair to ~640px. */
+  .print-listing-list > * {
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+  }
+  .print-listing-list > * + * {
+    margin-top: 0.5rem !important;
+  }
+
   /* Chrome rasterises box-shadow blur into flat grey rectangles in PDF output,
      framing every photo, card and badge in a grey box. Shadows carry no
      information on paper. */
