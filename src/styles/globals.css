@@ -277,6 +277,49 @@
   .print-tile-list > * + * {
     margin-top: 1rem !important;
   }
+
+  /* Journey section budget: heading + three tiles must fit one landscape page
+     body (718px at 14px root). On screen the header carries ~176px of margin
+     and 3xl/5xl type; tiles are bounded by their text column, not the photo,
+     so the photo cap alone (print:h-[38mm]) can't buy the room. Tighten the
+     header and tile type here — print rules must live in this block because
+     Tailwind emits `sm:`/`lg:` (which also match print) after `print:`. */
+  .print-journey-header {
+    margin-bottom: 0.75rem !important;
+  }
+  .print-journey-header h2 {
+    font-size: 2rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+  .print-journey-header > p:last-child {
+    font-size: 0.9rem !important;
+  }
+  .print-tile-list h3 {
+    font-size: 1.25rem !important;
+    margin-bottom: 0.25rem !important;
+  }
+  .print-tile-list p {
+    font-size: 0.85rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+  .print-tile-list > * + * {
+    margin-top: 0.75rem !important;
+  }
+  /* Deliberate split: three tiles with the heading, the rest (3–4) on the
+     next page. Without it the split floats with content height — 2+3+1 on
+     production, 5+1 locally — and the last tile prints alone on a near-empty
+     page. */
+  .print-tile-list > :nth-child(4) {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  /* Chrome rasterises box-shadow blur into flat grey rectangles in PDF output,
+     framing every photo, card and badge in a grey box. Shadows carry no
+     information on paper. */
+  .proposal-print-root [class*="shadow-"] {
+    box-shadow: none !important;
+  }
   .print-comp-grid > * {
     break-inside: avoid;
     page-break-inside: avoid;
